@@ -476,26 +476,8 @@ export default function Dashboard() {
                   cursor: "pointer",
                 }}
               >
-                
-                <Send size={15} />
-              </button>
 
-              <button
-                onClick={() => navigate("/admin/exam-cards")}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "12px 22px",
-                  borderRadius: 14,
-                  border: "1.5px solid rgba(255,255,255,0.5)",
-                  background: "rgba(255,255,255,0.12)",
-                  color: "#fff",
-                  fontWeight: 700,
-                  fontSize: 13.5,
-                  cursor: "pointer",
-                }}
-              >
+              
                 Exam Cards
                 <IdCard size={15} />
               </button>
