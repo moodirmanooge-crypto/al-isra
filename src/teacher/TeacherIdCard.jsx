@@ -5,7 +5,7 @@ import { db } from "../firebase/firebase";
 import schoolLogo from "../admin/assets/logo.png";
 
 const SCHOOL = {
-  name1: "Al Isra PRIMARY",
+  name1: "AL - ISRA PRIMARY",
   name2: "& SECONDARY SCHOOL",
   nameArabic1: "مدرســـة ريسن اســتار",
   nameArabic2: "الأساسية والثانوية",
@@ -386,7 +386,7 @@ function CardFront({ teacher, teacherUsername, issued, expired }) {
         </div>
 
         <div className="tidc-logo-badge">
-          <img src={schoolLogo} alt="Al Isra School logo" />
+          <img src={schoolLogo} alt="AL - ISRA School logo" />
         </div>
 
         <div className="tidc-school-block-ar">

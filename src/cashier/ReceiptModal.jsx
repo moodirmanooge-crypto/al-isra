@@ -10,7 +10,7 @@ import {
 import { db } from "../firebase/firebase";
 import { theme } from "./theme.js";
 
-const SCHOOL_NAME = "Al Isra PRIMARY & SECONDARY SCHOOL";
+const SCHOOL_NAME = "AL - ISRA PRIMARY & SECONDARY SCHOOL";
 
 // Sanad-dugsiyeedka: bisha 1-8 waxay ka tirsan yihiin sanadkii hore
 // (Jan-Aug), bisha 9-12 waxay ka tirsan yihiin sanadka cusub (Sep-Dec).

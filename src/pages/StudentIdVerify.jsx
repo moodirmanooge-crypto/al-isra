@@ -84,7 +84,7 @@ export default function StudentIdVerify() {
       ) : (
         <>
           <div style={{ color: "#fff", marginBottom: 8, fontSize: 13, opacity: 0.7 }}>
-            Al Isra School — Official Student ID Verification
+            AL - ISRA School — Official Student ID Verification
           </div>
           {isManual ? (
             <ManualStudentIdCard card={student} />

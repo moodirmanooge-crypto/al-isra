@@ -57,7 +57,7 @@ export default function VerifyCertificate() {
     >
       <div style={{ textAlign: "center", marginBottom: 24 }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: "#111827" }}>
-          Al Isra Primary & Secondary School
+          AL - ISRA Primary & Secondary School
         </div>
         <div style={{ fontSize: 13.5, color: "#6B7280", marginTop: 2 }}>
           Certificate Verification
@@ -95,7 +95,7 @@ export default function VerifyCertificate() {
             bg="#DCFCE7"
             icon="✓"
             title="Certificate Verified"
-            message={`This is a genuine Class ${certificate.className || "8"} Leaving Certificate issued by Al Isra Primary & Secondary School.`}
+            message={`This is a genuine Class ${certificate.className || "8"} Leaving Certificate issued by AL - ISRA Primary & Secondary School.`}
           />
           <div style={{ marginTop: 24, width: "100%", maxWidth: 900, overflowX: "auto" }}>
             <CertificateCard

@@ -224,11 +224,11 @@ export default function Admissions() {
     <div className="adm-page">
       <header className="home-nav">
         <Link to="/" className="brand">
-          <img src={logo} className="brand-logo" alt="Al Isra School logo" />
+          <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
           <div className="brand-text">
-            <span className="brand-name">Al Isra SCHOOL</span>
+            <span className="brand-name">AL - ISRA SCHOOL</span>
             <span className="brand-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </span>
           </div>
         </Link>
@@ -269,7 +269,7 @@ export default function Admissions() {
 
       <section className="adm-hero">
         <div className="adm-hero-badge">Admissions</div>
-        <h1 className="adm-hero-title">Join Al Isra School</h1>
+        <h1 className="adm-hero-title">Join AL - ISRA School</h1>
         <p className="adm-hero-sub">
           Applications for the current academic year are open. Fill in the
           form below to start your child's journey with us.
@@ -492,11 +492,11 @@ export default function Admissions() {
 
       <footer className="home-footer">
         <div className="home-footer-left">
-          <img src={logo} className="footer-logo" alt="Al Isra School logo" />
+          <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
           <div>
-            <div className="footer-school-name">Al Isra SCHOOL</div>
+            <div className="footer-school-name">AL - ISRA SCHOOL</div>
             <div className="footer-school-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </div>
           </div>
         </div>

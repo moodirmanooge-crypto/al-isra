@@ -68,7 +68,7 @@ function emptyForm() {
     motherName: "",
     placeOfBirth: "",
     // Typed by hand:
-    completedSchool: "Al Isra Primary & Secondary School",
+    completedSchool: "AL - ISRA Primary & Secondary School",
     year: "",
   };
 }
@@ -643,7 +643,7 @@ export default function Certificates() {
                     <input
                       value={form.completedSchool}
                       onChange={(e) => setForm({ ...form, completedSchool: e.target.value })}
-                      placeholder="e.g. Al Isra Primary & Secondary School"
+                      placeholder="e.g. AL - ISRA Primary & Secondary School"
                       style={inputStyle}
                     />
                   </Field>

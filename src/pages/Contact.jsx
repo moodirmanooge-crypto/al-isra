@@ -8,7 +8,7 @@ import { MessageCircle, Mail, Phone, MapPin, Clock } from "lucide-react";
 const SUPPORT_WHATSAPP = "252617390261";
 const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
 const WHATSAPP_MESSAGE =
-  "Salaan, waxaan rabaa inaan wax ka weydiiyo Al Isra School.";
+  "Salaan, waxaan rabaa inaan wax ka weydiiyo AL - ISRA School.";
 
 const NAV_LINKS = [
   { label: "Home", to: "/" },
@@ -66,11 +66,11 @@ export default function Contact() {
     <div className="con-page">
       <header className="home-nav">
         <Link to="/" className="brand">
-          <img src={logo} className="brand-logo" alt="Al Isra School logo" />
+          <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
           <div className="brand-text">
-            <span className="brand-name">Al Isra SCHOOL</span>
+            <span className="brand-name">AL - ISRA SCHOOL</span>
             <span className="brand-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </span>
           </div>
         </Link>
@@ -181,11 +181,11 @@ export default function Contact() {
 
       <footer className="home-footer">
         <div className="home-footer-left">
-          <img src={logo} className="footer-logo" alt="Al Isra School logo" />
+          <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
           <div>
-            <div className="footer-school-name">Al Isra SCHOOL</div>
+            <div className="footer-school-name">AL - ISRA SCHOOL</div>
             <div className="footer-school-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </div>
           </div>
         </div>

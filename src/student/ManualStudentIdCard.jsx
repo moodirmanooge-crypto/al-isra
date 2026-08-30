@@ -5,7 +5,7 @@
 // on top at the correct positions.
 //
 // FIX (this pass): the printed template (ID_Front.png) changed to the new
-// "AL ISRA" design — a plain rounded-SQUARE photo box (not the old
+// "AL - ISRA" design — a plain rounded-SQUARE photo box (not the old
 // "shield with a pointed bottom" shape) and four separate labeled boxes
 // ("Full Name" box, "GRADE" pill, and stacked "ID No:#" / "Issue Date:" /
 // "Expire Date:" value boxes). Every position below was re-measured

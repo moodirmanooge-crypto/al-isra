@@ -6,7 +6,7 @@ import { getStorage } from "firebase/storage";
 import { getFunctions } from "firebase/functions";
 
 /* ===========================================================
-   Al Isra SCHOOL (NEW DATABASE)
+   AL - ISRA SCHOOL (NEW DATABASE)
    Project ID = one-click-onilne
 =========================================================== */
 
@@ -43,7 +43,7 @@ const galladApp = initializeApp(galladConfig, "gallad");
 
 export const db = getFirestore(risingApp);       // Firestore - one-click-onilne
 export const auth = getAuth(risingApp);          // Auth - login/password - one-click-onilne
-export const storage = getStorage(risingApp);    // Storage - Al Isra School (one-click-onilne)
+export const storage = getStorage(risingApp);    // Storage - AL - ISRA School (one-click-onilne)
 export const functions = getFunctions(risingApp, "us-central1"); // Backend Functions
 
 // Halkan waxaa ku jira labadii magac si uusan `SendSmsModal.jsx` u caban

@@ -2,7 +2,7 @@
 //
 // Public "News & Events" feed — reads posts written by the admin from
 // the Firestore `news` collection (see admin/pages/NewsManager.jsx).
-// Each post shows the school logo, "Al Isra School" as the author
+// Each post shows the school logo, "AL - ISRA School" as the author
 // name with a blue verified tick, the post text, and a like button that
 // any visitor can tap (text-only posts, no comments/share — likes only).
 
@@ -143,11 +143,11 @@ export default function News() {
     <div className="news-page">
       <header className="home-nav">
         <Link to="/" className="brand">
-          <img src={logo} className="brand-logo" alt="Al Isra School logo" />
+          <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
           <div className="brand-text">
-            <span className="brand-name">Al Isra SCHOOL</span>
+            <span className="brand-name">AL - ISRA SCHOOL</span>
             <span className="brand-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </span>
           </div>
         </Link>
@@ -178,7 +178,7 @@ export default function News() {
         <div className="news-hero-badge">News &amp; Events</div>
         <h1 className="news-hero-title">Latest Updates</h1>
         <p className="news-hero-sub">
-          Announcements and updates straight from Al Isra School.
+          Announcements and updates straight from AL - ISRA School.
         </p>
       </section>
 
@@ -195,13 +195,13 @@ export default function News() {
               <div className="news-card" key={post.id}>
                 <div className="news-card-header">
                   {logo ? (
-                    <img src={logo} alt="Al Isra School" className="news-avatar" />
+                    <img src={logo} alt="AL - ISRA School" className="news-avatar" />
                   ) : (
                     <span className="news-avatar-fallback">R</span>
                   )}
                   <div className="news-author-block">
                     <div className="news-author-name-row">
-                      <span className="news-author-name">Al Isra School</span>
+                      <span className="news-author-name">AL - ISRA School</span>
                       <span className="news-verified-badge">✓</span>
                     </div>
                     <span className="news-author-meta">
@@ -228,11 +228,11 @@ export default function News() {
 
       <footer className="home-footer">
         <div className="home-footer-left">
-          <img src={logo} className="footer-logo" alt="Al Isra School logo" />
+          <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
           <div>
-            <div className="footer-school-name">Al Isra SCHOOL</div>
+            <div className="footer-school-name">AL - ISRA SCHOOL</div>
             <div className="footer-school-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </div>
           </div>
         </div>

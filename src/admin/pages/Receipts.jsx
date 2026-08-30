@@ -6,7 +6,7 @@ import { Search, Printer, X, Receipt as ReceiptIcon, Trash2 } from "lucide-react
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 
-const SCHOOL_NAME = "Al Isra PRIMARY & SECONDARY SCHOOL";
+const SCHOOL_NAME = "AL - ISRA PRIMARY & SECONDARY SCHOOL";
 
 function formatDate(value) {
   if (!value) return "—";

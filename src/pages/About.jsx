@@ -46,7 +46,7 @@ const MISSION_PILLARS = [
 ];
 
 const HISTORY_TIMELINE = [
-  { year: "2014", text: "Al Isra Primary & Secondary School was founded in Mogadishu with a mission to raise the next generation of leaders." },
+  { year: "2014", text: "AL - ISRA Primary & Secondary School was founded in Mogadishu with a mission to raise the next generation of leaders." },
   { year: "2015", text: "Welcomed our first full cohort of students and hired additional qualified teaching staff." },
   { year: "2016", text: "Introduced a structured curriculum and set up our first dedicated classrooms for primary grades." },
   { year: "2017", text: "Expanded classrooms and introduced a dedicated science and computer lab for hands-on learning." },
@@ -139,10 +139,10 @@ export default function About() {
       {/* ---------- Top Nav ---------- */}
       <header className="home-nav">
         <Link to="/" className="brand">
-          <img src={logo} className="brand-logo" alt="Al Isra School logo" />
+          <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
           <div className="brand-text">
-            <span className="brand-name">Al Isra SCHOOL</span>
-            <span className="brand-tagline">Al Isra PRIMARY &amp; SECONDARY SCHOOL</span>
+            <span className="brand-name">AL - ISRA SCHOOL</span>
+            <span className="brand-tagline">AL - ISRA PRIMARY &amp; SECONDARY SCHOOL</span>
           </div>
         </Link>
 
@@ -215,7 +215,7 @@ export default function About() {
       {/* ---------- About Hero ---------- */}
       <section className="about-hero">
         <span className="about-eyebrow">
-          <span className="about-eyebrow-star">★</span> About Al Isra School
+          <span className="about-eyebrow-star">★</span> About AL - ISRA School
         </span>
         <h1 className="about-hero-title">
           Nurturing Minds,
@@ -223,7 +223,7 @@ export default function About() {
           <span className="about-hero-title-accent">Building Futures</span>
         </h1>
         <p className="about-hero-lede">
-          Since 2014, Al Isra Primary &amp; Secondary School has been committed
+          Since 2014, AL - ISRA Primary &amp; Secondary School has been committed
           to academic excellence, character building and innovative learning —
           preparing every child to become a responsible global citizen and future leader.
         </p>
@@ -244,7 +244,7 @@ export default function About() {
       {/* ---------- Mission / Vision / Photo ---------- */}
       <section className="about-mission-grid">
         <div className="about-mission-photo-wrap">
-          <img src={heroPhoto} alt="Al Isra School students" className="about-mission-photo" />
+          <img src={heroPhoto} alt="AL - ISRA School students" className="about-mission-photo" />
         </div>
 
         <div className="about-mission-cards">
@@ -277,7 +277,7 @@ export default function About() {
       <section className="about-section about-section-alt">
         <h2 className="about-section-title">How We Deliver Our Mission</h2>
         <p className="about-section-sub">
-          Three pillars that shape every classroom, every lesson, and every student at Al Isra School.
+          Three pillars that shape every classroom, every lesson, and every student at AL - ISRA School.
         </p>
 
         <div className="mission-pillars-grid">
@@ -294,7 +294,7 @@ export default function About() {
       {/* ---------- Core Values ---------- */}
       <section className="about-section">
         <h2 className="about-section-title">What We Stand For</h2>
-        <p className="about-section-sub">The values that guide everything we do at Al Isra School.</p>
+        <p className="about-section-sub">The values that guide everything we do at AL - ISRA School.</p>
 
         <div className="core-values-grid">
           {CORE_VALUES.map((v) => (
@@ -326,7 +326,7 @@ export default function About() {
       {/* ---------- Leadership ---------- */}
       <section className="about-section">
         <h2 className="about-section-title">School Leadership</h2>
-        <p className="about-section-sub">Guiding Al Isra School with care, discipline and vision.</p>
+        <p className="about-section-sub">Guiding AL - ISRA School with care, discipline and vision.</p>
 
         <div className="leadership-grid">
           {LEADERSHIP.map((l) => (
@@ -341,7 +341,7 @@ export default function About() {
 
       {/* ---------- CTA ---------- */}
       <section className="about-cta">
-        <h2 className="about-cta-title">Ready to Join Al Isra School?</h2>
+        <h2 className="about-cta-title">Ready to Join AL - ISRA School?</h2>
         <p className="about-cta-text">
           Give your child the foundation they deserve. Admissions are open now.
         </p>
@@ -358,11 +358,11 @@ export default function About() {
       {/* ---------- Footer ---------- */}
       <footer className="home-footer">
         <div className="home-footer-left">
-          <img src={logo} className="footer-logo" alt="Al Isra School logo" />
+          <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
           <div>
-            <div className="footer-school-name">Al Isra SCHOOL</div>
+            <div className="footer-school-name">AL - ISRA SCHOOL</div>
             <div className="footer-school-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </div>
           </div>
         </div>

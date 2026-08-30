@@ -140,10 +140,10 @@ export default function VerifyIdCard() {
     <div style={wrapStyle}>
       <div style={{ marginBottom: 18, textAlign: "center" }}>
         <h1 style={{ fontSize: 16, fontWeight: 800, color: "#111827", margin: 0 }}>
-          Al Isra School — ID Verification
+          AL - ISRA School — ID Verification
         </h1>
         <p style={{ fontSize: 12.5, color: "#9CA3AF", margin: "4px 0 0" }}>
-          This card is issued and verified by Al Isra Primary &amp; Secondary School.
+          This card is issued and verified by AL - ISRA Primary &amp; Secondary School.
         </p>
       </div>
 

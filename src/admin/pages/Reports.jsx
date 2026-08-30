@@ -26,7 +26,7 @@ const monthNames = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-const SCHOOL_NAME = "Al Isra PRIMARY & SECONDARY SCHOOL";
+const SCHOOL_NAME = "AL - ISRA PRIMARY & SECONDARY SCHOOL";
 
 export default function Reports() {
   const [payments, setPayments] = useState([]); // unified: regular + examCard

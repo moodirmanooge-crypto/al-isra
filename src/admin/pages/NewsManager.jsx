@@ -2,7 +2,7 @@
 //
 // Admin page for posting text-only news/announcements to the public
 // News & Events page. Writes to Firestore `news` collection; the admin
-// avatar and "Al Isra School" name + verified tick are rendered by
+// avatar and "AL - ISRA School" name + verified tick are rendered by
 // the public News.jsx page itself, not stored per-post.
 
 import { useEffect, useState } from "react";
@@ -236,7 +236,7 @@ export default function NewsManager() {
                       />
                       <div>
                         <div style={{ color: "#fff", fontWeight: 700, fontSize: 13 }}>
-                          Al Isra School
+                          AL - ISRA School
                         </div>
                         <div style={{ color: "#8b87ad", fontSize: 11.5 }}>
                           {formatDate(post.createdAt)}

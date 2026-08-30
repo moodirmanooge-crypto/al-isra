@@ -252,10 +252,10 @@ export default function Home() {
       {/* ---------- Top Nav ---------- */}
       <header className="home-nav">
         <Link to="/" className="brand">
-          <img src={logo} className="brand-logo" alt="Al Isra School logo" />
+          <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
           <div className="brand-text">
-            <span className="brand-name">Al Isra SCHOOL</span>
-            <span className="brand-tagline">Al Isra PRIMARY &amp; SECONDARY SCHOOL</span>
+            <span className="brand-name">AL - ISRA SCHOOL</span>
+            <span className="brand-tagline">AL - ISRA PRIMARY &amp; SECONDARY SCHOOL</span>
           </div>
         </Link>
 
@@ -340,7 +340,7 @@ export default function Home() {
             ) : (
               <img
                 src={heroMedia.mediaUrl}
-                alt="Al Isra School"
+                alt="AL - ISRA School"
                 className="hero-photo-box-img"
               />
             )
@@ -409,7 +409,7 @@ export default function Home() {
         <div className="about-preview-card">
           <h2 className="about-preview-title">About Our School</h2>
           <p className="about-preview-text">
-            At Al Isra School, we are dedicated to nurturing young
+            At AL - ISRA School, we are dedicated to nurturing young
             minds through academic excellence, character building and
             innovative learning. Our mission is to prepare students to
             become responsible global citizens and future leaders.
@@ -440,11 +440,11 @@ export default function Home() {
       {/* ---------- Footer ---------- */}
       <footer className="home-footer">
         <div className="home-footer-left">
-          <img src={logo} className="footer-logo" alt="Al Isra School logo" />
+          <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
           <div>
-            <div className="footer-school-name">Al Isra SCHOOL</div>
+            <div className="footer-school-name">AL - ISRA SCHOOL</div>
             <div className="footer-school-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </div>
           </div>
         </div>

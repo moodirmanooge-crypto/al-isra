@@ -746,8 +746,8 @@ export default function Gallery() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: "Al Isra School Gallery",
-          text: item.caption || "Check this out from Al Isra School",
+          title: "AL - ISRA School Gallery",
+          text: item.caption || "Check this out from AL - ISRA School",
           url,
         });
         return;
@@ -768,11 +768,11 @@ export default function Gallery() {
     <div className="gal-page">
       <header className="home-nav">
         <Link to="/" className="brand">
-          <img src={logo} className="brand-logo" alt="Al Isra School logo" />
+          <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
           <div className="brand-text">
-            <span className="brand-name">Al Isra SCHOOL</span>
+            <span className="brand-name">AL - ISRA SCHOOL</span>
             <span className="brand-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </span>
           </div>
         </Link>
@@ -801,7 +801,7 @@ export default function Gallery() {
 
       <section className="gal-hero">
         <div className="gal-hero-badge">Gallery</div>
-        <h1 className="gal-hero-title">Moments at Al Isra School</h1>
+        <h1 className="gal-hero-title">Moments at AL - ISRA School</h1>
         <p className="gal-hero-sub">
           Photos and videos from school life — like, comment, and share
           your favorites.
@@ -909,7 +909,7 @@ export default function Gallery() {
                       <div className="gal-post-author-block">
                         <div className="gal-post-author-row">
                           <span className="gal-post-author-name">
-                            Al Isra School
+                            AL - ISRA School
                           </span>
                           <span className="gal-post-verified">✓</span>
                         </div>
@@ -987,7 +987,7 @@ export default function Gallery() {
                   <img src={logo} alt="" className="gal-modal-avatar" />
                   <div>
                     <div className="gal-post-author-row">
-                      <strong>Al Isra School</strong>
+                      <strong>AL - ISRA School</strong>
                       <span className="gal-post-verified">✓</span>
                     </div>
                     <span className="gal-post-date">
@@ -1076,11 +1076,11 @@ export default function Gallery() {
 
       <footer className="home-footer">
         <div className="home-footer-left">
-          <img src={logo} className="footer-logo" alt="Al Isra School logo" />
+          <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
           <div>
-            <div className="footer-school-name">Al Isra SCHOOL</div>
+            <div className="footer-school-name">AL - ISRA SCHOOL</div>
             <div className="footer-school-tagline">
-              Al Isra PRIMARY &amp; SECONDARY SCHOOL
+              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
             </div>
           </div>
         </div>

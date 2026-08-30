@@ -3,7 +3,7 @@ import React from "react";
 import schoolLogo from "../assets/rising-star-logo.png";
 
 const SCHOOL = {
-  name1: "Al Isra PRIMARY",
+  name1: "AL - ISRA PRIMARY",
   name2: "& SECONDARY SCHOOL",
   slogan: '"Education is life it`s self"',
   officeLine1: "Primary Office: Wadajir,",
@@ -425,7 +425,7 @@ function CardFront({ student, studentId, issued, expired }) {
     <div className="idc-card idc-front" id="idc-print-front">
       <div className="idc-front-header">
         <div className="idc-logo-badge">
-          <img src={schoolLogo} alt="Al Isra School logo" />
+          <img src={schoolLogo} alt="AL - ISRA School logo" />
         </div>
         <div className="idc-school-block">
           <div className="idc-school-name1">{SCHOOL.name1}</div>
@@ -506,7 +506,7 @@ function CardBack({ student, studentId }) {
 
       <div className="idc-back-content">
         <div className="idc-back-intro">if you found  Please return to</div>
-        <div className="idc-back-school">Al Isra SCHOOL</div>
+        <div className="idc-back-school">AL - ISRA SCHOOL</div>
         <div className="idc-back-address">
           {SCHOOL.officeLine1}
           <br />

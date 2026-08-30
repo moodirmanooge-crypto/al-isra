@@ -24,8 +24,8 @@ import certificateTemplate from "./assets/certificate-template.png";
 const CARD_W = 900;
 const RATIO = 2481 / 3508;
 
-// School name is fixed — always "Al Isra School" on both sides.
-const SCHOOL_NAME = "Al Isra School";
+// School name is fixed — always "AL - ISRA School" on both sides.
+const SCHOOL_NAME = "AL - ISRA School";
 
 // Font sizes — per-field, tuned to match the real printed certificate's
 // proportions (wider fields get smaller text so they never overflow).
