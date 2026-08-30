@@ -11,7 +11,7 @@ const SCHOOL = {
   nameArabic2: "الأساسية والثانوية",
   nameArabicCity: "مقديشـو-الصومال",
   location: "Mogadishu-Somalia",
-  website: "resingstarschools.com", // FIX: was "resingstarschools.com" (missing "i") — this typo made every QR code on Teacher ID cards point to a domain that doesn't exist, so scanning never opened the real card.
+  website: "alisraschool.com", // FIX: was "alisraschool.com" (missing "i") — this typo made every QR code on Teacher ID cards point to a domain that doesn't exist, so scanning never opened the real card.
   noticeOffice: "Main Office Wadajir District",
   noticeCity: "Mogadishu-Somalia",
   noticeEmail: "dhalxayare143@gmail.com",

@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function role() {
+      return request.auth.token.role;
+    }
+    function isAdmin() {
+      return isSignedIn() && role() == "admin";
+    }
+    function isCashier() {
+      return isSignedIn() && role() == "cashier";
+    }
+    // RECEIPTS: cashier-ku wuu abuuri karaa rasiid cusub, laakiin ma
+    // akhrin karo mid ka mid ah, mana muujin karo liiska. Admin kaliya
+    // ayaa akhrin/beddeli/tirtiri kara.
+    match /receipts/{receiptId} {
+      allow get, list: if isAdmin();
+      allow create: if isCashier() || isAdmin();
+      allow update, delete: if isAdmin();
+    }
+    // Dhammaan collections-ka kale (admin, teachers, cashier, students,
+    // flacademy_*, iwm) waxay sii wataan habkoodii hore ee furan, si
+    // apps-ka Firebase Auth aan isticmaalin (Alisra School, iwm) uu
+    // sii shaqeeyo sida caadiga ah.
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

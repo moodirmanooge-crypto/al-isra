@@ -10,7 +10,7 @@ const SCHOOL = {
   officeLine2: "Mogadishu-Somalia",
   phone: "+252-617390261",
   email: "dhalxayare143@gmail.com",
-  website: "resingstarschools.com",
+  website: "alisraschool.com",
 };
 
 // Card is valid for exactly one year from the issue date.
