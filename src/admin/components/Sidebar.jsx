@@ -133,9 +133,7 @@ export default function Sidebar() {
     <aside
       style={{
         width: 270,
-        height: "100vh",
-        position: "sticky",
-        top: 0,
+        minHeight: "100vh",
         background: "#ffffff",
         color: "#111827",
         display: "flex",
@@ -144,7 +142,7 @@ export default function Sidebar() {
         borderRight: "1px solid rgba(15,61,46,0.08)",
       }}
     >
-      <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <div>
         {/* Logo */}
         <div
           style={{
@@ -152,7 +150,6 @@ export default function Sidebar() {
             display: "flex",
             alignItems: "center",
             gap: 12,
-            flexShrink: 0,
           }}
         >
           <div
@@ -191,7 +188,7 @@ export default function Sidebar() {
                 letterSpacing: "0.01em",
               }}
             >
-              AL - ISRA
+              AL - ISRA SCHOOL
             </h2>
             <small style={{ color: "#9CA3AF", fontSize: 11.5 }}>
               School Management System
@@ -199,9 +196,8 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Menu — this is the only part that scrolls, so the logo above it
-            and the Help/Log Out sections below it always stay in view. */}
-        <div style={{ padding: "8px 18px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+        {/* Menu */}
+        <div style={{ padding: "8px 18px", overflowY: "auto" }}>
           {visibleMenus.map((item) => {
             const Icon = item.icon;
             const showBadge = item.path === "/admin/admissions" && pendingAdmissions > 0;
