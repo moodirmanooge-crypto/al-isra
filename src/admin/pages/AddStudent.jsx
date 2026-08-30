@@ -155,11 +155,7 @@ export default function AddStudent() {
         return;
       }
 
-      // ✅ Sawirka ardayga waa waajib — marnaba lama tagi karo
-      if (!student.studentPhoto) {
-        alert("Fadlan soo dooro Sawirka Ardayga — waa waajib");
-        return;
-      }
+      // Sawirka ardayga hadda waa ikhtiyaari (optional) — lama qasbo.
 
       setSaving(true);
 
@@ -177,15 +173,17 @@ export default function AddStudent() {
       const existingSnap = await getDocs(collection(db, "students"));
       const studentId = String(existingSnap.size + 1).padStart(4, "0");
 
+      // Sawirka waa ikhtiyaari — haddii uu la doortay wuu soo shubmayaa,
+      // haddii kalese photoURL wuxuu ahaanayaa string madhan.
       let photoURL = "";
-      const photoRef = ref(
-        storage,
-        `students/${studentId}/${Date.now()}_${student.studentPhoto.name}`
-      );
-
-      await uploadBytes(photoRef, student.studentPhoto);
-
-      photoURL = await getDownloadURL(photoRef);
+      if (student.studentPhoto) {
+        const photoRef = ref(
+          storage,
+          `students/${studentId}/${Date.now()}_${student.studentPhoto.name}`
+        );
+        await uploadBytes(photoRef, student.studentPhoto);
+        photoURL = await getDownloadURL(photoRef);
+      }
 
       const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
 
@@ -295,7 +293,7 @@ export default function AddStudent() {
                 : "rgba(139,108,245,0.08)",
               border: student.studentPhoto
                 ? "2px solid #6d5df0"
-                : "2px dashed #ff6b6b",
+                : "2px dashed rgba(139,108,245,0.4)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -315,11 +313,13 @@ export default function AddStudent() {
 
           <div>
             <div style={{ fontWeight: 700, color: "#fff", fontSize: 22 }}>
-              Sawirka Ardayga <span style={{ color: "#ff6b6b" }}>*</span>
+              Sawirka Ardayga{" "}
+              <span style={{ color: "#8b87ad", fontWeight: 400, fontSize: 14 }}>
+                (ikhtiyaari)
+              </span>
             </div>
             <div style={{ color: "#8b87ad", fontSize: 14, marginTop: 6 }}>
-              {/* ✅ Sawirku hadda waa waajib, ma aha ikhtiyaari */}
-              Riix goobta si aad sawir uga soo dooratid — waa waajib
+              Riix goobta si aad sawir uga soo dooratid
             </div>
           </div>
         </div>

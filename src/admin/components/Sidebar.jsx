@@ -1,6 +1,6 @@
 // Sidebar.jsx
 import { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { db } from "../../firebase/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
 import {
@@ -31,6 +31,7 @@ import {
   ClipboardCheck,
   BookOpen,
   UploadCloud,
+  LogOut,
 } from "lucide-react";
 
 import logo from "../assets/logo.png";
@@ -74,6 +75,8 @@ const SUPPORT_WHATSAPP = "252617390261"; // international format, no + or leadin
 const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
 
 export default function Sidebar() {
+  const navigate = useNavigate();
+
   // A sub-admin's session carries adminRole: "subadmin" and an
   // adminPermissions JSON array of allowed paths (set at login in
   // LoginForm.jsx from their `admin/{email}` doc). The original Super
@@ -115,6 +118,16 @@ export default function Sidebar() {
     );
     return () => unsub();
   }, []);
+
+  // Clears the admin session (role + permissions + anything else an
+  // admin login may have stored under these keys) and sends the admin
+  // straight to the system's home page — not back to the admin login
+  // screen, per how this button is meant to behave.
+  function handleLogout() {
+    localStorage.removeItem("adminRole");
+    localStorage.removeItem("adminPermissions");
+    navigate("/");
+  }
 
   return (
     <aside
@@ -291,7 +304,7 @@ export default function Sidebar() {
       </div>
 
       {/* Help card */}
-      <div style={{ padding: 20 }}>
+      <div style={{ padding: "20px 20px 0" }}>
         <div
           style={{
             background: "linear-gradient(145deg,#EFFBF3,#E6F5EC)",
@@ -351,6 +364,32 @@ export default function Sidebar() {
             Email Support
           </a>
         </div>
+      </div>
+
+      {/* Log Out — bottom of the sidebar, below the Help card. Clears the
+          admin session and sends the admin to the system's home page. */}
+      <div style={{ padding: 20 }}>
+        <button
+          onClick={handleLogout}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+            padding: "12px 0",
+            borderRadius: 12,
+            border: "1px solid rgba(220,38,38,0.25)",
+            background: "rgba(220,38,38,0.06)",
+            color: "#DC2626",
+            fontWeight: 700,
+            fontSize: 13.5,
+            cursor: "pointer",
+          }}
+        >
+          <LogOut size={17} />
+          Log Out
+        </button>
       </div>
     </aside>
   );
