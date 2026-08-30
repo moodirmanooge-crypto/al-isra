@@ -460,8 +460,10 @@ export default function Dashboard() {
                 <Send size={15} />
               </button>
 
+            
+
               <button
-                onClick={() => setSmsModalOpen(true)}
+                onClick={() => navigate("/admin/exam-cards")}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
@@ -476,8 +478,6 @@ export default function Dashboard() {
                   cursor: "pointer",
                 }}
               >
-
-              
                 Exam Cards
                 <IdCard size={15} />
               </button>
