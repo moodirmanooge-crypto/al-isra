@@ -123,7 +123,8 @@ export default function BulkRegistration() {
     }
   };
 
-  // ✅ Hubinta xogta safka hore intaan la kaydin — sawirka + lambarrada
+  // ✅ Hubinta xogta safka hore intaan la kaydin — sawirka hadda waa
+  // ikhtiyaari, lambarrada ayaa weli la hubiyaa
   const validateStudents = () => {
     for (let i = 0; i < students.length; i++) {
       const s = students[i];
@@ -160,11 +161,7 @@ export default function BulkRegistration() {
         return false;
       }
 
-      // ✅ Sawirka ardayga waa waajib — marnaba lama tagi karo qaybtan
-      if (!s.studentPhoto) {
-        alert(`${rowLabel}: Fadlan soo dooro Sawirka Ardayga — waa waajib`);
-        return false;
-      }
+      // Sawirka ardayga hadda waa ikhtiyaari (optional) — lama qasbo.
     }
     return true;
   };
@@ -191,15 +188,17 @@ export default function BulkRegistration() {
         nextIdNumber += 1;
         const studentId = String(nextIdNumber).padStart(4, "0");
 
+        // Sawirka waa ikhtiyaari — haddii uu la doortay wuu soo shubmayaa,
+        // haddii kalese photoURL wuxuu ahaanayaa string madhan.
         let photoURL = "";
-        const photoRef = ref(
-          storage,
-          `students/${studentId}/${Date.now()}_${student.studentPhoto.name}`
-        );
-
-        await uploadBytes(photoRef, student.studentPhoto);
-
-        photoURL = await getDownloadURL(photoRef);
+        if (student.studentPhoto) {
+          const photoRef = ref(
+            storage,
+            `students/${studentId}/${Date.now()}_${student.studentPhoto.name}`
+          );
+          await uploadBytes(photoRef, student.studentPhoto);
+          photoURL = await getDownloadURL(photoRef);
+        }
 
         const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
 
@@ -339,7 +338,7 @@ export default function BulkRegistration() {
                 <th style={th}>Previous School</th>
                 <th style={th}>Orphan Status</th>
                 <th style={th}>Parent Password</th>
-                <th style={th}>Student Photo *</th>
+                <th style={th}>Student Photo</th>
                 <th style={{ ...th, textAlign: "center" }}></th>
               </tr>
             </thead>
@@ -514,19 +513,19 @@ export default function BulkRegistration() {
                         display: "flex",
                         alignItems: "center",
                         gap: 6,
-                        color: student.studentPhoto ? "#4ade80" : "#f87171",
+                        color: student.studentPhoto ? "#4ade80" : "#a9a6c4",
                         fontSize: 12,
                         cursor: "pointer",
                         border: student.studentPhoto
                           ? "1px solid rgba(74,222,128,0.4)"
-                          : "1px dashed #f87171",
+                          : "1px dashed rgba(139,108,245,0.4)",
                         borderRadius: 8,
                         padding: "7px 9px",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      <Upload size={13} color={student.studentPhoto ? "#4ade80" : "#f87171"} />
-                      {student.studentPhoto ? student.studentPhoto.name.slice(0, 10) + "…" : "Upload *"}
+                      <Upload size={13} color={student.studentPhoto ? "#4ade80" : "#a9a6c4"} />
+                      {student.studentPhoto ? student.studentPhoto.name.slice(0, 10) + "…" : "Upload"}
                       <input
                         type="file"
                         accept="image/*"
