@@ -638,7 +638,7 @@ export default function ResultsByClass() {
                                       {(row.studentName || "?").charAt(0).toUpperCase()}
                                     </div>
                                   )}
-                                  <span style={{ fontWeight: 600 }}>{row.studentName}</span>
+                                  <span style={{ fontWeight: 700 }}>{row.studentName}</span>
                                 </div>
                               </td>
                               {group.subjects.map((subj) => (
@@ -694,4 +694,5 @@ const tdStyle = {
   padding: "8px 10px",
   color: "#111827",
   whiteSpace: "nowrap",
+  fontWeight: 700,
 };
