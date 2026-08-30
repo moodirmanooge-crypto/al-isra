@@ -476,7 +476,7 @@ export default function Dashboard() {
                   cursor: "pointer",
                 }}
               >
-                Send SMS
+                
                 <Send size={15} />
               </button>
 
