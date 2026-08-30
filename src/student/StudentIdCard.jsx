@@ -9,7 +9,7 @@ const SCHOOL = {
   officeLine1: "Primary Office: Wadajir,",
   officeLine2: "Mogadishu-Somalia",
   phone: "+252-617390261",
-  email: "risingstar0261@gmail.com",
+  email: "dhalxayare143@gmail.com",
   website: "resingstarschools.com",
 };
 

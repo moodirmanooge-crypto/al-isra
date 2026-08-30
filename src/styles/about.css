@@ -232,13 +232,40 @@
   padding: 56px clamp(16px, 6vw, 48px) 40px;
   max-width: 900px;
   margin: 0 auto;
+  position: relative;
+}
+
+.about-hero::before {
+  content: "";
+  position: absolute;
+  top: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, 90vw);
+  height: 420px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(34, 160, 95, 0.16) 0%,
+    rgba(234, 179, 8, 0.08) 45%,
+    transparent 75%
+  );
+  filter: blur(10px);
+  pointer-events: none;
+  z-index: -1;
+  animation: about-glow-float 9s ease-in-out infinite;
+}
+
+@keyframes about-glow-float {
+  0%, 100% { transform: translateX(-50%) translateY(0) scale(1); }
+  50% { transform: translateX(-50%) translateY(-14px) scale(1.04); }
 }
 
 .about-eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: #fff8e1;
+  background: linear-gradient(90deg, #fff8e1, #fef3c7, #fff8e1);
+  background-size: 200% 100%;
   border: 1px solid #f7e29c;
   color: #92720f;
   font-weight: 700;
@@ -246,10 +273,23 @@
   padding: 8px 16px;
   border-radius: 999px;
   margin-bottom: 22px;
+  animation: about-eyebrow-shimmer 4.5s ease-in-out infinite;
+}
+
+@keyframes about-eyebrow-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .about-eyebrow-star {
   color: var(--rs-yellow);
+  display: inline-block;
+  animation: about-star-twinkle 2.2s ease-in-out infinite;
+}
+
+@keyframes about-star-twinkle {
+  0%, 100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  50% { opacity: 0.55; transform: scale(0.85) rotate(15deg); }
 }
 
 .about-hero-title {
@@ -262,7 +302,24 @@
 }
 
 .about-hero-title-accent {
-  color: var(--rs-green-700);
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(90deg, var(--rs-green-700), var(--rs-green-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.about-hero-title-accent::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: -6px;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--rs-green-500), var(--rs-yellow));
+  opacity: 0.35;
 }
 
 .about-hero-lede {
@@ -291,6 +348,13 @@
   padding: 14px 20px;
   min-width: 150px;
   text-align: left;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.about-stat-pill:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--rs-shadow-lg);
+  border-color: var(--rs-green-500);
 }
 
 .about-stat-icon {
@@ -337,6 +401,11 @@
   min-height: 320px;
   object-fit: cover;
   display: block;
+  transition: transform 0.5s ease;
+}
+
+.about-mission-photo-wrap:hover .about-mission-photo {
+  transform: scale(1.04);
 }
 
 .about-mission-badge {
@@ -390,6 +459,12 @@
   border-radius: var(--rs-radius-lg);
   padding: 28px 30px;
   flex: 1;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.about-mission-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--rs-shadow-lg);
 }
 
 .about-mission-card-icon {
@@ -440,6 +515,18 @@
   font-weight: 900;
   color: var(--rs-ink);
   margin: 0 0 10px;
+  position: relative;
+  display: inline-block;
+}
+
+.about-section-title::after {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--rs-green-600), var(--rs-yellow));
+  margin: 12px auto 0;
 }
 
 .about-section-sub {
@@ -480,6 +567,11 @@
   background: var(--rs-green-100);
   border-radius: 14px;
   margin-bottom: 16px;
+  transition: transform 0.2s ease;
+}
+
+.core-value-card:hover .core-value-icon {
+  transform: scale(1.1) rotate(-4deg);
 }
 
 .core-value-title {
@@ -606,6 +698,7 @@
   background: var(--rs-green-600);
   border: 3px solid var(--rs-green-100);
   margin-top: 4px;
+  box-shadow: 0 0 0 4px rgba(34, 160, 95, 0.12);
 }
 
 .timeline-text {
@@ -628,6 +721,12 @@
   box-shadow: var(--rs-shadow);
   border-radius: var(--rs-radius-lg);
   padding: 32px 22px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.leadership-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--rs-shadow-lg);
 }
 
 .leadership-icon {
@@ -640,6 +739,11 @@
   background: var(--rs-green-100);
   border-radius: 50%;
   margin-bottom: 16px;
+  transition: transform 0.2s ease;
+}
+
+.leadership-card:hover .leadership-icon {
+  transform: scale(1.1);
 }
 
 .leadership-name {
@@ -664,6 +768,23 @@
   background: linear-gradient(135deg, var(--rs-green-900), var(--rs-green-700));
   padding: 64px clamp(16px, 6vw, 48px);
   color: var(--rs-white);
+  position: relative;
+  overflow: hidden;
+}
+
+.about-cta::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 12% 20%, rgba(234, 179, 8, 0.14) 0%, transparent 40%),
+    radial-gradient(circle at 88% 80%, rgba(34, 160, 95, 0.25) 0%, transparent 45%);
+  pointer-events: none;
+}
+
+.about-cta > * {
+  position: relative;
+  z-index: 1;
 }
 
 .about-cta-title {

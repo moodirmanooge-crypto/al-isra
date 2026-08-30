@@ -6,8 +6,8 @@ import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 
 const SUPPORT_WHATSAPP = "252617390261";
-const SUPPORT_EMAIL = "risingstar0261@gmail.com";
-const SUPPORT_PHONE_DISPLAY = "+252 61 7390261";
+const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
+const SUPPORT_PHONE_DISPLAY = "+252 61 5860629";
 const SUPPORT_LOCATION = "Mogadishu, Somalia";
 
 const NAV_LINKS = [
@@ -46,8 +46,17 @@ const MISSION_PILLARS = [
 ];
 
 const HISTORY_TIMELINE = [
-  { year: "2023", text: "Al Isra Primary & Secondary School was founded in Mogadishu with a mission to raise the next generation of leaders." },
-  { year: "2024", text: "Expanded classrooms and introduced a dedicated science and computer lab for hands-on learning." },
+  { year: "2014", text: "Al Isra Primary & Secondary School was founded in Mogadishu with a mission to raise the next generation of leaders." },
+  { year: "2015", text: "Welcomed our first full cohort of students and hired additional qualified teaching staff." },
+  { year: "2016", text: "Introduced a structured curriculum and set up our first dedicated classrooms for primary grades." },
+  { year: "2017", text: "Expanded classrooms and introduced a dedicated science and computer lab for hands-on learning." },
+  { year: "2018", text: "Opened enrollment for secondary grades, extending our academic program beyond primary school." },
+  { year: "2019", text: "Strengthened extracurricular activities and introduced regular exams and progress reporting for parents." },
+  { year: "2020", text: "Grew into a full primary and secondary campus, welcoming hundreds of new students across Mogadishu." },
+  { year: "2021", text: "Renovated and expanded school facilities to keep pace with our growing student body." },
+  { year: "2022", text: "Invested in teacher training and professional development to raise academic standards further." },
+  { year: "2023", text: "Strengthened our academic programs and teaching staff, marking a decade of steady, disciplined growth." },
+  { year: "2024", text: "Upgraded our administrative systems and expanded support services for students and parents." },
   { year: "2025", text: "Launched our digital school management system, connecting students, teachers, parents and staff." },
   { year: "2026", text: "Continuing to grow — new facilities, more teachers, and an even stronger academic program." },
 ];
@@ -214,7 +223,7 @@ export default function About() {
           <span className="about-hero-title-accent">Building Futures</span>
         </h1>
         <p className="about-hero-lede">
-          Since 2023, Al Isra Primary &amp; Secondary School has been committed
+          Since 2014, Al Isra Primary &amp; Secondary School has been committed
           to academic excellence, character building and innovative learning —
           preparing every child to become a responsible global citizen and future leader.
         </p>

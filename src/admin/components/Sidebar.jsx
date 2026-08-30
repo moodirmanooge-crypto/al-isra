@@ -71,7 +71,7 @@ const superAdminOnlyMenus = [
 ];
 
 const SUPPORT_WHATSAPP = "252617390261"; // international format, no + or leading 0
-const SUPPORT_EMAIL = "risingstar0261@gmail.com";
+const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
 
 export default function Sidebar() {
   // A sub-admin's session carries adminRole: "subadmin" and an

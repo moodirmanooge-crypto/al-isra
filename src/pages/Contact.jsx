@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { MessageCircle, Mail, Phone, MapPin, Clock } from "lucide-react";
 
 const SUPPORT_WHATSAPP = "252617390261";
-const SUPPORT_EMAIL = "risingstar0261@gmail.com";
+const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
 const WHATSAPP_MESSAGE =
   "Salaan, waxaan rabaa inaan wax ka weydiiyo Al Isra School.";
 
@@ -160,7 +160,7 @@ export default function Contact() {
               <Phone size={19} />
             </div>
             <div className="con-info-label">Phone</div>
-            <div className="con-info-value">+252 61 7390261</div>
+            <div className="con-info-value">+252 61 5860629</div>
           </div>
           <div className="con-info-box">
             <div className="con-info-icon">
@@ -191,7 +191,7 @@ export default function Contact() {
         </div>
 
         <div className="home-footer-contact">
-          <a href="tel:+252617390261">+252 61 7390261</a>
+          <a href="tel:+252617390261">+252 61 5860629</a>
           <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
           <span>Mogadishu, Somalia</span>
         </div>

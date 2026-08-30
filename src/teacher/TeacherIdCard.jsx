@@ -14,7 +14,7 @@ const SCHOOL = {
   website: "resingstarschools.com", // FIX: was "resingstarschools.com" (missing "i") — this typo made every QR code on Teacher ID cards point to a domain that doesn't exist, so scanning never opened the real card.
   noticeOffice: "Main Office Wadajir District",
   noticeCity: "Mogadishu-Somalia",
-  noticeEmail: "risingstar0261@gmail.com",
+  noticeEmail: "dhalxayare143@gmail.com",
   noticeTell: "+252-617390261",
 };
 

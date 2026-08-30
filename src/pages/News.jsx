@@ -238,8 +238,8 @@ export default function News() {
         </div>
 
         <div className="home-footer-contact">
-          <a href="tel:+252611234567">+252 61 7390261</a>
-          <a href="mailto:risingstar0261@gmail.com">risingstar0261@gmail.com</a>
+          <a href="tel:+252611234567">+252 61 5860629</a>
+          <a href="mailto:dhalxayare143@gmail.com">dhalxayare143@gmail.com</a>
           <span>Mogadishu, Somalia</span>
         </div>
 

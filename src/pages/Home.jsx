@@ -24,9 +24,9 @@ import {
 } from "lucide-react";
 
 // Admin contact info — waxaa loo isticmaalaa qaybta "Contact" iyo "Need Help?"
-const SUPPORT_WHATSAPP = "252617390261"; // international format, no + or leading 0
-const SUPPORT_EMAIL = "risingstar0261@gmail.com";
-const SUPPORT_PHONE_DISPLAY = "+252 61 7390261";
+const SUPPORT_WHATSAPP = "252615860629"; // international format, no + or leading 0
+const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
+const SUPPORT_PHONE_DISPLAY = "+252 61 5860629";
 const SUPPORT_LOCATION = "Mogadishu, Somalia";
 
 const NAV_LINKS = [

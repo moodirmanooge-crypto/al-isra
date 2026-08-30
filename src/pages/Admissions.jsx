@@ -8,7 +8,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const SUPPORT_WHATSAPP = "252617390261";
-const SUPPORT_EMAIL = "risingstar0261@gmail.com";
+const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
 
 const NAV_LINKS = [
   { label: "Home", to: "/" },
@@ -502,7 +502,7 @@ export default function Admissions() {
         </div>
 
         <div className="home-footer-contact">
-          <a href="tel:+252617390261">+252 61 7390261</a>
+          <a href="tel:+252617390261">+252 61 5860629</a>
           <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
           <span>Mogadishu, Somalia</span>
         </div>

@@ -43,7 +43,7 @@ const NAV_LINKS = [
 ];
 
 const FILTERS = ["All", "🟢 Primary School", "🟡 Middle School", "🟢 Primary School", "🔵 Secondary School", "Other"];
-const PAYMENT_NUMBER = "0617390261";
+const PAYMENT_NUMBER = "61 5860629";
 
 function formatPrice(price) {
   const n = Number(price) || 0;
@@ -463,8 +463,8 @@ export default function Library() {
         </div>
 
         <div className="home-footer-contact">
-          <a href="tel:+252611234567">+252 61 7390261</a>
-          <a href="mailto:risingstar0261@gmail.com">risingstar0261@gmail.com</a>
+          <a href="tel:+252611234567">+252 61 5860629</a>
+          <a href="mailto:dhalxayare143@gmail.com">dhalxayare143@gmail.com</a>
           <span>Mogadishu, Somalia</span>
         </div>
 
