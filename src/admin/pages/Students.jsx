@@ -34,7 +34,7 @@ import {
   Hash,
 } from "lucide-react";
 
-const classOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+const classOptions = ["Fasalka 1aad", "Fasalka 2aad", "Fasalka 3aad",  "PP", "PI", "G8 A", "G8 B", "F1", "F2", "F3", "F4"];
 
 // Different registration flows over time have saved the photo URL under
 // slightly different field names (studentPhoto is current, but photoUrl
