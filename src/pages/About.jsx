@@ -6,7 +6,7 @@ import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
 
 const SUPPORT_WHATSAPP = "252617390261";
-const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
+const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 const SUPPORT_PHONE_DISPLAY = "+252 61 5860629";
 const SUPPORT_LOCATION = "Mogadishu, Somalia";
 

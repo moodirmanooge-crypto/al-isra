@@ -20,7 +20,20 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-const classOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+// ✅ Liiska fasalada oo la cusboonaysiiyay
+const classOptions = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+];
 
 const emptyRow = () => ({
   fullName: "",
@@ -29,6 +42,9 @@ const emptyRow = () => ({
   shift: "",
   feeType: "Free",
   monthlyFee: "",
+  registrationFees: "", // ✅ Fee cusub: Registration Fees
+  rollNumberFees: "", // ✅ Fee cusub: Roll Number Fees
+  examinationFees: "", // ✅ Fee cusub: Examination Fees
   parentPhone: "",
   studentPhone: "",
   district: "",
@@ -210,6 +226,9 @@ export default function BulkRegistration() {
           shift: student.shift,
           feeType: student.feeType,
           monthlyFee: finalMonthlyFee,
+          registrationFees: student.registrationFees, // ✅ Registration Fees
+          rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
+          examinationFees: student.examinationFees, // ✅ Examination Fees
           parentPhone: student.parentPhone,
           studentPhone: student.studentPhone,
           district: student.district,
@@ -232,6 +251,9 @@ export default function BulkRegistration() {
           parentPhone: student.parentPhone,
           feeType: student.feeType,
           monthlyFee: finalMonthlyFee,
+          registrationFees: student.registrationFees, // ✅ Registration Fees
+          rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
+          examinationFees: student.examinationFees, // ✅ Examination Fees
         });
 
         await setDoc(doc(db, "studentIdCards", studentId), {
@@ -321,7 +343,7 @@ export default function BulkRegistration() {
             style={{
               width: "100%",
               borderCollapse: "collapse",
-              minWidth: 1450,
+              minWidth: 1810,
             }}
           >
             <thead>
@@ -332,6 +354,9 @@ export default function BulkRegistration() {
                 <th style={th}>Shift</th>
                 <th style={th}>Fee Type</th>
                 <th style={th}>Monthly Fee ($)</th>
+                <th style={th}>Registration Fees</th>
+                <th style={th}>Roll Number Fees</th>
+                <th style={th}>Examination Fees</th>
                 <th style={th}>Parent Phone</th>
                 <th style={th}>Student Phone</th>
                 <th style={th}>District</th>
@@ -429,6 +454,45 @@ export default function BulkRegistration() {
                       value={student.feeType === "Free" ? "0" : student.monthlyFee}
                       onChange={(e) =>
                         handleChange(index, "monthlyFee", e.target.value)
+                      }
+                    />
+                  </td>
+
+                  {/* ✅ Column cusub: Registration Fees */}
+                  <td style={td}>
+                    <input
+                      style={input}
+                      type="number"
+                      placeholder="0.00"
+                      value={student.registrationFees}
+                      onChange={(e) =>
+                        handleChange(index, "registrationFees", e.target.value)
+                      }
+                    />
+                  </td>
+
+                  {/* ✅ Column cusub: Roll Number Fees */}
+                  <td style={td}>
+                    <input
+                      style={input}
+                      type="number"
+                      placeholder="0.00"
+                      value={student.rollNumberFees}
+                      onChange={(e) =>
+                        handleChange(index, "rollNumberFees", e.target.value)
+                      }
+                    />
+                  </td>
+
+                  {/* ✅ Column cusub: Examination Fees */}
+                  <td style={td}>
+                    <input
+                      style={input}
+                      type="number"
+                      placeholder="0.00"
+                      value={student.examinationFees}
+                      onChange={(e) =>
+                        handleChange(index, "examinationFees", e.target.value)
                       }
                     />
                   </td>

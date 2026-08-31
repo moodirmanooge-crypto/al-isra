@@ -21,7 +21,21 @@ import {
   GraduationCap,
 } from "lucide-react";
 
-const classOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+// ✅ Liiska fasalada oo la cusboonaysiiyay — isku mid la AddStudent.jsx iyo
+// BulkRegistration.jsx
+const classOptions = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+];
 // A dedicated bucket for students who finished school (F4 students at
 // year-end) — not a real class, just a permanent read-only archive. It
 // always shows up alongside the real classes below, even with 0
@@ -182,8 +196,8 @@ export default function Classes() {
         prev.map((s) => (movedIds.has(s.id) ? { ...s, className: newClassName } : s))
       );
 
-      const renamingLabel = renaming === GRADUATES_KEY ? GRADUATES_KEY : `Class ${renaming}`;
-      const newLabel = newClassName === GRADUATES_KEY ? GRADUATES_KEY : `Class ${newClassName}`;
+      const renamingLabel = renaming;
+      const newLabel = newClassName;
 
       let message = `${toMove.length} arday ayaa laga bedelay ${renamingLabel} una guuriyay ${newLabel}`;
       if (staying.length > 0) {
@@ -241,7 +255,7 @@ export default function Classes() {
                 </div>
                 <div>
                   <h1 style={{ margin: 0, color: "#fff", fontSize: 24, fontWeight: 800 }}>
-                    {isGraduates ? GRADUATES_KEY : `Class ${selectedClass}`}
+                    {isGraduates ? GRADUATES_KEY : selectedClass}
                   </h1>
                   <p style={{ margin: "3px 0 0", color: "#8b87ad", fontSize: 13 }}>
                     {isGraduates
@@ -413,7 +427,7 @@ export default function Classes() {
                         )}
                       </div>
                       <h3 style={{ color: "#fff", margin: "14px 0 4px", fontSize: 18 }}>
-                        {isGraduates ? className : `Class ${className}`}
+                        {className}
                       </h3>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#8b87ad", fontSize: 13 }}>
                         <Users size={14} />
@@ -484,8 +498,8 @@ function RenameModal({
   failedStudentIds,
   toggleFailedStudent,
 }) {
-  const renamingLabel = renaming === GRADUATES_KEY ? GRADUATES_KEY : `Class ${renaming}`;
-  const newLabel = newClassName === GRADUATES_KEY ? GRADUATES_KEY : `Class ${newClassName}`;
+  const renamingLabel = renaming;
+  const newLabel = newClassName;
   const movingCount = affectedStudents.length - failedStudentIds.size;
 
   return (
@@ -509,7 +523,7 @@ function RenameModal({
           >
             {renameTargetOptions.map((c) => (
               <option key={c} value={c}>
-                {c === GRADUATES_KEY ? c : `Class ${c}`}
+                {c}
               </option>
             ))}
           </select>

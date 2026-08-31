@@ -273,6 +273,11 @@ export default function ExamPayments() {
                 <th style={styles.th}>Name</th>
                 <th style={styles.th}>Class</th>
                 <th style={styles.th}>Nuuca Imtixaanka</th>
+                {/* ✅ Column cusub: Examination Fees — kaliya tus (display)
+                    qiimihii lagu diiwaan geliyay markii ardaygu diiwaan
+                    galay (student.examinationFees); ma bedelayo xisaabta
+                    "Enter Amount" ee hoose, taasi wax kama beddelmin. */}
+                <th style={styles.th}>Examination Fees</th>
                 <th style={styles.th}>Enter Amount</th>
                 <th style={styles.th}>Card No</th>
                 <th style={styles.th}>Status</th>
@@ -299,6 +304,13 @@ export default function ExamPayments() {
                     <td style={styles.td}>{student.className || "—"}</td>
                     <td style={styles.td}>
                       <span style={styles.examTypeChip}>{examTypeLabel(studentExamType)}</span>
+                    </td>
+                    {/* ✅ Examination Fees — akhris kaliya, ka yimaada xogta
+                        diiwaan gelinta ardayga (registrationFees form-ka). */}
+                    <td style={{ ...styles.td, ...styles.money }}>
+                      {student.examinationFees !== undefined && student.examinationFees !== ""
+                        ? `$${student.examinationFees}`
+                        : "—"}
                     </td>
                     <td style={styles.td}>
                       {alreadyPaid ? (
@@ -509,6 +521,10 @@ const styles = {
     fontSize: 12,
     fontWeight: 700,
     color: "#92400E",
+  },
+  money: {
+    fontVariantNumeric: "tabular-nums",
+    fontWeight: 600,
   },
   amountInput: {
     width: 90,

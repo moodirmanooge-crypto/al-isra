@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import { MessageCircle, Mail, Phone, MapPin, Clock } from "lucide-react";
 
 const SUPPORT_WHATSAPP = "252617390261";
-const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
+const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 const WHATSAPP_MESSAGE =
   "Salaan, waxaan rabaa inaan wax ka weydiiyo AL - ISRA School.";
 

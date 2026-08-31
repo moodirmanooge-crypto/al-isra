@@ -8,7 +8,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 const SUPPORT_WHATSAPP = "252617390261";
-const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
+const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 
 const NAV_LINKS = [
   { label: "Home", to: "/" },

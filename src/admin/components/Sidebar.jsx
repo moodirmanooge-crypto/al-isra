@@ -72,7 +72,7 @@ const superAdminOnlyMenus = [
 ];
 
 const SUPPORT_WHATSAPP = "252617390261"; // international format, no + or leading 0
-const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
+const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 
 export default function Sidebar() {
   const navigate = useNavigate();

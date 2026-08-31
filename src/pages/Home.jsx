@@ -25,7 +25,7 @@ import {
 
 // Admin contact info — waxaa loo isticmaalaa qaybta "Contact" iyo "Need Help?"
 const SUPPORT_WHATSAPP = "252615860629"; // international format, no + or leading 0
-const SUPPORT_EMAIL = "dhalxayare143@gmail.com";
+const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 const SUPPORT_PHONE_DISPLAY = "+252 61 5860629";
 const SUPPORT_LOCATION = "Mogadishu, Somalia";
 

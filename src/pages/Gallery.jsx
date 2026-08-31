@@ -1087,7 +1087,7 @@ export default function Gallery() {
 
         <div className="home-footer-contact">
           <a href="tel:+252611234567">+252 61 5860629</a>
-          <a href="mailto:dhalxayare143@gmail.com">dhalxayare143@gmail.com</a>
+          <a href="mailto:alisraprimaryandsecondaryschool@gmail.com">alisraprimaryandsecondaryschool@gmail.com</a>
           <span>Mogadishu, Somalia</span>
         </div>
 
