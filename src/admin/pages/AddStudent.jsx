@@ -43,6 +43,14 @@ const classOptions = [
   "F4",
 ];
 
+// ✅ Doorashada nooca fee-ga gaarka ah (Registration / Roll Number / Examination)
+const feeCategoryOptions = [
+  { value: "", label: "Select Fee Category" },
+  { value: "Registration Fees", label: "Registration Fees" },
+  { value: "Roll Number Fees", label: "Roll Number Fees" },
+  { value: "Examination Fees", label: "Examination Fees" },
+];
+
 export default function AddStudent() {
   const [student, setStudent] = useState({
     fullName: "",
@@ -51,12 +59,12 @@ export default function AddStudent() {
     shift: "",
     feeType: "Free",
     monthlyFee: "",
-    registrationFees: "", // ✅ Fee cusub: Registration Fees
-    rollNumberFees: "", // ✅ Fee cusub: Roll Number Fees
-    examinationFees: "", // ✅ Fee cusub: Examination Fees
+    feeCategory: "", // ✅ Doorashada: Registration / Roll Number / Examination
+    feeCategoryAmount: "", // ✅ Qiimaha la geliyo gacanta ee doorashada la doortay
     parentPhone: "",
     studentPhone: "",
     district: "",
+    hasPreviousSchool: "No", // ✅ Yes/No - Previous School
     previousSchool: "",
     orphanStatus: "No",
     parentPassword: "",
@@ -79,6 +87,26 @@ export default function AddStudent() {
       ...student,
       feeType: value,
       monthlyFee: value === "Free" ? "0" : student.monthlyFee,
+    });
+  };
+
+  // ✅ Marka la beddelo doorashada Fee Category, qiimaha hore ee la geliyay waa la nadiifiyaa
+  // si loo bilaabo mid cusub oo ku habboon doorashada cusub.
+  const handleFeeCategoryChange = (e) => {
+    const value = e.target.value;
+    setStudent({
+      ...student,
+      feeCategory: value,
+      feeCategoryAmount: "",
+    });
+  };
+
+  // ✅ Yes/No toggle ee Previous School
+  const handlePreviousSchoolToggle = (value) => {
+    setStudent({
+      ...student,
+      hasPreviousSchool: value,
+      previousSchool: value === "No" ? "" : student.previousSchool,
     });
   };
 
@@ -163,6 +191,18 @@ export default function AddStudent() {
         return;
       }
 
+      // ✅ Hadii Fee Category la doortay, qiimihiisa waa waajib
+      if (student.feeCategory && !String(student.feeCategoryAmount).trim()) {
+        alert(`Fadlan geli qiimaha ${student.feeCategory}`);
+        return;
+      }
+
+      // ✅ Hadii Previous School la sheegay "Yes", magaca dugsiga waa waajib
+      if (student.hasPreviousSchool === "Yes" && !student.previousSchool.trim()) {
+        alert("Fadlan geli magaca Dugsiga Hore");
+        return;
+      }
+
       // ✅ Hubinta in Parent Phone iyo Student Phone ay yihiin lambar keliya
       if (student.parentPhone && !/^\d+$/.test(student.parentPhone)) {
         alert("Parent Phone waa inuu ahaadaa lambar keliya (numbers only)");
@@ -206,6 +246,15 @@ export default function AddStudent() {
 
       const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
 
+      // ✅ Xogta saddexda fee ee gaarka ah — waxaa la kaydiyaa keliya nooca
+      // la doortay iyo qiimihiisa (labada kale waa 0 / madhan).
+      const registrationFees =
+        student.feeCategory === "Registration Fees" ? student.feeCategoryAmount : "0";
+      const rollNumberFees =
+        student.feeCategory === "Roll Number Fees" ? student.feeCategoryAmount : "0";
+      const examinationFees =
+        student.feeCategory === "Examination Fees" ? student.feeCategoryAmount : "0";
+
       await setDoc(doc(db, "students", studentId), {
         studentId,
         fullName: student.fullName,
@@ -214,13 +263,14 @@ export default function AddStudent() {
         shift: student.shift,
         feeType: student.feeType,
         monthlyFee: finalMonthlyFee,
-        registrationFees: student.registrationFees, // ✅ Registration Fees
-        rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
-        examinationFees: student.examinationFees, // ✅ Examination Fees
+        feeCategory: student.feeCategory,
+        registrationFees,
+        rollNumberFees,
+        examinationFees,
         parentPhone: student.parentPhone,
         studentPhone: student.studentPhone,
         district: student.district,
-        previousSchool: student.previousSchool,
+        previousSchool: student.hasPreviousSchool === "Yes" ? student.previousSchool : "",
         orphanStatus: student.orphanStatus,
         parentPassword: student.parentPassword,
         studentPhoto: photoURL,
@@ -239,9 +289,10 @@ export default function AddStudent() {
         parentPhone: student.parentPhone,
         feeType: student.feeType,
         monthlyFee: finalMonthlyFee,
-        registrationFees: student.registrationFees, // ✅ Registration Fees
-        rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
-        examinationFees: student.examinationFees, // ✅ Examination Fees
+        feeCategory: student.feeCategory,
+        registrationFees,
+        rollNumberFees,
+        examinationFees,
       });
 
       // ✅ Isla marka ardayga la kaydiyo, si toos ah u samee ID Card-kiisa.
@@ -276,12 +327,12 @@ export default function AddStudent() {
         shift: "",
         feeType: "Free",
         monthlyFee: "",
-        registrationFees: "",
-        rollNumberFees: "",
-        examinationFees: "",
+        feeCategory: "",
+        feeCategoryAmount: "",
         parentPhone: "",
         studentPhone: "",
         district: "",
+        hasPreviousSchool: "No",
         previousSchool: "",
         orphanStatus: "No",
         parentPassword: "",
@@ -428,41 +479,35 @@ export default function AddStudent() {
             </Field>
           )}
 
-          {/* ✅ Field cusub: Registration Fees */}
-          <Field icon={Receipt} label="Registration Fees">
-            <input
+          {/* ✅ Hal doorasho oo ka mid ah saddexda fee: Registration / Roll Number / Examination */}
+          <Field icon={Receipt} label="Fee Category">
+            <select
               style={input}
-              type="number"
-              name="registrationFees"
-              placeholder="0.00"
-              value={student.registrationFees}
-              onChange={handleChange}
-            />
+              name="feeCategory"
+              value={student.feeCategory}
+              onChange={handleFeeCategoryChange}
+            >
+              {feeCategoryOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </Field>
 
-          {/* ✅ Field cusub: Roll Number Fees */}
-          <Field icon={IdCard} label="Roll Number Fees">
-            <input
-              style={input}
-              type="number"
-              name="rollNumberFees"
-              placeholder="0.00"
-              value={student.rollNumberFees}
-              onChange={handleChange}
-            />
-          </Field>
-
-          {/* ✅ Field cusub: Examination Fees */}
-          <Field icon={FileEdit} label="Examination Fees">
-            <input
-              style={input}
-              type="number"
-              name="examinationFees"
-              placeholder="0.00"
-              value={student.examinationFees}
-              onChange={handleChange}
-            />
-          </Field>
+          {/* ✅ Marka doorasho la sameeyo, qiimaha waa lagu qoraa gacanta */}
+          {student.feeCategory && (
+            <Field icon={IdCard} label={`${student.feeCategory} ($)`}>
+              <input
+                style={input}
+                type="number"
+                name="feeCategoryAmount"
+                placeholder="0.00"
+                value={student.feeCategoryAmount}
+                onChange={handleChange}
+              />
+            </Field>
+          )}
 
           {/* ✅ Parent Phone — lambar keliya ayaa la ogolaanayaa */}
           <Field icon={Phone} label="Parent Phone">
@@ -502,15 +547,42 @@ export default function AddStudent() {
             />
           </Field>
 
+          {/* ✅ Previous School — Yes/No toggle */}
           <Field icon={BookOpen} label="Previous School">
-            <input
-              style={input}
-              name="previousSchool"
-              placeholder="Magaca dugsiga hore"
-              value={student.previousSchool}
-              onChange={handleChange}
-            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => handlePreviousSchoolToggle("Yes")}
+                style={
+                  student.hasPreviousSchool === "Yes" ? toggleBtnActive : toggleBtn
+                }
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePreviousSchoolToggle("No")}
+                style={
+                  student.hasPreviousSchool === "No" ? toggleBtnActive : toggleBtn
+                }
+              >
+                No
+              </button>
+            </div>
           </Field>
+
+          {/* ✅ Marka "Yes" la doorto, waxa soo baxa meel magaca dugsiga lagu qoro */}
+          {student.hasPreviousSchool === "Yes" && (
+            <Field icon={BookOpen} label="Magaca Dugsiga Hore">
+              <input
+                style={input}
+                name="previousSchool"
+                placeholder="Magaca dugsiga hore"
+                value={student.previousSchool}
+                onChange={handleChange}
+              />
+            </Field>
+          )}
 
           <Field icon={Heart} label="Orphan Status">
             <select
@@ -631,4 +703,24 @@ const btnPrimary = {
   fontWeight: 700,
   fontSize: 15,
   boxShadow: "0 10px 24px rgba(109,93,240,0.35)",
+};
+
+const toggleBtn = {
+  flex: 1,
+  padding: "14px 16px",
+  borderRadius: 12,
+  border: "1.5px solid rgba(139,108,245,0.35)",
+  background: "rgba(255,255,255,0.02)",
+  color: "#8b87ad",
+  fontWeight: 600,
+  fontSize: 14.5,
+  cursor: "pointer",
+  transition: "all .2s",
+};
+
+const toggleBtnActive = {
+  ...toggleBtn,
+  background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
+  border: "1.5px solid #6d5df0",
+  color: "#fff",
 };

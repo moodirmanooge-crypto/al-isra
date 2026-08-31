@@ -35,6 +35,14 @@ const classOptions = [
   "F4",
 ];
 
+// ✅ Doorashada nooca fee-ga gaarka ah (Registration / Roll Number / Examination)
+const feeCategoryOptions = [
+  { value: "", label: "Select Fee Category" },
+  { value: "Registration Fees", label: "Registration Fees" },
+  { value: "Roll Number Fees", label: "Roll Number Fees" },
+  { value: "Examination Fees", label: "Examination Fees" },
+];
+
 const emptyRow = () => ({
   fullName: "",
   motherName: "", // ✅ Magaca Hooyada - field cusub
@@ -42,12 +50,12 @@ const emptyRow = () => ({
   shift: "",
   feeType: "Free",
   monthlyFee: "",
-  registrationFees: "", // ✅ Fee cusub: Registration Fees
-  rollNumberFees: "", // ✅ Fee cusub: Roll Number Fees
-  examinationFees: "", // ✅ Fee cusub: Examination Fees
+  feeCategory: "", // ✅ Doorashada: Registration / Roll Number / Examination
+  feeCategoryAmount: "", // ✅ Qiimaha la geliyo gacanta ee doorashada la doortay
   parentPhone: "",
   studentPhone: "",
   district: "",
+  hasPreviousSchool: "No", // ✅ Yes/No - Previous School
   previousSchool: "",
   orphanStatus: "No",
   parentPassword: "",
@@ -99,6 +107,25 @@ export default function BulkRegistration() {
     data[index].feeType = value;
     if (value === "Free") {
       data[index].monthlyFee = "0";
+    }
+    setStudents(data);
+  };
+
+  // ✅ Marka la beddelo doorashada Fee Category, qiimaha hore ee la geliyay waa la nadiifiyaa
+  // si loo bilaabo mid cusub oo ku habboon doorashada cusub.
+  const handleFeeCategoryChange = (index, value) => {
+    const data = [...students];
+    data[index].feeCategory = value;
+    data[index].feeCategoryAmount = "";
+    setStudents(data);
+  };
+
+  // ✅ Yes/No toggle ee Previous School
+  const handlePreviousSchoolToggle = (index, value) => {
+    const data = [...students];
+    data[index].hasPreviousSchool = value;
+    if (value === "No") {
+      data[index].previousSchool = "";
     }
     setStudents(data);
   };
@@ -167,6 +194,18 @@ export default function BulkRegistration() {
         return false;
       }
 
+      // ✅ Hadii Fee Category la doortay, qiimihiisa waa waajib
+      if (s.feeCategory && !String(s.feeCategoryAmount).trim()) {
+        alert(`${rowLabel}: Fadlan geli qiimaha ${s.feeCategory}`);
+        return false;
+      }
+
+      // ✅ Hadii Previous School la sheegay "Yes", magaca dugsiga waa waajib
+      if (s.hasPreviousSchool === "Yes" && !s.previousSchool.trim()) {
+        alert(`${rowLabel}: Fadlan geli magaca Dugsiga Hore`);
+        return false;
+      }
+
       if (s.parentPhone && !/^\d+$/.test(s.parentPhone)) {
         alert(`${rowLabel}: Parent Phone waa inuu ahaadaa lambar keliya (numbers only)`);
         return false;
@@ -218,6 +257,15 @@ export default function BulkRegistration() {
 
         const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
 
+        // ✅ Xogta saddexda fee ee gaarka ah — waxaa la kaydiyaa keliya nooca
+        // la doortay iyo qiimihiisa (labada kale waa 0).
+        const registrationFees =
+          student.feeCategory === "Registration Fees" ? student.feeCategoryAmount : "0";
+        const rollNumberFees =
+          student.feeCategory === "Roll Number Fees" ? student.feeCategoryAmount : "0";
+        const examinationFees =
+          student.feeCategory === "Examination Fees" ? student.feeCategoryAmount : "0";
+
         await setDoc(doc(db, "students", studentId), {
           studentId,
           fullName: student.fullName,
@@ -226,13 +274,14 @@ export default function BulkRegistration() {
           shift: student.shift,
           feeType: student.feeType,
           monthlyFee: finalMonthlyFee,
-          registrationFees: student.registrationFees, // ✅ Registration Fees
-          rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
-          examinationFees: student.examinationFees, // ✅ Examination Fees
+          feeCategory: student.feeCategory,
+          registrationFees,
+          rollNumberFees,
+          examinationFees,
           parentPhone: student.parentPhone,
           studentPhone: student.studentPhone,
           district: student.district,
-          previousSchool: student.previousSchool,
+          previousSchool: student.hasPreviousSchool === "Yes" ? student.previousSchool : "",
           orphanStatus: student.orphanStatus,
           parentPassword: student.parentPassword,
           studentPhoto: photoURL,
@@ -251,9 +300,10 @@ export default function BulkRegistration() {
           parentPhone: student.parentPhone,
           feeType: student.feeType,
           monthlyFee: finalMonthlyFee,
-          registrationFees: student.registrationFees, // ✅ Registration Fees
-          rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
-          examinationFees: student.examinationFees, // ✅ Examination Fees
+          feeCategory: student.feeCategory,
+          registrationFees,
+          rollNumberFees,
+          examinationFees,
         });
 
         await setDoc(doc(db, "studentIdCards", studentId), {
@@ -343,7 +393,7 @@ export default function BulkRegistration() {
             style={{
               width: "100%",
               borderCollapse: "collapse",
-              minWidth: 1810,
+              minWidth: 1900,
             }}
           >
             <thead>
@@ -354,13 +404,13 @@ export default function BulkRegistration() {
                 <th style={th}>Shift</th>
                 <th style={th}>Fee Type</th>
                 <th style={th}>Monthly Fee ($)</th>
-                <th style={th}>Registration Fees</th>
-                <th style={th}>Roll Number Fees</th>
-                <th style={th}>Examination Fees</th>
+                <th style={th}>Fee Category</th>
+                <th style={th}>Fee Amount ($)</th>
                 <th style={th}>Parent Phone</th>
                 <th style={th}>Student Phone</th>
                 <th style={th}>District</th>
-                <th style={th}>Previous School</th>
+                <th style={th}>Previous School?</th>
+                <th style={th}>Previous School Name</th>
                 <th style={th}>Orphan Status</th>
                 <th style={th}>Parent Password</th>
                 <th style={th}>Student Photo</th>
@@ -458,41 +508,36 @@ export default function BulkRegistration() {
                     />
                   </td>
 
-                  {/* ✅ Column cusub: Registration Fees */}
+                  {/* ✅ Doorasho hal mid ah oo ka mid ah Registration / Roll Number / Examination */}
                   <td style={td}>
-                    <input
+                    <select
                       style={input}
-                      type="number"
-                      placeholder="0.00"
-                      value={student.registrationFees}
+                      value={student.feeCategory}
                       onChange={(e) =>
-                        handleChange(index, "registrationFees", e.target.value)
+                        handleFeeCategoryChange(index, e.target.value)
                       }
-                    />
+                    >
+                      {feeCategoryOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </td>
 
-                  {/* ✅ Column cusub: Roll Number Fees */}
+                  {/* ✅ Qiimaha doorashada la doortay — gacanta lagu qoro */}
                   <td style={td}>
                     <input
-                      style={input}
+                      style={{
+                        ...input,
+                        opacity: student.feeCategory ? 1 : 0.4,
+                      }}
                       type="number"
                       placeholder="0.00"
-                      value={student.rollNumberFees}
+                      disabled={!student.feeCategory}
+                      value={student.feeCategoryAmount}
                       onChange={(e) =>
-                        handleChange(index, "rollNumberFees", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  {/* ✅ Column cusub: Examination Fees */}
-                  <td style={td}>
-                    <input
-                      style={input}
-                      type="number"
-                      placeholder="0.00"
-                      value={student.examinationFees}
-                      onChange={(e) =>
-                        handleChange(index, "examinationFees", e.target.value)
+                        handleChange(index, "feeCategoryAmount", e.target.value)
                       }
                     />
                   </td>
@@ -536,10 +581,29 @@ export default function BulkRegistration() {
                     />
                   </td>
 
+                  {/* ✅ Previous School — Yes/No */}
+                  <td style={td}>
+                    <select
+                      style={input}
+                      value={student.hasPreviousSchool}
+                      onChange={(e) =>
+                        handlePreviousSchoolToggle(index, e.target.value)
+                      }
+                    >
+                      <option value="No">No</option>
+                      <option value="Yes">Yes</option>
+                    </select>
+                  </td>
+
+                  {/* ✅ Marka "Yes" la doorto, magaca dugsiga waa lagu qoraa gacanta */}
                   <td style={td}>
                     <input
-                      style={input}
+                      style={{
+                        ...input,
+                        opacity: student.hasPreviousSchool === "Yes" ? 1 : 0.4,
+                      }}
                       placeholder="Dugsigii hore"
+                      disabled={student.hasPreviousSchool !== "Yes"}
                       value={student.previousSchool}
                       onChange={(e) =>
                         handleChange(index, "previousSchool", e.target.value)
