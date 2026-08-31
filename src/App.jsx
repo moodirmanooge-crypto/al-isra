@@ -61,6 +61,7 @@ import TeacherTimetable from "./teacher/ViewTimetable";
 import CashierLayout from "./cashier/Layout";
 import CashierDashboard from "./cashier/Dashboard";
 import CashierPayments from "./cashier/Payments";
+import CashierClasses from "./cashier/Classes";
 import CashierReports from "./cashier/Reports";
 import CashierProfile from "./cashier/Profile";
 import ReceiptModal from "./cashier/ReceiptModal";
@@ -228,6 +229,7 @@ function App() {
           <Route index element={<CashierDashboard />} />
           <Route path="dashboard" element={<CashierDashboard />} />
           <Route path="payments" element={<CashierPayments />} />
+          <Route path="classes" element={<CashierClasses />} />
           <Route path="reports" element={<CashierReports />} />
           <Route path="profile" element={<CashierProfile />} />
           <Route path="receipts" element={<CashierReports />} />

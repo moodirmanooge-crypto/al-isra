@@ -4,7 +4,9 @@ import {
   collection,
   getDocs,
   doc,
+  getDoc,
   setDoc,
+  writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
 
@@ -31,6 +33,10 @@ export default function Payments() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [receiptPayment, setReceiptPayment] = useState(null);
+  // ✅ "Save All" — kaydi lacagta dhammaan ardayda hal mar, kadibna
+  // xidh (lock) bishan si aan mid la bedeli karin ilaa 1-da bisha xigta.
+  const [savingAll, setSavingAll] = useState(false);
+  const [monthLocked, setMonthLocked] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -84,6 +90,13 @@ export default function Payments() {
         }
       });
       setPayments(paymentMap);
+
+      // ✅ Hubi in bishan (currentMonthKey) la xidhay — haddii "Save All"
+      // horeyba loo isticmaalay bishan (halkan ama Classes.jsx, labaduba
+      // isla `monthLocks` collection-ka isticmaalaan), wax lama bedeli
+      // karo ilaa bisha xigta.
+      const lockSnap = await getDoc(doc(db, "monthLocks", currentMonthKey()));
+      setMonthLocked(lockSnap.exists() && lockSnap.data()?.locked === true);
     } catch (err) {
       console.log(err);
     } finally {
@@ -181,6 +194,99 @@ export default function Payments() {
     }
   };
 
+  // ✅ "Save All" — kaydi hal mar dhammaan ardayda lacagta loo geliyay
+  // (kaliya kuwa "Enter Amount" ku jira, kuwa madhan waa la iska dhaafaa
+  // sabab aan la ogeyn haddii wax laga qaaday), kadibna xidh bishan
+  // (currentMonthKey) si aan cid mar dambe u bedeli karin ilaa 1-da
+  // bisha xigta.
+  const saveAll = async () => {
+    if (monthLocked) return;
+
+    const monthKey = currentMonthKey();
+    const targets = filtered.filter(
+      (s) =>
+        !isFreeStudent(s) &&
+        !isPaidThisMonth(s.studentId) &&
+        Number(amounts[s.id] || 0) > 0
+    );
+
+    if (targets.length === 0) {
+      alert("Ma jiro arday lacag loo geliyay ee weli aan la kaydin.");
+      return;
+    }
+
+    try {
+      setSavingAll(true);
+
+      const batch = writeBatch(db);
+      const nextPayments = { ...payments };
+
+      targets.forEach((student) => {
+        const entered = Number(amounts[student.id] || 0);
+        const fee = Number(student.monthlyFee || 0);
+        const remaining = fee - entered;
+        const status = remaining <= 0 ? "Paid" : "Not Paid";
+        const paymentDocId = `${student.studentId}_${monthKey}`;
+
+        const paymentRecord = {
+          studentId: student.studentId,
+          studentName: student.fullName,
+          className: student.className || "",
+          schoolName: SCHOOL_NAME,
+          monthlyFee: fee,
+          paidAmount: entered,
+          remaining: remaining > 0 ? remaining : 0,
+          status,
+          monthKey,
+          monthLabel: monthLabel(monthKey),
+          studentPhone: student.studentPhone || "",
+          parentPhone: student.parentPhone || "",
+          createdAt: serverTimestamp(),
+        };
+
+        batch.set(doc(db, "payments", paymentDocId), paymentRecord);
+
+        nextPayments[student.studentId] = {
+          status,
+          monthKey,
+          monthLabel: monthLabel(monthKey),
+          paidAmount: entered,
+          remaining: remaining > 0 ? remaining : 0,
+          schoolName: SCHOOL_NAME,
+          studentName: student.fullName,
+        };
+      });
+
+      // ✅ Xidh bishan — labada bogga (Payments.jsx iyo Classes.jsx)
+      // waxay isticmaalaan isla `monthLocks` doc-ga, sidaas darteed
+      // "Save All" halkan wuxuu si toos ah u xidhayaa bogga Classes
+      // isaga oo aan la taaban faylkaas.
+      batch.set(doc(db, "monthLocks", monthKey), {
+        monthKey,
+        locked: true,
+        lockedAt: serverTimestamp(),
+        lockedBy: "cashier-payments",
+      });
+
+      await batch.commit();
+
+      setPayments(nextPayments);
+      setAmounts({});
+      setMonthLocked(true);
+
+      alert(
+        `${targets.length} arday ayaa lacagtoodii bishaan (${monthLabel(
+          monthKey
+        )}) la kaydiyay. Bishan lama sii bedeli karo ilaa 1-da bisha xigta.`
+      );
+    } catch (err) {
+      console.log(err);
+      alert(err.message);
+    } finally {
+      setSavingAll(false);
+    }
+  };
+
   return (
     <div style={{ fontFamily: theme.font.body }}>
       <header style={styles.header}>
@@ -208,14 +314,44 @@ export default function Payments() {
         </div>
       </header>
 
-      <div style={styles.searchRow}>
-        <span style={styles.searchIcon}>🔍</span>
-        <input
-          placeholder="Search Student ID / Name / Class"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={styles.search}
-        />
+      {/* ✅ Marwalba kor ha ka muuqato bisha lacagaha loo qaadi rabo — si
+          loogu xisaabto (currentMonthKey, si isku mid ah ee Classes.jsx
+          isticmaasho) */}
+      <div style={styles.collectingForBar}>
+        📅 Collecting for: <strong>{monthLabel(currentMonthKey())}</strong>
+      </div>
+
+      {monthLocked && (
+        <div style={styles.lockedBanner}>
+          🔒 Bishan ({monthLabel(currentMonthKey())}) horeyba dhammaan ardayda
+          waa loo qaaday lacagta — lama sii bedeli karo ilaa 1-da bisha xigta.
+        </div>
+      )}
+
+      <div style={{ ...styles.searchRow, display: "flex", alignItems: "center", gap: 14, width: "auto" }}>
+        <div style={{ position: "relative", flex: "0 0 360px" }}>
+          <span style={styles.searchIcon}>🔍</span>
+          <input
+            placeholder="Search Student ID / Name / Class"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{ ...styles.search, width: "100%" }}
+          />
+        </div>
+
+        <button
+          onClick={saveAll}
+          disabled={monthLocked || savingAll}
+          style={{
+            ...styles.saveAllBtn,
+            background: monthLocked ? "#DDE4E2" : theme.colors.brand,
+            color: monthLocked ? theme.colors.inkMuted : "#FFFFFF",
+            cursor: monthLocked || savingAll ? "not-allowed" : "pointer",
+            opacity: savingAll ? 0.7 : 1,
+          }}
+        >
+          {monthLocked ? "🔒 Locked" : savingAll ? "Saving…" : "💾 Save All"}
+        </button>
       </div>
 
       <div style={styles.tableCard}>
@@ -257,6 +393,11 @@ export default function Payments() {
               {filtered.map((student, i) => {
                 const free = isFreeStudent(student);
                 const paidThisMonth = !free && isPaidThisMonth(student.studentId);
+                // ✅ "locked" waa true haddii ardaygan gaarka ah horeyba
+                // loo bixiyay BISHAN, AMA haddii "Save All" horeyba loo
+                // isticmaalay bishan (monthLocked) — labaduba waa in ay
+                // xannibaan wax-ka-bedelka.
+                const locked = paidThisMonth || monthLocked;
                 const record = payments[student.studentId];
 
                 const entered = Number(amounts[student.id] || 0);
@@ -313,7 +454,7 @@ export default function Payments() {
                       ) : (
                         <input
                           type="number"
-                          disabled={paidThisMonth}
+                          disabled={locked}
                           value={amounts[student.id] || ""}
                           onChange={(e) =>
                             setAmounts({
@@ -323,7 +464,7 @@ export default function Payments() {
                           }
                           style={{
                             ...styles.amountInput,
-                            background: paidThisMonth
+                            background: locked
                               ? "#F0F3F2"
                               : theme.colors.card,
                             color: theme.colors.ink,
@@ -368,23 +509,29 @@ export default function Payments() {
                       ) : (
                         <button
                           onClick={() => savePayment(student)}
-                          disabled={paidThisMonth || isSaving}
+                          disabled={locked || isSaving}
                           style={{
                             ...styles.saveBtn,
-                            background: paidThisMonth
+                            background: locked
                               ? "#DDE4E2"
                               : theme.colors.mint,
-                            color: paidThisMonth
+                            color: locked
                               ? theme.colors.inkMuted
                               : "#FFFFFF",
                             cursor:
-                              paidThisMonth || isSaving
+                              locked || isSaving
                                 ? "not-allowed"
                                 : "pointer",
                             opacity: isSaving ? 0.7 : 1,
                           }}
                         >
-                          {paidThisMonth ? "Paid" : isSaving ? "Saving…" : "Save"}
+                          {paidThisMonth
+                            ? "Paid"
+                            : monthLocked
+                            ? "Locked"
+                            : isSaving
+                            ? "Saving…"
+                            : "Save"}
                         </button>
                       )}
                     </td>
@@ -407,6 +554,35 @@ export default function Payments() {
 }
 
 const styles = {
+  collectingForBar: {
+    display: "inline-block",
+    background: `${theme.colors.brand}0D`,
+    border: `1px solid ${theme.colors.brand}33`,
+    color: theme.colors.brand,
+    fontWeight: 700,
+    fontSize: 13,
+    padding: "8px 16px",
+    borderRadius: theme.radius.sm,
+    marginBottom: 12,
+  },
+  lockedBanner: {
+    background: `${theme.colors.danger}14`,
+    border: `1px solid ${theme.colors.danger}55`,
+    color: theme.colors.danger,
+    fontWeight: 600,
+    fontSize: 13,
+    padding: "10px 16px",
+    borderRadius: theme.radius.sm,
+    marginBottom: 16,
+  },
+  saveAllBtn: {
+    border: "none",
+    padding: "12px 22px",
+    borderRadius: theme.radius.sm,
+    fontWeight: 700,
+    fontSize: 13.5,
+    whiteSpace: "nowrap",
+  },
   header: {
     display: "flex",
     alignItems: "flex-start",

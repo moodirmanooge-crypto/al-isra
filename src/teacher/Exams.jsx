@@ -23,7 +23,7 @@ import Topbar from "./Topbar";
 import MobileBottomNav from "./MobileBottomNav";
 
 // Nuucyada Exam-ka ee macallinku dooran karo
-const examTypes = ["Monthly One", "Term", "Monthly Two", "Final"];
+const examTypes = ["Monthly Exam 1", "Midterm Exam", "Monthly Test 2", "Final Exam"];
 
 function ExamsStyles() {
   return (

@@ -16,10 +16,10 @@ const SCHOOL_NAME = "Rising School";
 // ---- Nuuca imtixaanka ee maamulku ka doortay Exam Timetable-ka fasalka
 // (isla EXAM_TYPES ee ExamTimetable.jsx iyo ExamCards.jsx isticmaalaan) ----
 const EXAM_TYPE_LABELS = {
-  monthly1: "Monthly 1",
-  midterm: "Mid Term",
-  monthly2: "Monthly 2",
-  final: "Final",
+  MonthlyExamTest1: "Monthly Exam Test 1",
+  MidtermExam: "Midterm Exam",
+  MonthlyTest2: "Monthly Test 2",
+  FinalExam: "Final Exam",
 };
 function examTypeLabel(key) {
   return EXAM_TYPE_LABELS[key] || "Final";
@@ -164,6 +164,7 @@ export default function ExamPayments() {
       const cardRecord = {
         studentId: student.studentId,
         studentName: student.fullName,
+        studentPhoto: student.studentPhoto || "",
         className: student.className || "",
         cardNo,
         examType,

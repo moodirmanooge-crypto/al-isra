@@ -13,30 +13,152 @@ import {
   GraduationCap,
 } from "lucide-react";
 
-// Fixed class order: 1 -> 8 (primary), then F1 -> F4 (secondary/form)
-const CLASS_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+// FIXED, LOCKED class list — exactly these 11 classes, in exactly this order.
+// Nothing else is ever added, no matter what values exist in Firestore.
+const CLASS_ORDER = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+];
+
+// Normalize any incoming className value (from students/exams docs)
+// so it can be matched against CLASS_ORDER regardless of spacing/case differences.
+function normalizeClassName(raw) {
+  const val = String(raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  // Map all common variants to ONE canonical class name.
+  const map = {
+    // Fasalka 1aad
+    "fasalka 1aad": "Fasalka 1aad",
+    "fasalka1aad": "Fasalka 1aad",
+    "1aad": "Fasalka 1aad",
+    "class 1": "Fasalka 1aad",
+
+    // Fasalka 2aad
+    "fasalka 2aad": "Fasalka 2aad",
+    "fasalka2aad": "Fasalka 2aad",
+    "2aad": "Fasalka 2aad",
+    "class 2": "Fasalka 2aad",
+
+    // Fasalka 3aad
+    "fasalka 3aad": "Fasalka 3aad",
+    "fasalka3aad": "Fasalka 3aad",
+    "3aad": "Fasalka 3aad",
+    "class 3": "Fasalka 3aad",
+
+    // PP & PI
+    "pp": "PP",
+    "pi": "PI",
+
+    // G8 A
+    "g8 a": "G8 A",
+    "g8a": "G8 A",
+    "8 a": "G8 A",
+    "8a": "G8 A",
+
+    // G8 B
+    "g8 b": "G8 B",
+    "g8b": "G8 B",
+    "8 b": "G8 B",
+    "8b": "G8 B",
+
+    // Secondary
+    "f1": "F1",
+    "f2": "F2",
+    "f3": "F3",
+    "f4": "F4",
+  };
+
+  return map[val] || null;
+}
+
 function classRank(className) {
-  const idx = CLASS_ORDER.indexOf(String(className || "").toUpperCase());
+  const idx = CLASS_ORDER.indexOf(className);
   return idx === -1 ? 999 : idx;
+}
+
+function getClassBadge(cls) {
+  const badges = {
+    "Fasalka 1aad": "1aad",
+    "Fasalka 2aad": "2aad",
+    "Fasalka 3aad": "3aad",
+    "PP": "PP",
+    "PI": "PI",
+    "G8 A": "G8 A",
+    "G8 B": "G8 B",
+    "F1": "F1",
+    "F2": "F2",
+    "F3": "F3",
+    "F4": "F4",
+  };
+
+  return badges[cls] || cls;
 }
 
 function ResponsiveStyles() {
   return (
     <style>{`
-      .ex-layout { display: flex; min-height: 100vh; background: #0b0a1c; }
-      .ex-content { flex: 1; min-width: 0; }
-      .ex-class-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 18px; }
-      .ex-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .ex-layout {
+        display: flex;
+        min-height: 100vh;
+        background: #0b0a1c;
+      }
+
+      .ex-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .ex-class-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+        gap: 18px;
+      }
+
+      .ex-table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
 
       @media (max-width: 900px) {
-        .ex-page-pad { padding: 16px !important; }
-        .ex-header-row { gap: 10px !important; }
-        .ex-header-title { font-size: 20px !important; }
-        .ex-class-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
-        .ex-toolbar { flex-direction: column; align-items: stretch !important; }
+        .ex-page-pad {
+          padding: 16px !important;
+        }
+
+        .ex-header-row {
+          gap: 10px !important;
+        }
+
+        .ex-header-title {
+          font-size: 20px !important;
+        }
+
+        .ex-class-grid {
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        .ex-toolbar {
+          flex-direction: column;
+          align-items: stretch !important;
+        }
       }
+
       @media (max-width: 480px) {
-        .ex-class-grid { grid-template-columns: 1fr; }
+        .ex-class-grid {
+          grid-template-columns: 1fr;
+        }
       }
     `}</style>
   );
@@ -63,32 +185,43 @@ export default function Exams() {
         getDocs(collection(db, "results")),
       ]);
 
-      setStudents(studentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setExams(examsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setResults(resultsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setStudents(
+        studentsSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+      );
+
+      setExams(
+        examsSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+      );
+
+      setResults(
+        resultsSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+      );
     } catch (err) {
-      console.error("Khalad ayaa dhacay markii xogta Exams laga soo qaadanayay:", err);
+      console.error(
+        "Khalad ayaa dhacay markii xogta Exams laga soo qaadanayay:",
+        err
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  // Always show all 12 fixed classes, whether or not they have students/exams.
-  const classes = useMemo(() => {
-    const set = new Set(CLASS_ORDER);
-    students.forEach((s) => {
-      if (s.className && String(s.className).trim() !== "") set.add(String(s.className).toUpperCase());
-    });
-    exams.forEach((e) => {
-      if (e.className && String(e.className).trim() !== "") set.add(String(e.className).toUpperCase());
-    });
-    return Array.from(set).sort((a, b) => classRank(a) - classRank(b));
-  }, [students, exams]);
+  // Ensure unique classes directly from CLASS_ORDER
+  const classes = Array.from(new Set(CLASS_ORDER));
 
   const examsForClass = useMemo(() => {
     if (!selectedClass) return [];
     return exams
-      .filter((e) => String(e.className || "").toUpperCase() === selectedClass)
+      .filter((e) => normalizeClassName(e.className) === selectedClass)
       .sort((a, b) => (a.subject || "").localeCompare(b.subject || ""));
   }, [exams, selectedClass]);
 
@@ -99,7 +232,7 @@ export default function Exams() {
     if (!selectedClass) return { subjects: [], rows: [] };
 
     const classStudents = students.filter(
-      (s) => String(s.className || "").toUpperCase() === selectedClass
+      (s) => normalizeClassName(s.className) === selectedClass
     );
     const subjectList = Array.from(
       new Set(examsForClass.map((e) => e.subject || e.examName || "Subject"))
@@ -220,12 +353,12 @@ export default function Exams() {
 
           {!loading && !selectedClass && (
             <div className="ex-class-grid">
-              {classes.map((cls) => {
+              {Array.from(new Set(CLASS_ORDER)).map((cls) => {
                 const examCount = exams.filter(
-                  (e) => String(e.className || "").toUpperCase() === cls
+                  (e) => normalizeClassName(e.className) === cls
                 ).length;
                 const studentCount = students.filter(
-                  (s) => String(s.className || "").toUpperCase() === cls
+                  (s) => normalizeClassName(s.className) === cls
                 ).length;
                 return (
                   <button
@@ -259,11 +392,11 @@ export default function Exams() {
                           flexShrink: 0,
                         }}
                       >
-                        {cls}
+                        {getClassBadge(cls)}
                       </div>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>
-                          Fasalka: {cls}
+                          {cls}
                         </div>
                         <div style={{ fontSize: 12.5, color: "#8b87ad", marginTop: 2 }}>
                           {examCount} exam{examCount !== 1 ? "s" : ""} · {studentCount} arday
@@ -403,7 +536,7 @@ export default function Exams() {
                     gap: 8,
                   }}
                 >
-                  <BookOpen size={16} color="#8B5CF6" /> Fasalka {selectedClass} — Imtixaanada
+                  <BookOpen size={16} color="#8B5CF6" /> {selectedClass} — Imtixaanada
                 </h3>
                 {examsForClass.length === 0 ? (
                   <p style={{ fontSize: 13, color: "#8b87ad", margin: 0 }}>
@@ -451,7 +584,7 @@ export default function Exams() {
                     gap: 8,
                   }}
                 >
-                  <ClipboardList size={16} color="#8B5CF6" /> Fasalka {selectedClass} — Natiijooyinka
+                  <ClipboardList size={16} color="#8B5CF6" /> {selectedClass} — Natiijooyinka
                   (Gradebook)
                 </h3>
 

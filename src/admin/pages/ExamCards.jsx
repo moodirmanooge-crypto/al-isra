@@ -1,9 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { db } from "../../firebase/firebase";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { IdCard, Printer, Search, Trash2, X } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+// ✅ Sawirka asalka ah ee Exam Card-ka (template-ka dhabta ah, sida uu
+// maamulku VS Code ku arkay src/admin/assets/examcard.png) — kani WUXUU
+// AH design-ka, ma ahan mid dib loo sameeyay. Xogta ardayga oo kaliya
+// ayaa lagu daabacaa (overlay) dul sawirkan.
+import examCardBg from "../assets/examcard.png";
 
 const SCHOOL_NAME_EN = "AL - ISRA PRIMARY & SECONDARY SCHOOL";
 const SCHOOL_NAME_AR = "مدرسة ريسن استار الأساسية والثانوية";
@@ -14,12 +19,19 @@ function classRank(c) {
   return i === -1 ? 999 : i;
 }
 
+// ✅ "label" (badge-ka gaaban ee liiska boggan) iyo "printLabel" (qoraalka
+// buuxa ee lagu daabacaya card-ka daabacan, halkii "Final Exam" ee
+// template-ka lagu shuban) — labaduba waxay ka yimaadaan isla nooca
+// (card.examType) ee ExamTimetable.jsx maamulku ka doortay.
 const EXAM_TYPES = [
-  { key: "monthly1", label: "Monthly 1" },
-  { key: "midterm", label: "Mid Term" },
-  { key: "monthly2", label: "Monthly 2" },
-  { key: "final", label: "Final" },
+  { key: "monthly1", label: "Monthly 1", printLabel: "Monthly Exam Test 1" },
+  { key: "midterm", label: "Mid Term", printLabel: "Midterm Exam" },
+  { key: "monthly2", label: "Monthly 2", printLabel: "Monthly Test 2" },
+  { key: "final", label: "Final", printLabel: "Final Exam" },
 ];
+function examPrintLabel(examType) {
+  return EXAM_TYPES.find((t) => t.key === examType)?.printLabel || "Final Exam";
+}
 
 function pad4(n) {
   return String(n).padStart(4, "0");
@@ -30,12 +42,37 @@ function formatDate(ts) {
   return new Date(ts.seconds * 1000).toLocaleDateString("en-GB");
 }
 
+// Sawirka template-ka (864x1536 px) — booskiisa oo dhan waa la cabbiray
+// pixel-by-pixel si xogta la daabaco ay si sax ah ugu dhacdo goobaha
+// bannaan ee sawirka (photo box, STUDENT ID box, Date/Name/Class/Amount
+// underlines). Dhammaan waa boqolkiiba (%) card-ka si uu u sii shaqeeyo
+// cabbir kastoo card-ku noqdo.
+const CARD_RATIO = 1536 / 864; // dherer/ballaadh — dhawr card oo la mid ah
+
+const PHOTO_BOX = { left: "4.75%", top: "40.3%", width: "26.0%", height: "19.7%" };
+const ID_VALUE_BOX = { left: "4.75%", top: "65.0%", width: "26.0%" }; // center y ~66.1%
+const DATE_LINE = { left: "71.2%", right: "7.6%", top: "45.2%" };
+const NAME_LINE = { left: "47.9%", right: "7.1%", top: "62.9%" };
+const CLASS_LINE = { left: "17.1%", right: "63.5%", top: "72.5%" };
+const AMOUNT_LINE = { left: "70.1%", right: "7.6%", top: "72.5%" };
+// Goobta "Final Exam" ee ku shubran sawirka template-ka (baked-in text) —
+// waa la daboolayaa midab la mid ah dharka background-ka cream-ka ah
+// (244,239,233), kadibna nooca dhabta ah ee imtixaanka ayaa lagu
+// daabacayaa meeshaas isla goobtaas.
+const EXAM_TYPE_MASK = { left: "30.1%", top: "34.4%", width: "39.4%", height: "4.8%" };
+const MASK_COLOR = "rgb(244,239,233)";
+
 function ExamCardStyles() {
   return (
     <style>{`
       .ec-layout { display: flex; min-height: 100vh; background: #0b0a1c; }
       .ec-content { flex: 1; min-width: 0; }
-      .ec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(560px, 1fr)); gap: 20px; }
+      .ec-page-chunk {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+        gap: 20px;
+        margin-bottom: 24px;
+      }
       .ec-card-wrap { position: relative; }
       .ec-card-actions {
         position: absolute;
@@ -56,6 +93,32 @@ function ExamCardStyles() {
         cursor: pointer;
         box-shadow: 0 4px 10px rgba(0,0,0,0.35);
       }
+      .ec-card {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 864 / 1536;
+        background-image: url(${examCardBg});
+        background-size: 100% 100%;
+        background-repeat: no-repeat;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+        font-family: Georgia, 'Times New Roman', serif;
+      }
+      .ec-photo-box {
+        position: absolute;
+        overflow: hidden;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .ec-photo-box img { width: 100%; height: 100%; object-fit: cover; }
+
+      /* ---- Print: 4 card oo warqad A4 ah ----
+         Ardayda waxaa loo kala qaybiyaa kooxo 4-4 ah (JS-ka), kooxdiiba
+         waa "bog" — grid 2x2 gudaheeda, kadibna page-break marka bog kastaa
+         dhammaado, mid dambe mooyaane. */
       @media print {
         @page { size: A4 portrait; margin: 10mm; }
         body * { visibility: hidden; }
@@ -66,49 +129,95 @@ function ExamCardStyles() {
           print-color-adjust: exact !important;
           color-adjust: exact !important;
         }
-        .ec-grid {
-          display: block !important;
+        /* ✅ FIX #2: CSS Grid does not paginate/print reliably in Chrome
+           (it's a known limitation — grid tracks can silently collapse
+           to a single column when printing, which is exactly what was
+           happening here). Switched to Flexbox with fixed-width
+           wrapping items instead, which Chrome's print engine handles
+           correctly: 76mm cards + 5mm gap = 157mm per row, so exactly
+           2 cards wrap per row (top row, then bottom row) inside the
+           190mm-wide printable area, every time. */
+        /* ✅ FIX #3: cards were sized only to fill the HEIGHT budget
+           (76mm × 135mm), leaving unused space on both sides of the
+           page width. Now sized to fill the full printable area
+           (190mm × 277mm) exactly, edge to edge, with one uniform 6mm
+           gap in both directions — so the top row spans the full page
+           width, the bottom row matches it exactly, and the gap
+           between every card (left-right and top-bottom) is the same. */
+        .ec-page-chunk {
+          display: flex !important;
+          flex-wrap: wrap;
+          gap: 6mm;
+          width: 190mm;
+          height: 277mm;
+          margin: 0 auto;
+          page-break-after: always;
         }
+        .ec-page-chunk:last-child { page-break-after: auto; }
         .ec-card-wrap {
           break-inside: avoid;
           page-break-inside: avoid;
-          margin-bottom: 6mm;
-        }
-        .ec-card-wrap:nth-child(4n) {
-          page-break-after: always;
-          margin-bottom: 0;
-        }
-        .ec-hide-print {
-          display: none !important;
+          flex: 0 0 92mm;
+          width: 92mm;
+          height: 135mm;
         }
         .ec-card {
-          zoom: 0.8 !important;
-          break-inside: avoid;
-          page-break-inside: avoid;
-          margin-bottom: 0 !important;
+          width: 92mm !important;
+          height: 135mm !important;
+          aspect-ratio: unset !important;
           box-shadow: none !important;
-          border-bottom: 2px dashed #7a4e2a !important;
-          padding-bottom: 12px !important;
         }
-        .ec-card-wrap:nth-child(4n) .ec-card {
-          border-bottom: none !important;
-        }
-        .ec-single-print .ec-card-wrap:nth-child(4n) {
-          page-break-after: auto !important;
-        }
+        .ec-hide-print { display: none !important; }
         .ec-card-actions { display: none !important; }
       }
       @media (max-width: 900px) {
         .ec-page-pad { padding: 16px !important; }
-        .ec-grid { grid-template-columns: 1fr; }
+        .ec-page-chunk { grid-template-columns: 1fr; }
         .ec-toolbar { flex-direction: column; align-items: stretch !important; }
       }
     `}</style>
   );
 }
 
+// ---- Qoraal is-yaraynaya font-kiisa ilaa uu ku fillaado goobta la siiyay
+// (halkii magaca dheer loo goyn lahaa "..."). Isticmaalka ugu weyn:
+// magaca ardayga ee card-ka — magacyo dhaadheer sida "Abdimalik Aweys
+// Hassan Mohamed" hadda way muuqan doonaan si buuxda, iyagoo font-kooda
+// si otomaatig ah loo yareeyo, halkii lagu gooyn lahaa "...". ----
+function FitText({ text, maxFontPx, minFontPx, style }) {
+  const boxRef = useRef(null);
+  const spanRef = useRef(null);
+  const [fontPx, setFontPx] = useState(maxFontPx);
+
+  useLayoutEffect(() => {
+    setFontPx(maxFontPx);
+  }, [text, maxFontPx]);
+
+  useEffect(() => {
+    const box = boxRef.current;
+    const span = spanRef.current;
+    if (!box || !span) return;
+    let size = maxFontPx;
+    span.style.fontSize = `${size}px`;
+    let guard = 0;
+    while (span.scrollWidth > box.clientWidth && size > minFontPx && guard < 60) {
+      size -= 0.4;
+      span.style.fontSize = `${size}px`;
+      guard += 1;
+    }
+    setFontPx(size);
+  }, [text, maxFontPx, minFontPx]);
+
+  return (
+    <div ref={boxRef} style={{ ...style, overflow: "hidden", display: "flex" }}>
+      <span ref={spanRef} style={{ whiteSpace: "nowrap", fontSize: fontPx, fontWeight: 700 }}>
+        {text}
+      </span>
+    </div>
+  );
+}
+
 function ExamCard({ card, onDelete, onPrintSingle, isPrintHidden }) {
-  const examLabel = EXAM_TYPES.find((t) => t.key === card.examType)?.label || "Final";
   return (
     <div className={`ec-card-wrap${isPrintHidden ? " ec-hide-print" : ""}`}>
       <div className="ec-card-actions">
@@ -130,120 +239,137 @@ function ExamCard({ card, onDelete, onPrintSingle, isPrintHidden }) {
         </button>
       </div>
 
-      <div
-        className="ec-card"
-        style={{
-          background: "repeating-linear-gradient(135deg, #FBF4C9 0 40px, #FAF1BE 40px 80px)",
-          border: "10px solid transparent",
-          borderImage: "repeating-linear-gradient(45deg,#5c3a21 0 6px,#7a4e2a 6px 12px) 12",
-          borderRadius: 4,
-          padding: "18px 24px",
-          position: "relative",
-          color: "#1a1a1a",
-          fontFamily: "Georgia, 'Times New Roman', serif",
-        }}
-      >
-        <div style={{ border: "2px solid #6b3f1d", borderRadius: 2, padding: "16px 20px" }}>
-          <div style={{ textAlign: "center", marginBottom: 6 }}>
-            <div style={{ fontWeight: 800, fontSize: 17, color: "#0f5132", letterSpacing: 0.3 }}>
-              {SCHOOL_NAME_EN}
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 15, color: "#0f5132" }}>{SCHOOL_NAME_AR}</div>
-          </div>
+      <div className="ec-card">
+        {/* Sawirka ardayga — la soo aqriyay xogta students collection-ka */}
+        <div
+          className="ec-photo-box"
+          style={{
+            left: PHOTO_BOX.left,
+            top: PHOTO_BOX.top,
+            width: PHOTO_BOX.width,
+            height: PHOTO_BOX.height,
+          }}
+        >
+          {card.studentPhoto ? (
+            <img src={card.studentPhoto} alt="" />
+          ) : null}
+        </div>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              margin: "8px 0 10px",
-              flexWrap: "wrap",
-              gap: 8,
-            }}
-          >
-            <div
-              style={{
-                border: "1.5px solid #0f5132",
-                color: "#0f5132",
-                fontWeight: 800,
-                fontSize: 18,
-                padding: "3px 14px",
-                borderRadius: 2,
-              }}
-            >
-              EXAM CARD
-            </div>
-            <div style={{ fontSize: 13 }}>
-              <div>
-                DATE: <strong>{formatDate(card.createdAt)}</strong>
-              </div>
-              <div>
-                CARD NO: <strong>{pad4(card.cardNo)}</strong>
-              </div>
-            </div>
-          </div>
+        {/* Student ID — sanduuqa cad ee ka hooseeya "STUDENT ID" pill-ka */}
+        <div
+          style={{
+            position: "absolute",
+            left: ID_VALUE_BOX.left,
+            top: ID_VALUE_BOX.top,
+            width: ID_VALUE_BOX.width,
+            transform: "translateY(-50%)",
+            textAlign: "center",
+            fontWeight: 800,
+            fontSize: "clamp(10px, 2.6cqw, 15px)",
+            color: "#0f2a4a",
+          }}
+        >
+          {card.studentId}
+        </div>
 
-          <div style={{ fontSize: 14, marginBottom: 6 }}>
-            NAME OF STUDENT: <strong>{card.studentName}</strong>
-          </div>
-          <div style={{ fontSize: 14, marginBottom: 10, display: "flex", gap: 24 }}>
-            <span>
-              CLASS: <strong>{card.className}</strong>
-            </span>
-            <span>
-              ROLL NO: <strong>{card.studentId}</strong>
-            </span>
-          </div>
+        {/* Goobta "Final Exam" ee sawirka lagu shubay — waa la daboolayaa
+            midabka background-ka, kadibna nooca dhabta ah ee imtixaanka
+            ayaa lagu daabacayaa isla goobtaas. */}
+        <div
+          style={{
+            position: "absolute",
+            left: EXAM_TYPE_MASK.left,
+            top: EXAM_TYPE_MASK.top,
+            width: EXAM_TYPE_MASK.width,
+            height: EXAM_TYPE_MASK.height,
+            background: MASK_COLOR,
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            left: EXAM_TYPE_MASK.left,
+            top: EXAM_TYPE_MASK.top,
+            width: EXAM_TYPE_MASK.width,
+            height: EXAM_TYPE_MASK.height,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontWeight: 800,
+            fontSize: "clamp(13px, 4.2cqw, 24px)",
+            color: "#0f5132",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {examPrintLabel(card.examType)}
+        </div>
 
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, marginTop: 4 }}>
-            {EXAM_TYPES.map((t) => (
-              <label
-                key={t.key}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontWeight: 700,
-                  color: "#0f5132",
-                  fontSize: 13.5,
-                }}
-              >
-                <span
-                  style={{
-                    width: 15,
-                    height: 15,
-                    border: "1.5px solid #1a1a1a",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    lineHeight: 1,
-                    fontSize: 12,
-                    fontWeight: 900,
-                    color: "#0f5132",
-                  }}
-                >
-                  {t.label === examLabel ? "✔" : ""}
-                </span>
-                {t.label}
-              </label>
-            ))}
-          </div>
+        {/* Date */}
+        <div
+          style={{
+            position: "absolute",
+            left: DATE_LINE.left,
+            right: DATE_LINE.right,
+            top: DATE_LINE.top,
+            transform: "translateY(-100%)",
+            textAlign: "center",
+            fontWeight: 700,
+            fontSize: "clamp(9px, 2cqw, 13px)",
+            color: "#0f2a4a",
+          }}
+        >
+          {formatDate(card.createdAt)}
+        </div>
 
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 20 }}>
-            <div style={{ textAlign: "center", minWidth: 180 }}>
-              <div style={{ height: 32 }} />
-              <div
-                style={{
-                  borderTop: "1.5px solid #1a1a1a",
-                  paddingTop: 4,
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                Principal's Signature
-              </div>
-            </div>
-          </div>
+        {/* Name — is-yaraysa font-kiisa si magaca oo dhan uu u muuqdo,
+            marnaba lama gooyo "..." */}
+        <FitText
+          text={card.studentName}
+          maxFontPx={16}
+          minFontPx={7}
+          style={{
+            position: "absolute",
+            left: NAME_LINE.left,
+            right: NAME_LINE.right,
+            top: NAME_LINE.top,
+            transform: "translateY(-100%)",
+            justifyContent: "center",
+            color: "#0f2a4a",
+          }}
+        />
+
+        {/* Class */}
+        <div
+          style={{
+            position: "absolute",
+            left: CLASS_LINE.left,
+            right: CLASS_LINE.right,
+            top: CLASS_LINE.top,
+            transform: "translateY(-100%)",
+            textAlign: "center",
+            fontWeight: 700,
+            fontSize: "clamp(9px, 2cqw, 13px)",
+            color: "#0f2a4a",
+          }}
+        >
+          {card.className}
+        </div>
+
+        {/* Amount — lacagtii cashierku ka qaaday ExamPayments.jsx */}
+        <div
+          style={{
+            position: "absolute",
+            left: AMOUNT_LINE.left,
+            right: AMOUNT_LINE.right,
+            top: AMOUNT_LINE.top,
+            transform: "translateY(-100%)",
+            textAlign: "center",
+            fontWeight: 700,
+            fontSize: "clamp(9px, 2cqw, 13px)",
+            color: "#0f2a4a",
+          }}
+        >
+          ${card.amountPaid ?? 0}
         </div>
       </div>
     </div>
@@ -280,8 +406,27 @@ export default function ExamCards() {
   async function load() {
     try {
       setLoading(true);
-      const snap = await getDocs(collection(db, "examCards"));
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // ✅ Xogta card-ka lafteeda (studentId, studentName, className,
+      // amountPaid, examType, cardNo) waxay ka timaadaa examCards
+      // collection-ka — laakiin sawirka ardayga (studentPhoto) waxaan
+      // kaliya ka soo aqrinaynaa students collection-ka toos ah, si
+      // sawirku mar walba u ahaado kii ugu dambeeyay ee ardaygu leeyahay,
+      // ma ahan nuqul hore oo laga yaabo inuu banaan yahay.
+      const [cardsSnap, studentsSnap] = await Promise.all([
+        getDocs(collection(db, "examCards")),
+        getDocs(collection(db, "students")),
+      ]);
+
+      const photoByStudentId = {};
+      studentsSnap.docs.forEach((d) => {
+        const s = d.data();
+        if (s.studentId) photoByStudentId[s.studentId] = s.studentPhoto || "";
+      });
+
+      const data = cardsSnap.docs.map((d) => {
+        const card = { id: d.id, ...d.data() };
+        return { ...card, studentPhoto: photoByStudentId[card.studentId] || "" };
+      });
       setCards(data);
     } catch (err) {
       console.log(err);
@@ -310,6 +455,24 @@ export default function ExamCards() {
       })
       .sort((a, b) => (a.studentName || "").localeCompare(b.studentName || ""));
   }, [cards, selectedClass, search]);
+
+  // ---- U kala qaybi cardsForClass kooxo 4-4 ah — kooxdiiba waa hal
+  // "bog" A4 ah (grid 2x2). Marka hal card oo kaliya la doonayo in la
+  // daabaco (printOnlyId), waxaan kaliya soo celinaynaa hal kooxo oo
+  // ka kooban keliya cardkaas — haddii kale, kooxaha kale (oo dhammaan
+  // cardadooda la qariyay) way sii samayn lahaayeen page-break bannaan
+  // oo aan waxba ku qorayn. ----
+  const cardChunks = useMemo(() => {
+    if (printOnlyId) {
+      const target = cardsForClass.find((c) => c.id === printOnlyId);
+      return target ? [[target]] : [];
+    }
+    const chunks = [];
+    for (let i = 0; i < cardsForClass.length; i += 4) {
+      chunks.push(cardsForClass.slice(i, i + 4));
+    }
+    return chunks;
+  }, [cardsForClass, printOnlyId]);
 
   function handlePrint() {
     window.print();
@@ -539,17 +702,19 @@ export default function ExamCards() {
                 </div>
               ) : (
                 <div className={`ec-print-area${printOnlyId ? " ec-single-print" : ""}`}>
-                  <div className="ec-grid">
-                    {cardsForClass.map((c) => (
-                      <ExamCard
-                        key={c.id}
-                        card={c}
-                        onDelete={askDeleteOne}
-                        onPrintSingle={printSingleCard}
-                        isPrintHidden={!!printOnlyId && printOnlyId !== c.id}
-                      />
-                    ))}
-                  </div>
+                  {cardChunks.map((chunk, chunkIdx) => (
+                    <div className="ec-page-chunk" key={chunkIdx}>
+                      {chunk.map((c) => (
+                        <ExamCard
+                          key={c.id}
+                          card={c}
+                          onDelete={askDeleteOne}
+                          onPrintSingle={printSingleCard}
+                          isPrintHidden={!!printOnlyId && printOnlyId !== c.id}
+                        />
+                      ))}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

@@ -26,10 +26,20 @@ import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 
 // Fixed class order: 1 -> 8 (primary), then F1 -> F4 (secondary/form)
-const CLASS_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+const CLASS_ORDER = ["Fasalka 1aad", "Fasalka 2aad", "Fasalka 3aad", "PP", "PI", "G8 A", "G8 B", "F1", "F2", "F3", "F4"];
 function classRank(className) {
   const idx = CLASS_ORDER.indexOf(String(className || "").toUpperCase());
   return idx === -1 ? 999 : idx;
+}
+
+// ---- Sameyso qoraal gaaban oo lagu muujiyo gooryaanka orange-ka ah
+// (badge-ka). Fasallada "Fasalka Naad" waxaa laga soo saarayaa lambarka
+// kaliya (1, 2, 3...), kuwa kale (PP, PI, G8 A, F1...) sida ay yihiin
+// ayaa loo isticmaalayaa iyagoo aan la beddelin. ----
+function classBadge(className) {
+  const match = String(className || "").match(/^Fasalka (\d+)aad$/i);
+  if (match) return match[1]; // "Fasalka 1aad" -> "1"
+  return String(className || "").replace(/\s+/g, ""); // "G8 A" -> "G8A"
 }
 
 const DAYS = [
@@ -44,10 +54,10 @@ const DAYS = [
 // (key) halkan waa isla midka ExamCards.jsx iyo ExamPayments.jsx
 // isticmaalaan, si dhammaan bogagga isku mid ay noqdaan. ----
 const EXAM_TYPES = [
-  { key: "monthly1", label: "Monthly 1" },
-  { key: "midterm", label: "Mid Term" },
-  { key: "monthly2", label: "Monthly 2" },
-  { key: "final", label: "Final" },
+  { key: "Monthly Exam Test 1", label: "Monthly Exam Test1" },
+  { key: "Midterm Exam", label: "Midterm Exam" },
+  { key: "Monthly Test 2", label: "Monthly Test 2" },
+  { key: "final", label: "Final Exam" },
 ];
 function examTypeLabel(key) {
   return EXAM_TYPES.find((t) => t.key === key)?.label || "Final";
@@ -609,11 +619,11 @@ export default function ExamTimetable() {
                           flexShrink: 0,
                         }}
                       >
-                        {cls}
+                        {classBadge(cls)}
                       </div>
                       <div>
                         <div style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>
-                          Fasalka: {cls}
+                          {cls}
                         </div>
                         <div style={{ fontSize: 12.5, color: "#8b87ad", marginTop: 2 }}>
                           {dayCount} maalmood oo la sameeyay
@@ -775,10 +785,10 @@ export default function ExamTimetable() {
                     flexShrink: 0,
                   }}
                 >
-                  {selectedClass}
+                  {classBadge(selectedClass)}
                 </div>
                 <div style={{ fontWeight: 700, color: "#fff", fontSize: 18 }}>
-                  Fasalka: {selectedClass}
+                  {selectedClass}
                 </div>
               </div>
 

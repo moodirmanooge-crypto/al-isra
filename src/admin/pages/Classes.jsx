@@ -22,7 +22,9 @@ import {
 } from "lucide-react";
 
 // ✅ Liiska fasalada oo la cusboonaysiiyay — isku mid la AddStudent.jsx iyo
-// BulkRegistration.jsx
+// BulkRegistration.jsx. Habka ay u kala horreeyaan halkan ayaa ah kan
+// runta ah ee bogga Classes lagu tusayo — ha isku daynin inaad si
+// alphabetical ah u kala saarto, isticmaal tartibkan sida uu yahay.
 const classOptions = [
   "Fasalka 1aad",
   "Fasalka 2aad",
@@ -41,12 +43,19 @@ const classOptions = [
 // always shows up alongside the real classes below, even with 0
 // students, and is offered as a destination in the move dropdown.
 const GRADUATES_KEY = "Qalin Jabis";
-const renameTargetOptions = [...classOptions, GRADUATES_KEY];
+
+const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 export default function Classes() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+
+  // ✅ Fasalada admin-ku "Create Class" ka daray AddStudent.jsx — waxaa
+  // lagu kaydiyay Firestore collection "customClasses". Halkan ayaan ka
+  // soo aqrinaynaa si ay Classes.jsx isla markiiba u aragto fasalka
+  // cusub, xitaa haddii uu 0 arday leeyahay.
+  const [customClasses, setCustomClasses] = useState([]);
 
   const [selectedClass, setSelectedClass] = useState(null); // fasalka la furay
   const [renaming, setRenaming] = useState(null); // fasalka wax laga bedelayo
@@ -62,6 +71,7 @@ export default function Classes() {
 
   useEffect(() => {
     fetchStudents();
+    fetchCustomClasses();
   }, []);
 
   async function fetchStudents() {
@@ -76,12 +86,46 @@ export default function Classes() {
     }
   }
 
+  async function fetchCustomClasses() {
+    try {
+      const snap = await getDocs(collection(db, "customClasses"));
+      setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  // ✅ Fasalada cusub (customClasses) oo aan horey ugu jirin liiska
+  // rasmiga ah — si alphabetical/position ah loo kala saaray, si loogu
+  // daro dhamaadka classOptions.
+  const customClassNames = useMemo(() => {
+    return customClasses
+      .map((c) => c.name)
+      .filter(
+        (name) => !classOptions.some((c) => normalizeClassName(c) === normalizeClassName(name))
+      )
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [customClasses]);
+
+  // ✅ Fasalada rasmiga ah + fasalada cusub ee "Create Class" lagu daray —
+  // tartibkan ayaa loo isticmaalaa liiska fasalada bogga hore iyo
+  // dropdown-ka "Guuri Ardayda Una" ee modal-ka Edit Class.
+  const allKnownClassNames = useMemo(
+    () => [...classOptions, ...customClassNames],
+    [customClassNames]
+  );
+
+  const renameTargetOptions = useMemo(
+    () => [...allKnownClassNames, GRADUATES_KEY],
+    [allKnownClassNames]
+  );
+
   // ---- Isku duub ardayda class-kood, ku dar dhammaan class-yada
   // aan ardayna lahayn (0 arday) si liiska fasalada uu buuxo — iyo
   // qaybta "Qalin Jabis" oo had iyo jeer muuqata, xitaa 0 arday ----
   const classGroups = useMemo(() => {
     const groups = {};
-    classOptions.forEach((c) => (groups[c] = []));
+    allKnownClassNames.forEach((c) => (groups[c] = []));
     groups[GRADUATES_KEY] = [];
 
     students.forEach((s) => {
@@ -90,13 +134,21 @@ export default function Classes() {
       groups[cls].push(s);
     });
 
-    const realClasses = Object.entries(groups)
-      .filter(([name]) => name !== GRADUATES_KEY)
+    // ✅ Kala saarid sax ah: fasalada rasmiga ah (classOptions) waxay ku
+    // socdaan isla tartibka ay ku yaalliin liiskaas, kadibna fasalada
+    // cusub ee "Create Class" lagu daray (alphabetical) — ma aha mid
+    // alphabetical oo dhamaystiran. Haddii ay jiraan fasalo aan liiska
+    // ku jirin oo midna (tusaale xog hore oo la keydiyay sida "7" ama
+    // "8"), waxaa lagu daraa dhamaadka, kahor Qalin Jabis.
+    const knownEntries = allKnownClassNames.map((name) => [name, groups[name]]);
+
+    const extraEntries = Object.entries(groups)
+      .filter(([name]) => name !== GRADUATES_KEY && !allKnownClassNames.includes(name))
       .sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }));
 
     // Qalin Jabis always sits last, after every real class.
-    return [...realClasses, [GRADUATES_KEY, groups[GRADUATES_KEY]]];
-  }, [students]);
+    return [...knownEntries, ...extraEntries, [GRADUATES_KEY, groups[GRADUATES_KEY]]];
+  }, [students, allKnownClassNames]);
 
   // Total count of everyone in the Qalin Jabis bucket, shown on its card.
   const graduatesTotal = useMemo(
@@ -358,6 +410,7 @@ export default function Classes() {
             setHasFailed={setHasFailed}
             failedStudentIds={failedStudentIds}
             toggleFailedStudent={toggleFailedStudent}
+            renameTargetOptions={renameTargetOptions}
           />
         )}
 
@@ -467,6 +520,7 @@ export default function Classes() {
           setHasFailed={setHasFailed}
           failedStudentIds={failedStudentIds}
           toggleFailedStudent={toggleFailedStudent}
+          renameTargetOptions={renameTargetOptions}
         />
       )}
 
@@ -497,6 +551,7 @@ function RenameModal({
   setHasFailed,
   failedStudentIds,
   toggleFailedStudent,
+  renameTargetOptions,
 }) {
   const renamingLabel = renaming;
   const newLabel = newClassName;

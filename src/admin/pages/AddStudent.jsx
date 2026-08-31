@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { db, storage } from "../../firebase/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
@@ -26,9 +26,11 @@ import {
   Receipt,
   IdCard,
   FileEdit,
+  Plus,
 } from "lucide-react";
 
-// ✅ Liiska fasalada oo la cusboonaysiiyay
+// ✅ Liiska fasalada rasmiga ah (permanent) — isla midka Classes.jsx iyo
+// BulkRegistration.jsx isticmaalaan.
 const classOptions = [
   "Fasalka 1aad",
   "Fasalka 2aad",
@@ -50,6 +52,8 @@ const feeCategoryOptions = [
   { value: "Roll Number Fees", label: "Roll Number Fees" },
   { value: "Examination Fees", label: "Examination Fees" },
 ];
+
+const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 export default function AddStudent() {
   const [student, setStudent] = useState({
@@ -73,6 +77,38 @@ export default function AddStudent() {
 
   const [photoPreview, setPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  // ✅ Fasalada admin-ku "Create Class" ku daray — waxay ku kaydsan yihiin
+  // Firestore collection "customClasses" si Classes.jsx, BulkRegistration
+  // iyo AddStudent ay isla wada aragaan fasalada cusub, xitaa marka la
+  // dib-u-furo app-ka.
+  const [customClasses, setCustomClasses] = useState([]);
+  const [creatingClass, setCreatingClass] = useState(false);
+
+  useEffect(() => {
+    fetchCustomClasses();
+  }, []);
+
+  const fetchCustomClasses = async () => {
+    try {
+      const snap = await getDocs(collection(db, "customClasses"));
+      setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  // ✅ Liiska dhamaystiran ee dropdown-ka Class Name: fasalada rasmiga
+  // ah oo hore u jiray, kadibna fasalada cusub ee la sameeyay — kuwaas
+  // oo si alphabetical/position ah loo kala saaray si aan is-qas u
+  // dhicin.
+  const allClassOptions = useMemo(() => {
+    const customNames = customClasses
+      .map((c) => c.name)
+      .filter((name) => !classOptions.some((c) => normalizeClassName(c) === normalizeClassName(name)))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...classOptions, ...customNames];
+  }, [customClasses]);
 
   const handleChange = (e) => {
     setStudent({
@@ -131,7 +167,48 @@ export default function AddStudent() {
     });
   };
 
-  // ✅ Hubi in aan horey loo diiwaan gelin arday isla Full Name ah. Isku
+  // ✅ Marka "+ Create Class" la taabto: weydii magaca fasalka cusub,
+  // hubi in uusan horey u jirin (rasmi ah ama mid horey loo abuuray),
+  // kaydi Firestore, kadibna si toos ah ugu dar dropdown-ka oo dooro.
+  const handleCreateClass = async () => {
+    const raw = window.prompt("Fadlan geli magaca Class-ka cusub:");
+    if (raw === null) return; // admin-ku wuu iska daayay
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      alert("Fadlan geli magac sax ah oo Class-ka cusub ah");
+      return;
+    }
+
+    const target = normalizeClassName(trimmed);
+    const alreadyExists = allClassOptions.some(
+      (c) => normalizeClassName(c) === target
+    );
+    if (alreadyExists) {
+      alert(`Class-ka "${trimmed}" horeyba u jiray. Waxaa lagu doortay.`);
+      setStudent((prev) => ({ ...prev, className: trimmed }));
+      return;
+    }
+
+    try {
+      setCreatingClass(true);
+      const newDocRef = doc(collection(db, "customClasses"));
+      await setDoc(newDocRef, {
+        name: trimmed,
+        createdAt: new Date(),
+      });
+
+      setCustomClasses((prev) => [...prev, { id: newDocRef.id, name: trimmed }]);
+      // ✅ Isla marka la abuuro, class-ka cusub si toos ah ayaa loo doortaa
+      setStudent((prev) => ({ ...prev, className: trimmed }));
+    } catch (err) {
+      console.log(err);
+      alert(err.message);
+    } finally {
+      setCreatingClass(false);
+    }
+  };
+
+  // ✅ Hubi in aan horey loo isticmaalin arday isla Full Name ah. Isku
   // dar (normalize) magaca — trim + hal space u dhexeeya erayada + lower
   // case — si "Aamina Abdulkadir Mohamed" iyo "aamina  abdulkadir
   // mohamed " ay isku noqdaan, kadibna isbarbardhig magacyada ardayda
@@ -425,20 +502,40 @@ export default function AddStudent() {
             />
           </Field>
 
+          {/* ✅ Class Name + Create Class button */}
           <Field icon={School} label="Class Name">
-            <select
-              style={input}
-              name="className"
-              value={student.className}
-              onChange={handleChange}
-            >
-              <option value="">Select Class</option>
-              {classOptions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "flex", gap: 10 }}>
+              <select
+                style={{ ...input, flex: 1 }}
+                name="className"
+                value={student.className}
+                onChange={handleChange}
+              >
+                <option value="">Select Class</option>
+                {allClassOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={handleCreateClass}
+                disabled={creatingClass}
+                title="Create Class"
+                style={{
+                  ...createClassBtn,
+                  opacity: creatingClass ? 0.7 : 1,
+                  cursor: creatingClass ? "not-allowed" : "pointer",
+                }}
+              >
+                {creatingClass ? (
+                  <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+                ) : (
+                  <Plus size={18} />
+                )}
+              </button>
+            </div>
           </Field>
 
           <Field icon={Clock} label="Shift">
@@ -723,4 +820,17 @@ const toggleBtnActive = {
   background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
   border: "1.5px solid #6d5df0",
   color: "#fff",
+};
+
+// ✅ Badhanka "+ Create Class" — ku yaal agagaarka dropdown-ka Class Name
+const createClassBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 48,
+  background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
+  color: "#fff",
+  border: "none",
+  borderRadius: 12,
+  boxShadow: "0 8px 18px rgba(109,93,240,0.3)",
 };

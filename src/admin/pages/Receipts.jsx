@@ -2,11 +2,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../../firebase/firebase";
-import { Search, Printer, X, Receipt as ReceiptIcon, Trash2 } from "lucide-react";
+import { Search, Printer, X, Receipt as ReceiptIcon, Trash2, PrinterCheck } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
+import schoolLogo from "../assets/logo.png";
 
-const SCHOOL_NAME = "AL - ISRA PRIMARY & SECONDARY SCHOOL";
+const SCHOOL_NAME_LINE1 = "DUGSIGA HOOSE / DHEXE &";
+const SCHOOL_LOCATION = "Mogadishu - Somalia";
+const SCHOOL_PHONES = "858516 / 0615860629 / 0617636461 / 0617536461";
+const SCHOOL_EMAIL = "israpp@hotmail.com";
+
+// 1 USD = 28 So Sh — isla xisaabinta ReceiptModal.jsx
+const USD_TO_SOS_RATE = 28;
 
 function formatDate(value) {
   if (!value) return "—";
@@ -17,6 +24,58 @@ function formatDate(value) {
     month: "short",
     year: "numeric",
   });
+}
+
+// ---- Amount -> Words (English) ----
+const ONES = [
+  "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
+  "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
+  "Seventeen", "Eighteen", "Nineteen",
+];
+const TENS = [
+  "", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety",
+];
+
+function threeDigitsToWords(n) {
+  let str = "";
+  if (n >= 100) {
+    str += ONES[Math.floor(n / 100)] + " Hundred ";
+    n %= 100;
+  }
+  if (n >= 20) {
+    str += TENS[Math.floor(n / 10)] + " ";
+    n %= 10;
+  }
+  if (n > 0) {
+    str += ONES[n] + " ";
+  }
+  return str.trim();
+}
+
+function integerToWords(num) {
+  if (num === 0) return "Zero";
+  const parts = [];
+  const million = Math.floor(num / 1000000);
+  const thousand = Math.floor((num % 1000000) / 1000);
+  const rest = num % 1000;
+
+  if (million) parts.push(`${threeDigitsToWords(million)} Million`);
+  if (thousand) parts.push(`${threeDigitsToWords(thousand)} Thousand`);
+  if (rest) parts.push(threeDigitsToWords(rest));
+
+  return parts.join(" ").trim();
+}
+
+function amountToWords(amount) {
+  const num = Number(amount) || 0;
+  const dollars = Math.floor(num);
+  const cents = Math.round((num - dollars) * 100);
+
+  let words = `${integerToWords(dollars)} Dollar${dollars === 1 ? "" : "s"}`;
+  if (cents > 0) {
+    words += ` and ${integerToWords(cents)} Cent${cents === 1 ? "" : "s"}`;
+  }
+  return words;
 }
 
 const cardStyle = {
@@ -34,6 +93,7 @@ export default function Receipts() {
   const [deletingId, setDeletingId] = useState(null);
   const [confirmTarget, setConfirmTarget] = useState(null); // { type: "one"|"all", receipt? }
   const [deletingAll, setDeletingAll] = useState(false);
+  const [printAllOpen, setPrintAllOpen] = useState(false);
 
   useEffect(() => {
     fetchReceipts();
@@ -65,6 +125,7 @@ export default function Receipts() {
       return (
         String(r.receiptNo || "").toLowerCase().includes(q) ||
         String(r.studentName || "").toLowerCase().includes(q) ||
+        String(r.studentId || "").toLowerCase().includes(q) ||
         String(r.className || "").toLowerCase().includes(q) ||
         String(r.monthLabel || "").toLowerCase().includes(q)
       );
@@ -152,7 +213,7 @@ export default function Receipts() {
                 Receipts
               </h1>
               <p style={{ margin: "4px 0 0", fontSize: 13.5, color: "#6B7280" }}>
-                Dhammaan rasiidhada lacagaha ee laga bixiyay {SCHOOL_NAME}
+                Dhammaan rasiidhada lacagaha ee laga bixiyay AL-ISRA PRIMARY & SECONDARY SCHOOL
               </p>
             </div>
 
@@ -225,7 +286,7 @@ export default function Receipts() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Raadi lambarka rasiidka, magaca ardayga, fasalka, ama bisha..."
+                placeholder="Raadi lambarka rasiidka, magaca ardayga, ID-ga, fasalka, ama bisha..."
                 style={{
                   border: "none",
                   outline: "none",
@@ -246,28 +307,51 @@ export default function Receipts() {
             </div>
 
             {filtered.length > 0 && (
-              <button
-                onClick={askDeleteAll}
-                disabled={deletingAll}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  border: "1px solid #FCA5A5",
-                  background: "#FEF2F2",
-                  color: "#DC2626",
-                  fontWeight: 700,
-                  fontSize: 12.5,
-                  padding: "10px 16px",
-                  borderRadius: 10,
-                  cursor: deletingAll ? "not-allowed" : "pointer",
-                  opacity: deletingAll ? 0.7 : 1,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Trash2 size={14} />
-                {deletingAll ? "Tirtiraya..." : "Tirtir Dhammaan"}
-              </button>
+              <>
+                <button
+                  onClick={() => setPrintAllOpen(true)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    border: "1px solid #93C5FD",
+                    background: "#EFF6FF",
+                    color: "#2563EB",
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    cursor: "pointer",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <PrinterCheck size={14} />
+                  Daabac Dhammaan Rasiidhada
+                </button>
+
+                <button
+                  onClick={askDeleteAll}
+                  disabled={deletingAll}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    border: "1px solid #FCA5A5",
+                    background: "#FEF2F2",
+                    color: "#DC2626",
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    cursor: deletingAll ? "not-allowed" : "pointer",
+                    opacity: deletingAll ? 0.7 : 1,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  <Trash2 size={14} />
+                  {deletingAll ? "Tirtiraya..." : "Tirtir Dhammaan"}
+                </button>
+              </>
             )}
           </div>
 
@@ -290,6 +374,7 @@ export default function Receipts() {
                 <thead>
                   <tr style={{ color: "#9CA3AF", textAlign: "left" }}>
                     <th style={{ fontWeight: 600, paddingBottom: 10 }}>No</th>
+                    <th style={{ fontWeight: 600, paddingBottom: 10 }}>Student ID</th>
                     <th style={{ fontWeight: 600, paddingBottom: 10 }}>Student</th>
                     <th style={{ fontWeight: 600, paddingBottom: 10 }}>Class</th>
                     <th style={{ fontWeight: 600, paddingBottom: 10 }}>Month</th>
@@ -305,6 +390,7 @@ export default function Receipts() {
                       <td style={{ padding: "10px 0", fontWeight: 700, color: "#111827" }}>
                         {r.receiptNo}
                       </td>
+                      <td style={{ color: "#6B7280" }}>{r.studentId || "—"}</td>
                       <td style={{ color: "#111827", fontWeight: 600 }}>{r.studentName || "—"}</td>
                       <td style={{ color: "#6B7280" }}>{r.className || "—"}</td>
                       <td style={{ color: "#6B7280" }}>{r.monthLabel || "—"}</td>
@@ -366,6 +452,10 @@ export default function Receipts() {
           onDelete={() => askDeleteOne(selected)}
           deleting={deletingId === selected.id}
         />
+      )}
+
+      {printAllOpen && (
+        <PrintAllModal receipts={filtered} onClose={() => setPrintAllOpen(false)} />
       )}
 
       {confirmTarget && (
@@ -453,16 +543,241 @@ export default function Receipts() {
   );
 }
 
-// Modal-ka daawashada rasiidka — waa isla design-ka warqadda cusub
-// (ReceiptModal.jsx), laakiin ka soo akhriya xog rasiid oo hore loo
-// kaydiyay (halkii uu ka kordhin lahaa lambar cusub).
-function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
+// ---- Shaqada guud ee ku dhawaajinaysa lambar -> ereyo, isla midka
+// ReceiptModal.jsx, si Amount-ka la muujiyo "Seventeen Dollars Only" iwm. ----
+function ReceiptVoucherBody({ receipt, prefix }) {
   const paidDate = receipt.paidAt?.seconds
     ? new Date(receipt.paidAt.seconds * 1000)
     : receipt.createdAt?.seconds
     ? new Date(receipt.createdAt.seconds * 1000)
     : new Date();
 
+  const usdAmount = Number(receipt.paidAmount) || 0;
+  const sosAmount = Math.round(usdAmount * USD_TO_SOS_RATE);
+  const amountWords = amountToWords(usdAmount);
+  const isEvc = /evc/i.test(receipt.paymentMethod || "");
+  const p = prefix;
+
+  return (
+    <div className={`${p}-frame`}>
+      <div className={`${p}-outer`}>
+        <div className={`${p}-top`}>
+          <img src={schoolLogo} alt="Logo" className={`${p}-logo`} />
+
+          <div className={`${p}-school-block`}>
+            <div className={`${p}-school-line1`}>{SCHOOL_NAME_LINE1}</div>
+            <div className={`${p}-school-line2`}>
+              SARE EE <span className={`${p}-school-emph`}>AL-ISRA</span>
+            </div>
+            <div className={`${p}-school-location`}>— {SCHOOL_LOCATION} —</div>
+            <div className={`${p}-contact`}>
+              ☎ {SCHOOL_PHONES} &nbsp;|&nbsp; ✉ {SCHOOL_EMAIL}
+            </div>
+          </div>
+
+          <div className={`${p}-id-box`}>
+            <div className={`${p}-id-label`}>STUDENT ID</div>
+            <div className={`${p}-id-value`}>{receipt.studentId || ""}</div>
+          </div>
+        </div>
+
+        <div className={`${p}-divider`} />
+
+        <div className={`${p}-body`}>
+          <div className={`${p}-voucher-row`}>
+            <div className={`${p}-voucher-title`}>
+              <span className={`${p}-slashes`}>///</span> RECEIPT VOUCHER
+              <div className={`${p}-voucher-sub`}>(Warqadda Lacag Qaabashada)</div>
+            </div>
+            <div className={`${p}-no`}>
+              No: <span className={`${p}-no-value`}>{receipt.receiptNo}</span>
+            </div>
+          </div>
+
+          <div className={`${p}-field`}>
+            <span className={`${p}-label`}>Date:</span>
+            <span className={`${p}-value`}>{formatDate(paidDate)}</span>
+          </div>
+
+          <div className={`${p}-field`}>
+            <span className={`${p}-label`}>
+              Received from: <em>(Laga quaday)</em>
+            </span>
+            <span className={`${p}-value ${p}-value-strong`}>{receipt.studentName || "—"}</span>
+          </div>
+
+          <div className={`${p}-amount-row`}>
+            <div className={`${p}-amount-sos`}>
+              <span className={`${p}-label`}>
+                Amount of So Sh. <em>(Lacag dhan)</em>
+              </span>
+              <span className={`${p}-amount-box`}>{sosAmount.toLocaleString()}</span>
+            </div>
+            <div className={`${p}-amount-usd`}>
+              <span className={`${p}-usd-tag`}>US$</span>
+              <span className={`${p}-amount-box`}>{usdAmount}</span>
+            </div>
+          </div>
+
+          <div className={`${p}-field`}>
+            <span className={`${p}-label`}>
+              In words <em>(Eray ahaan)</em>:
+            </span>
+            <span className={`${p}-value`}>{amountWords} Only</span>
+          </div>
+
+          <div className={`${p}-being-row`}>
+            <div className={`${p}-being-of`}>
+              <span className={`${p}-label`}>
+                Being of: <em>(Taasoo ah)</em>:
+              </span>
+              <span className={`${p}-value`}>Monthly Fee — {receipt.monthLabel || "—"}</span>
+            </div>
+            <div className={`${p}-side-fields`}>
+              <div className={`${p}-field-inline`}>
+                <span className={`${p}-label`}>Class:</span>
+                <span className={`${p}-value`}>{receipt.className || "—"}</span>
+              </div>
+              <div className={`${p}-field-inline`}>
+                <span className={`${p}-label`}>Tel.</span>
+                <span className={`${p}-value`}>{receipt.studentPhone || "—"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${p}-bottom-row`}>
+            <div className={`${p}-payment-method`}>
+              <span className={`${p}-method-tag`}>PAYMENT METHOD</span>
+              <span className={`${p}-evc-label`}>EVC</span>
+              <span className={`${p}-evc-box`}>{isEvc ? "✓" : ""}</span>
+            </div>
+
+            <img src={schoolLogo} alt="Stamp" className={`${p}-stamp`} />
+
+            <div className={`${p}-signature`}>
+              <div className={`${p}-sig-title`}>PRINCIPAL SIGNATURE</div>
+              <div className={`${p}-sig-line`} />
+            </div>
+          </div>
+        </div>
+
+        <div className={`${p}-footer-note`}>
+          <span className={`${p}-footer-icon`}>!</span> N.B. Not refundable.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Isticmaalka style-ka guud ee sanduuqa rasiidka — isku mid u ah dhammaan
+// class prefix-yada (rv- daawasho, mc- daabac-dhammaan) sida qiimaha loo
+// gaarsiiyay via `prefix`. Waxaan ku daray hal template si loo yareeyo
+// isku celcelin — style-ka waxaa lagu qoraa CSS custom properties.
+function receiptVoucherCss(p, { fontScale = 1, compact = false } = {}) {
+  const f = (px) => `${(px * fontScale).toFixed(2)}px`;
+  return `
+    .${p}-frame {
+      border: ${compact ? 1.2 : 2}px solid #0b1f4d;
+      padding: ${compact ? 3 : 6}px;
+      height: 100%;
+      box-sizing: border-box;
+    }
+    .${p}-outer {
+      border: ${compact ? 1.8 : 3}px solid #0b1f4d;
+      padding: ${compact ? "10px 12px" : "16px 18px"};
+      height: 100%;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .${p}-top { display: flex; align-items: flex-start; gap: ${compact ? 8 : 14}px; }
+    .${p}-logo { width: ${f(62)}; height: ${f(62)}; object-fit: contain; flex-shrink: 0; }
+    .${p}-school-block { flex: 1; text-align: center; }
+    .${p}-school-line1, .${p}-school-line2 {
+      font-weight: 800; font-size: ${f(16)}; letter-spacing: 0.4px;
+      color: #0b1f4d; text-transform: uppercase; line-height: 1.25;
+    }
+    .${p}-school-emph { font-size: ${f(22)}; font-weight: 900; }
+    .${p}-school-location { font-style: italic; font-size: ${f(11)}; color: #1e3a8a; margin-top: 2px; }
+    .${p}-contact { font-size: ${f(9)}; color: #0b1f4d; margin-top: 4px; }
+    .${p}-id-box {
+      width: ${f(118)}; border: 1.5px solid #0b1f4d; border-radius: 8px;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .${p}-id-label {
+      background: #0b1f4d; color: #fff; font-size: ${f(9)}; font-weight: 800;
+      text-align: center; padding: 4px 0; letter-spacing: 0.4px;
+    }
+    .${p}-id-value {
+      text-align: center; font-size: ${f(11)}; font-weight: 700; padding: ${compact ? "6px 4px" : "10px 4px"};
+      min-height: 14px; border-bottom: 1px dotted #0b1f4d; margin: 0 8px;
+    }
+    .${p}-divider { border-top: 1.5px solid #0b1f4d; margin: ${compact ? 6 : 12}px 0; }
+    .${p}-body { display: flex; flex-direction: column; gap: ${compact ? 5 : 10}px; flex: 1; }
+    .${p}-voucher-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .${p}-voucher-title {
+      font-weight: 900; font-size: ${f(19)}; letter-spacing: 0.6px; color: #0b1f4d;
+      text-align: center; flex: 1;
+    }
+    .${p}-slashes { color: #93a5d1; font-style: normal; margin-right: 6px; }
+    .${p}-voucher-sub { font-size: ${f(10)}; font-style: italic; font-weight: 500; color: #1e3a8a; margin-top: 2px; }
+    .${p}-no { font-size: ${f(13)}; font-weight: 700; color: #0b1f4d; white-space: nowrap; }
+    .${p}-no-value { color: #dc2626; font-weight: 900; font-size: ${f(17)}; }
+    .${p}-field { display: flex; align-items: baseline; gap: 8px; font-size: ${f(12)}; }
+    .${p}-field em { font-size: ${f(10)}; font-style: italic; color: #475569; font-weight: 400; }
+    .${p}-label { font-weight: 700; white-space: nowrap; color: #0b1f4d; }
+    .${p}-value {
+      flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 2px; font-weight: 600; min-height: 12px;
+    }
+    .${p}-value-strong { font-weight: 800; font-size: ${f(13)}; }
+    .${p}-amount-row { display: flex; gap: 14px; align-items: flex-end; }
+    .${p}-amount-sos, .${p}-amount-usd { display: flex; flex-direction: column; gap: 3px; }
+    .${p}-amount-sos { flex: 1; }
+    .${p}-amount-box {
+      border: 1.5px solid #0b1f4d; border-radius: 8px; padding: ${compact ? "3px 8px" : "6px 12px"};
+      font-weight: 800; font-size: ${f(13)}; text-align: right;
+    }
+    .${p}-usd-tag {
+      background: #0b1f4d; color: #fff; font-weight: 800; font-size: ${f(12)};
+      padding: 5px 10px; border-radius: 6px; text-align: center;
+    }
+    .${p}-being-row { display: flex; gap: 14px; }
+    .${p}-being-of { flex: 1; display: flex; align-items: baseline; gap: 8px; font-size: ${f(12)}; }
+    .${p}-side-fields { display: flex; flex-direction: column; gap: 4px; min-width: ${compact ? 100 : 150}px; }
+    .${p}-field-inline { display: flex; align-items: baseline; gap: 6px; font-size: ${f(11.5)}; }
+    .${p}-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+    .${p}-payment-method { display: flex; align-items: center; gap: 8px; }
+    .${p}-method-tag {
+      background: #0b1f4d; color: #fff; font-size: ${f(10.5)}; font-weight: 800;
+      padding: 6px 10px; border-radius: 6px; white-space: nowrap;
+    }
+    .${p}-evc-label { font-weight: 700; font-size: ${f(12)}; color: #0b1f4d; }
+    .${p}-evc-box {
+      width: ${f(22)}; height: ${f(22)}; border: 1.5px solid #0b1f4d; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 900; font-size: ${f(14)}; color: #16a34a;
+    }
+    .${p}-stamp { width: ${f(66)}; height: ${f(66)}; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
+    .${p}-signature { text-align: center; min-width: ${compact ? 90 : 140}px; }
+    .${p}-sig-title { font-size: ${f(10)}; font-weight: 800; color: #0b1f4d; letter-spacing: 0.3px; }
+    .${p}-sig-line { border-bottom: 1px solid #64748b; height: ${compact ? 16 : 26}px; margin-top: 2px; }
+    .${p}-footer-note {
+      display: flex; align-items: center; gap: 8px; background: #0b1f4d; color: #fff;
+      font-size: ${f(11)}; font-style: italic; font-weight: 600;
+      padding: ${compact ? "5px 12px" : "7px 16px"};
+      margin: ${compact ? 8 : 14}px ${compact ? -12 : -18}px ${compact ? -10 : -16}px;
+    }
+    .${p}-footer-icon {
+      width: 15px; height: 15px; border-radius: 50%; background: #fff; color: #0b1f4d;
+      display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 10px;
+    }
+  `;
+}
+
+// Modal-ka daawashada rasiidka — waa isla design-ka warqadda cusub
+// (ReceiptModal.jsx), laakiin ka soo akhriya xog rasiid oo hore loo
+// kaydiyay (halkii uu ka kordhin lahaa lambar cusub).
+function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
   return (
     <>
       <div className="rv-overlay">
@@ -481,49 +796,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         </div>
 
         <div className="rv-paper">
-          <div className="rv-header">
-            <div className="rv-school">{SCHOOL_NAME}</div>
-            <div className="rv-sub">SCHOOL FEES RECEIPT</div>
-            <div className="rv-no">No. {receipt.receiptNo}</div>
-          </div>
-
-          <div className="rv-line" />
-
-          <div className="rv-field">
-            <span className="rv-label">Received from</span>
-            <span className="rv-value">{receipt.studentName || "—"}</span>
-          </div>
-          <div className="rv-field">
-            <span className="rv-label">Class</span>
-            <span className="rv-value">{receipt.className || "—"}</span>
-          </div>
-          <div className="rv-field">
-            <span className="rv-label">Month</span>
-            <span className="rv-value">{receipt.monthLabel || "—"}</span>
-          </div>
-          <div className="rv-field">
-            <span className="rv-label">Academic Year</span>
-            <span className="rv-value">{receipt.academicYear || "—"}</span>
-          </div>
-          <div className="rv-field">
-            <span className="rv-label">Date</span>
-            <span className="rv-value">{formatDate(paidDate)}</span>
-          </div>
-          <div className="rv-field">
-            <span className="rv-label">Amount</span>
-            <span className="rv-value rv-blank" />
-          </div>
-
-          <div className="rv-line" />
-
-          {/* Received by / Signature: waa banaan si loogu saxiixdo
-              gacanta warqadda daabacan — marna kama imaanayo Firestore. */}
-          <div className="rv-signature-block">
-            <span className="rv-label">Received by</span>
-            <span className="rv-signature-line" />
-          </div>
-
-          <div className="rv-footer">Mahadsanid!</div>
+          <ReceiptVoucherBody receipt={receipt} prefix="rv" />
         </div>
       </div>
 
@@ -562,65 +835,149 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           color: #ffffff;
         }
         .rv-paper {
-          width: 340px;
-          background: #FBF6E9;
-          padding: 22px 20px;
-          font-family: 'Georgia', 'Times New Roman', serif;
-          color: #111827;
+          width: 640px;
+          max-width: 94vw;
+          background: #ffffff;
+          font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
+          color: #0b1f4d;
           box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-          border: 3px double #7a1f1f;
         }
-        .rv-header { text-align: center; margin-bottom: 12px; }
-        .rv-school {
-          font-weight: 800;
-          font-size: 15px;
-          letter-spacing: 0.3px;
-          color: #14532d;
-          text-transform: uppercase;
-        }
-        .rv-sub { font-size: 13px; font-weight: 700; color: #111827; margin-top: 4px; }
-        .rv-no { font-size: 11.5px; color: #111827; margin-top: 4px; font-weight: 700; }
-        .rv-line { border-top: 1px dashed #9CA3AF; margin: 10px 0; }
-        .rv-field {
-          display: flex;
-          align-items: baseline;
-          gap: 6px;
-          font-size: 12.5px;
-          margin-bottom: 8px;
-        }
-        .rv-label { color: #374151; white-space: nowrap; }
-        .rv-value {
-          flex: 1;
-          border-bottom: 1px solid #9CA3AF;
-          padding-bottom: 1px;
-          font-weight: 600;
-          min-height: 14px;
-        }
-        .rv-strong { font-weight: 800; }
-        .rv-blank { min-height: 14px; }
-        .rv-signature-block {
-          display: flex;
-          align-items: baseline;
-          gap: 6px;
-          margin-top: 20px;
-          font-size: 12.5px;
-        }
-        .rv-signature-line {
-          flex: 1;
-          border-bottom: 1px solid #9CA3AF;
-          min-height: 18px;
-        }
-        .rv-footer { text-align: center; font-size: 12px; margin-top: 14px; font-weight: 700; }
+
+        ${receiptVoucherCss("rv")}
 
         @media print {
           body * { visibility: hidden; }
           .rv-paper, .rv-paper * { visibility: visible; }
           .rv-paper {
             position: absolute; top: 0; left: 0;
-            box-shadow: none; width: 80mm;
+            box-shadow: none; width: 190mm;
           }
           .no-print { display: none !important; }
-          @page { size: 80mm auto; margin: 0; }
+          @page { size: A5 landscape; margin: 4mm; }
+        }
+      `}</style>
+    </>
+  );
+}
+
+// ---- Daabacaadda dhammaan rasiidhada — 4 rasiid (2x2) A4 warqad
+// kasta, si maamulku ugu daabaco kaydka rasiidhada dhammaantiis hal
+// mar, halkii uu mid mid u daabici lahaa. ----
+function PrintAllModal({ receipts, onClose }) {
+  if (!receipts || receipts.length === 0) return null;
+
+  return (
+    <>
+      <div className="pa-overlay">
+        <div className="pa-actions no-print">
+          <button onClick={onClose} className="pa-close-btn">
+            Xir
+          </button>
+          <button onClick={() => window.print()} className="pa-print-btn">
+            <Printer size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
+            Print Dhammaan ({receipts.length})
+          </button>
+        </div>
+
+        <div className="pa-scroll no-print-scroll">
+          <div className="pa-grid">
+            {receipts.map((r) => (
+              <div className="pa-card" key={r.id}>
+                <ReceiptVoucherBody receipt={r} prefix="mc" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        .pa-overlay {
+          position: fixed;
+          top: 0; left: 0; right: 0; bottom: 0;
+          background: rgba(0,0,0,0.6);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          z-index: 2500;
+          padding: 20px 0;
+        }
+        .pa-actions {
+          display: flex;
+          gap: 10px;
+          margin-bottom: 16px;
+        }
+        .pa-close-btn, .pa-print-btn {
+          border: none;
+          border-radius: 10px;
+          padding: 10px 18px;
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+        }
+        .pa-close-btn {
+          background: #ffffff;
+          color: #6B7280;
+          border: 1px solid #E5E7EB;
+        }
+        .pa-print-btn {
+          background: #2563EB;
+          color: #ffffff;
+        }
+        .pa-scroll {
+          width: 100%;
+          max-width: 920px;
+          max-height: 82vh;
+          overflow-y: auto;
+          background: #f1f5f9;
+          border-radius: 16px;
+          padding: 20px;
+        }
+        .pa-grid {
+          display: grid;
+          grid-template-columns: repeat(2, 1fr);
+          gap: 18px;
+        }
+        .pa-card {
+          background: #fff;
+          font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
+          color: #0b1f4d;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+          aspect-ratio: 4 / 2.55;
+        }
+
+        ${receiptVoucherCss("mc", { fontScale: 0.62, compact: true })}
+
+        @media print {
+          body * { visibility: hidden; }
+          .pa-scroll, .pa-scroll * { visibility: visible; }
+          .pa-scroll {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            max-height: none;
+            overflow: visible;
+            background: #fff;
+            border-radius: 0;
+            padding: 0;
+          }
+          .pa-grid {
+            display: grid !important;
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 6mm !important;
+          }
+          .pa-card {
+            break-inside: avoid;
+            page-break-inside: avoid;
+            box-shadow: none !important;
+          }
+          .pa-card:nth-child(4n) {
+            page-break-after: always;
+          }
+          .no-print, .no-print-scroll::-webkit-scrollbar { display: none !important; }
+          @page {
+            size: A4 portrait;
+            margin: 8mm;
+          }
         }
       `}</style>
     </>

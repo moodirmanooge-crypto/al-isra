@@ -18,7 +18,6 @@ import {
   Clock,
   Loader2,
   Phone,
-  Users,
   Camera,
 } from "lucide-react";
 
@@ -30,7 +29,7 @@ const weekDays = [
   "Wednesday",
 ];
 
-const classOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+const classOptions = ["Faslka 1aad", "Fasalka 2aad", "Fasalka 3aad", "PP", "PI", "G8 A", "G8 B", "F1", "F2", "F3", "F4"];
 
 // Xiisad (session) shaqo maalinlaha ah -- waqtiga bilowga iyo dhamaadka
 const emptySession = () => ({
@@ -55,8 +54,6 @@ export default function AddTeacher() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [parentName, setParentName] = useState("");
-  const [parentPhoneNumber, setParentPhoneNumber] = useState("");
   // Nooca shaqada macalinka -- Full Time ama Part Time
   const [employmentType, setEmploymentType] = useState("");
 
@@ -219,16 +216,6 @@ export default function AddTeacher() {
       return;
     }
 
-    if (parentName === "") {
-      alert("Fadlan geli magaca waalidka");
-      return;
-    }
-
-    if (parentPhoneNumber === "") {
-      alert("Fadlan geli numbarka waalidka");
-      return;
-    }
-
     if (employmentType === "") {
       alert("Fadlan dooro nooca shaqada macalinka (Full Time / Part Time)");
       return;
@@ -273,9 +260,6 @@ export default function AddTeacher() {
         password,
         phoneNumber,
         phone: phoneNumber, // TeacherIdCard.jsx expects `phone`
-        parentName,
-        matherName: parentName, // TeacherIdCard.jsx expects `matherName`
-        parentPhoneNumber,
         employmentType, // "Full Time" ama "Part Time"
         subjects: uniqueSubjects, // TeacherIdCard.jsx expects `subjects`
         teacherPhoto: teacherPhotoUrl, // TeacherIdCard.jsx expects `teacherPhoto`
@@ -416,39 +400,18 @@ export default function AddTeacher() {
               />
             </Field>
 
-            <Field icon={Users} label="Numbarka Waalidka">
-              <input
-                style={input}
-                type="tel"
-                placeholder="Tusaale: 0615XXXXXX"
-                value={parentPhoneNumber}
-                onChange={(e) => setParentPhoneNumber(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div style={topGrid}>
-            <Field icon={User} label="Magaca Waalidka">
-              <input
-                style={input}
-                placeholder="Tusaale: Xasan Cali"
-                value={parentName}
-                onChange={(e) => setParentName(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <div style={topGrid}>
             <Field icon={Lock} label="Password">
               <input
-                style={{ ...input, maxWidth: 420 }}
+                style={input}
                 type="password"
                 placeholder="Ugu yaraan 6 xaraf"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </Field>
+          </div>
 
+          <div style={topGrid}>
             <Field icon={Clock} label="Nooca Shaqada">
               <select
                 style={input}
