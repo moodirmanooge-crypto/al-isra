@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { db, storage } from "../../firebase/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
@@ -11,13 +10,22 @@ import {
   arrayUnion,
 } from "firebase/firestore";
 import {
-  Users,
-  Plus,
-  Save,
-  X,
-  Upload,
-  CheckCircle2,
-  ArrowRight,
+  UserPlus,
+  User,
+  School,
+  Wallet,
+  Phone,
+  Smartphone,
+  MapPin,
+  BookOpen,
+  Heart,
+  Lock,
+  Camera,
+  Loader2,
+  Clock,
+  Receipt,
+  IdCard,
+  FileEdit,
 } from "lucide-react";
 
 // ✅ Liiska fasalada oo la cusboonaysiiyay
@@ -35,94 +43,87 @@ const classOptions = [
   "F4",
 ];
 
-const emptyRow = () => ({
-  fullName: "",
-  motherName: "", // ✅ Magaca Hooyada - field cusub
-  className: "",
-  shift: "",
-  feeType: "Free",
-  monthlyFee: "",
-  registrationFees: "", // ✅ Fee cusub: Registration Fees
-  rollNumberFees: "", // ✅ Fee cusub: Roll Number Fees
-  examinationFees: "", // ✅ Fee cusub: Examination Fees
-  parentPhone: "",
-  studentPhone: "",
-  district: "",
-  previousSchool: "",
-  orphanStatus: "No",
-  parentPassword: "",
-  studentPhoto: null,
-});
+export default function AddStudent() {
+  const [student, setStudent] = useState({
+    fullName: "",
+    motherName: "", // ✅ Magaca Hooyada - field cusub
+    className: "",
+    shift: "",
+    feeType: "Free",
+    monthlyFee: "",
+    registrationFees: "", // ✅ Fee cusub: Registration Fees
+    rollNumberFees: "", // ✅ Fee cusub: Roll Number Fees
+    examinationFees: "", // ✅ Fee cusub: Examination Fees
+    parentPhone: "",
+    studentPhone: "",
+    district: "",
+    previousSchool: "",
+    orphanStatus: "No",
+    parentPassword: "",
+    studentPhoto: null,
+  });
 
-export default function BulkRegistration() {
-  const navigate = useNavigate();
-
-  const [students, setStudents] = useState([emptyRow()]);
-  const [showPopup, setShowPopup] = useState(false);
-  const [savedStudents, setSavedStudents] = useState([]);
+  const [photoPreview, setPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const addRow = () => {
-    setStudents([...students, emptyRow()]);
+  const handleChange = (e) => {
+    setStudent({
+      ...student,
+      [e.target.name]: e.target.value,
+    });
   };
 
-  const handleLastFieldKeyDown = (index, e) => {
-    const isLastRow = index === students.length - 1;
-    if (!isLastRow) return;
+  const handleFeeTypeChange = (e) => {
+    const value = e.target.value;
+    setStudent({
+      ...student,
+      feeType: value,
+      monthlyFee: value === "Free" ? "0" : student.monthlyFee,
+    });
+  };
 
-    if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault();
-      addRow();
-
-      setTimeout(() => {
-        const nextInput = document.querySelector(
-          `[data-row="${index + 1}"][data-field="fullName"]`
-        );
-        if (nextInput) nextInput.focus();
-      }, 0);
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    setStudent({
+      ...student,
+      studentPhoto: file,
+    });
+    if (file) {
+      setPhotoPreview(URL.createObjectURL(file));
     }
   };
 
-  const removeRow = (index) => {
-    if (students.length === 1) return;
-    setStudents(students.filter((_, i) => i !== index));
-  };
-
-  const handleChange = (index, field, value) => {
-    const data = [...students];
-    data[index][field] = value;
-    setStudents(data);
-  };
-
-  const handleFeeTypeChange = (index, value) => {
-    const data = [...students];
-    data[index].feeType = value;
-    if (value === "Free") {
-      data[index].monthlyFee = "0";
-    }
-    setStudents(data);
-  };
-
-  const handleFileChange = (index, file) => {
-    const data = [...students];
-    data[index].studentPhoto = file;
-    setStudents(data);
-  };
-
-  // ✅ Parent Phone iyo Student Phone — lambar keliya (0-9) ayaa la ogolaanayaa
-  const handlePhoneChange = (index, field, value) => {
+  // ✅ Waxaan halkan ku ogolaynaa kaliya lambar (0-9) — xarfo iyo calaamado lama ogola
+  const handlePhoneChange = (e) => {
+    const { name, value } = e.target;
     const digitsOnly = value.replace(/[^0-9]/g, "");
-    const data = [...students];
-    data[index][field] = digitsOnly;
-    setStudents(data);
+    setStudent({
+      ...student,
+      [name]: digitsOnly,
+    });
   };
 
-  const attachStudentToClassTeachers = async (
-    teachersSnap,
-    className,
-    studentId,
-    fullName
-  ) => {
+  // ✅ Hubi in aan horey loo diiwaan gelin arday isla Full Name ah. Isku
+  // dar (normalize) magaca — trim + hal space u dhexeeya erayada + lower
+  // case — si "Aamina Abdulkadir Mohamed" iyo "aamina  abdulkadir
+  // mohamed " ay isku noqdaan, kadibna isbarbardhig magacyada ardayda
+  // horey loogu diiwaan geliyay collection-ka `students`.
+  const normalizeName = (name) =>
+    name.trim().replace(/\s+/g, " ").toLowerCase();
+
+  const isDuplicateFullName = async (fullName) => {
+    const target = normalizeName(fullName);
+    if (!target) return false;
+    const existingSnap = await getDocs(collection(db, "students"));
+    return existingSnap.docs.some((docSnap) => {
+      const existingName = docSnap.data().fullName || "";
+      return normalizeName(existingName) === target;
+    });
+  };
+
+  const attachStudentToClassTeachers = async (className, studentId, fullName) => {
+    const teachersSnap = await getDocs(collection(db, "teachers"));
+
     for (const teacherDoc of teachersSnap.docs) {
       const data = teacherDoc.data();
       const teacherClasses = Array.isArray(data.classes) ? data.classes : [];
@@ -139,159 +140,154 @@ export default function BulkRegistration() {
     }
   };
 
-  // ✅ Hubinta xogta safka hore intaan la kaydin — sawirka hadda waa
-  // ikhtiyaari, lambarrada ayaa weli la hubiyaa
-  const validateStudents = () => {
-    for (let i = 0; i < students.length; i++) {
-      const s = students[i];
-      const rowLabel = `Safka ${i + 1}`;
-
-      if (!s.fullName.trim()) {
-        alert(`${rowLabel}: Fadlan geli Magaca Ardayga`);
-        return false;
+  const saveStudent = async () => {
+    try {
+      if (!student.fullName.trim()) {
+        alert("Fadlan geli Magaca Ardayga");
+        return;
       }
 
       // ✅ Hubinta Magaca Hooyada - waajib
-      if (!s.motherName.trim()) {
-        alert(`${rowLabel}: Fadlan geli Magaca Hooyada`);
-        return false;
+      if (!student.motherName.trim()) {
+        alert("Fadlan geli Magaca Hooyada");
+        return;
       }
 
-      if (!s.className) {
-        alert(`${rowLabel}: Fadlan dooro Class`);
-        return false;
+      if (!student.className) {
+        alert("Fadlan dooro Class");
+        return;
       }
 
-      if (s.feeType === "Paid" && !String(s.monthlyFee).trim()) {
-        alert(`${rowLabel}: Fadlan geli Qiimaha Fee-ga bishii (Paid)`);
-        return false;
+      if (student.feeType === "Paid" && !String(student.monthlyFee).trim()) {
+        alert("Fadlan geli Qiimaha Fee-ga bishii (Paid)");
+        return;
       }
 
-      if (s.parentPhone && !/^\d+$/.test(s.parentPhone)) {
-        alert(`${rowLabel}: Parent Phone waa inuu ahaadaa lambar keliya (numbers only)`);
-        return false;
+      // ✅ Hubinta in Parent Phone iyo Student Phone ay yihiin lambar keliya
+      if (student.parentPhone && !/^\d+$/.test(student.parentPhone)) {
+        alert("Parent Phone waa inuu ahaadaa lambar keliya (numbers only)");
+        return;
       }
 
-      if (s.studentPhone && !/^\d+$/.test(s.studentPhone)) {
-        alert(`${rowLabel}: Student Phone waa inuu ahaadaa lambar keliya (numbers only)`);
-        return false;
+      if (student.studentPhone && !/^\d+$/.test(student.studentPhone)) {
+        alert("Student Phone waa inuu ahaadaa lambar keliya (numbers only)");
+        return;
       }
 
       // Sawirka ardayga hadda waa ikhtiyaari (optional) — lama qasbo.
-    }
-    return true;
-  };
-
-  const saveStudents = async () => {
-    try {
-      // ✅ Ka hor inta aan wax la kaydin, hubi dhammaan safafka
-      if (!validateStudents()) return;
 
       setSaving(true);
-      const saved = [];
 
-      // ✅ Sida ay ku jireen ardayda hore ee database-ka, si aan ID-yadu
-      // isugu daba socdaan oo aan wax laga tagin ama laba arday isku ID
-      // isku helin — waxaan halkan ka soo aqrinaynaa tirada ardayda jira.
-      const existingSnap = await getDocs(collection(db, "students"));
-      let nextIdNumber = existingSnap.size;
-
-      const teachersSnap = await getDocs(collection(db, "teachers"));
-
-      for (let i = 0; i < students.length; i++) {
-        const student = students[i];
-
-        nextIdNumber += 1;
-        const studentId = String(nextIdNumber).padStart(4, "0");
-
-        // Sawirka waa ikhtiyaari — haddii uu la doortay wuu soo shubmayaa,
-        // haddii kalese photoURL wuxuu ahaanayaa string madhan.
-        let photoURL = "";
-        if (student.studentPhoto) {
-          const photoRef = ref(
-            storage,
-            `students/${studentId}/${Date.now()}_${student.studentPhoto.name}`
-          );
-          await uploadBytes(photoRef, student.studentPhoto);
-          photoURL = await getDownloadURL(photoRef);
-        }
-
-        const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
-
-        await setDoc(doc(db, "students", studentId), {
-          studentId,
-          fullName: student.fullName,
-          motherName: student.motherName, // ✅ Magaca Hooyada oo lagu kaydiyo students
-          className: student.className,
-          shift: student.shift,
-          feeType: student.feeType,
-          monthlyFee: finalMonthlyFee,
-          registrationFees: student.registrationFees, // ✅ Registration Fees
-          rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
-          examinationFees: student.examinationFees, // ✅ Examination Fees
-          parentPhone: student.parentPhone,
-          studentPhone: student.studentPhone,
-          district: student.district,
-          previousSchool: student.previousSchool,
-          orphanStatus: student.orphanStatus,
-          parentPassword: student.parentPassword,
-          studentPhoto: photoURL,
-          createdAt: new Date(),
-        });
-
-        await setDoc(doc(db, "attendance", studentId), {
-          studentId,
-          studentName: student.fullName,
-        });
-
-        await setDoc(doc(db, "cashier", studentId), {
-          studentId,
-          studentName: student.fullName,
-          studentPhone: student.studentPhone,
-          parentPhone: student.parentPhone,
-          feeType: student.feeType,
-          monthlyFee: finalMonthlyFee,
-          registrationFees: student.registrationFees, // ✅ Registration Fees
-          rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
-          examinationFees: student.examinationFees, // ✅ Examination Fees
-        });
-
-        await setDoc(doc(db, "studentIdCards", studentId), {
-          studentId,
-          fullName: student.fullName,
-          motherName: student.motherName, // ✅ Magaca Hooyada oo lagu daro ID Card-ka
-          className: student.className,
-          shift: student.shift,
-          studentPhoto: photoURL,
-          district: student.district,
-          parentPhone: student.parentPhone,
-          studentPhone: student.studentPhone,
-          idIssuedAt: new Date(),
-          issuedAt: new Date(),
-          createdAt: new Date(),
-        });
-
-        if (student.className) {
-          await attachStudentToClassTeachers(
-            teachersSnap,
-            student.className,
-            studentId,
-            student.fullName
-          );
-        }
-
-        saved.push({
-          ...student,
-          studentId,
-        });
+      // ✅ Hubi in Full Name-kan horey loo isticmaalin — haddii uu jiro,
+      // jooji diiwaan gelinta gabi ahaanba, wax lagama kaydiyo.
+      const duplicate = await isDuplicateFullName(student.fullName);
+      if (duplicate) {
+        alert(
+          `Arday hore ayaa loo diiwaan geliyay magacan "${student.fullName}". Fadlan isticmaal magac kale ama hubi in ardaygan horey loo diiwaan gelin.`
+        );
+        setSaving(false);
+        return;
       }
 
-      setSavedStudents(saved);
-      setShowPopup(true);
+      const existingSnap = await getDocs(collection(db, "students"));
+      const studentId = String(existingSnap.size + 1).padStart(4, "0");
 
-      // ✅ Marka la kaydiyo si guul leh, jaddwalka waa in uu mar kale
-      // ka bilaabmaa xog cusub oo faaruq ah — safkii hore lama arki doono mar dambe
-      setStudents([emptyRow()]);
+      // Sawirka waa ikhtiyaari — haddii uu la doortay wuu soo shubmayaa,
+      // haddii kalese photoURL wuxuu ahaanayaa string madhan.
+      let photoURL = "";
+      if (student.studentPhoto) {
+        const photoRef = ref(
+          storage,
+          `students/${studentId}/${Date.now()}_${student.studentPhoto.name}`
+        );
+        await uploadBytes(photoRef, student.studentPhoto);
+        photoURL = await getDownloadURL(photoRef);
+      }
+
+      const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
+
+      await setDoc(doc(db, "students", studentId), {
+        studentId,
+        fullName: student.fullName,
+        motherName: student.motherName, // ✅ Magaca Hooyada oo lagu kaydiyo students
+        className: student.className,
+        shift: student.shift,
+        feeType: student.feeType,
+        monthlyFee: finalMonthlyFee,
+        registrationFees: student.registrationFees, // ✅ Registration Fees
+        rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
+        examinationFees: student.examinationFees, // ✅ Examination Fees
+        parentPhone: student.parentPhone,
+        studentPhone: student.studentPhone,
+        district: student.district,
+        previousSchool: student.previousSchool,
+        orphanStatus: student.orphanStatus,
+        parentPassword: student.parentPassword,
+        studentPhoto: photoURL,
+        createdAt: new Date(),
+      });
+
+      await setDoc(doc(db, "attendance", studentId), {
+        studentId,
+        studentName: student.fullName,
+      });
+
+      await setDoc(doc(db, "cashier", studentId), {
+        studentId,
+        studentName: student.fullName,
+        studentPhone: student.studentPhone,
+        parentPhone: student.parentPhone,
+        feeType: student.feeType,
+        monthlyFee: finalMonthlyFee,
+        registrationFees: student.registrationFees, // ✅ Registration Fees
+        rollNumberFees: student.rollNumberFees, // ✅ Roll Number Fees
+        examinationFees: student.examinationFees, // ✅ Examination Fees
+      });
+
+      // ✅ Isla marka ardayga la kaydiyo, si toos ah u samee ID Card-kiisa.
+      // Waxaan halkan ku kaydinaynaa xogta ID card-ka u baahan oo kaliya.
+      await setDoc(doc(db, "studentIdCards", studentId), {
+        studentId,
+        fullName: student.fullName,
+        motherName: student.motherName, // ✅ Magaca Hooyada oo lagu daro ID Card-ka
+        className: student.className,
+        shift: student.shift,
+        studentPhoto: photoURL,
+        district: student.district,
+        parentPhone: student.parentPhone,
+        studentPhone: student.studentPhone,
+        idIssuedAt: new Date(),
+        issuedAt: new Date(),
+        createdAt: new Date(),
+      });
+
+      await attachStudentToClassTeachers(
+        student.className,
+        studentId,
+        student.fullName
+      );
+
+      alert("Student Saved Successfully: " + student.fullName + "\nStudent ID: " + studentId);
+
+      setStudent({
+        fullName: "",
+        motherName: "",
+        className: "",
+        shift: "",
+        feeType: "Free",
+        monthlyFee: "",
+        registrationFees: "",
+        rollNumberFees: "",
+        examinationFees: "",
+        parentPhone: "",
+        studentPhone: "",
+        district: "",
+        previousSchool: "",
+        orphanStatus: "No",
+        parentPassword: "",
+        studentPhoto: null,
+      });
+      setPhotoPreview(null);
     } catch (err) {
       console.log(err);
       alert(err.message);
@@ -308,412 +304,266 @@ export default function BulkRegistration() {
           borderRadius: 24,
           padding: "36px 40px",
           border: "1px solid rgba(139,108,245,0.25)",
+          maxWidth: 1220,
+          margin: "0 auto",
         }}
       >
-        {/* ---- Header ---- */}
-        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 30 }}>
-          <div
+        <div style={{ display: "flex", alignItems: "center", gap: 24, marginBottom: 36 }}>
+          <label
+            htmlFor="studentPhoto"
             style={{
-              width: 52,
-              height: 52,
-              minWidth: 52,
-              borderRadius: 14,
-              background: "linear-gradient(135deg,#6d5df0,#8b6cf5)",
+              width: 110,
+              height: 110,
+              minWidth: 110,
+              borderRadius: "50%",
+              background: photoPreview
+                ? `url(${photoPreview}) center/cover`
+                : "rgba(139,108,245,0.08)",
+              border: student.studentPhoto
+                ? "2px solid #6d5df0"
+                : "2px dashed rgba(139,108,245,0.4)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              boxShadow: "0 8px 20px rgba(109,93,240,0.3)",
+              cursor: "pointer",
+              overflow: "hidden",
             }}
           >
-            <Users color="#fff" size={26} />
-          </div>
+            {!photoPreview && <Camera color="#8b6cf5" size={30} />}
+          </label>
+          <input
+            id="studentPhoto"
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            style={{ display: "none" }}
+          />
+
           <div>
-            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff" }}>
-              Bulk Student Registration
-            </h1>
-            <p style={{ margin: "4px 0 0", color: "#8b87ad", fontSize: 13.5 }}>
-              Ku dar dhowr arday hal mar, si degdeg ah oo sahlan.
-            </p>
+            <div style={{ fontWeight: 700, color: "#fff", fontSize: 22 }}>
+              Sawirka Ardayga{" "}
+              <span style={{ color: "#8b87ad", fontWeight: 400, fontSize: 14 }}>
+                (ikhtiyaari)
+              </span>
+            </div>
+            <div style={{ color: "#8b87ad", fontSize: 14, marginTop: 6 }}>
+              Riix goobta si aad sawir uga soo dooratid
+            </div>
           </div>
         </div>
 
-        {/* ---- Table ---- */}
-        <div style={{ overflowX: "auto", borderRadius: 16, border: "1px solid rgba(139,108,245,0.2)" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              minWidth: 1810,
-            }}
-          >
-            <thead>
-              <tr style={{ textAlign: "left", background: "rgba(139,108,245,0.08)" }}>
-                <th style={th}>Full Name</th>
-                <th style={th}>Mother Name</th>
-                <th style={th}>Class Name</th>
-                <th style={th}>Shift</th>
-                <th style={th}>Fee Type</th>
-                <th style={th}>Monthly Fee ($)</th>
-                <th style={th}>Registration Fees</th>
-                <th style={th}>Roll Number Fees</th>
-                <th style={th}>Examination Fees</th>
-                <th style={th}>Parent Phone</th>
-                <th style={th}>Student Phone</th>
-                <th style={th}>District</th>
-                <th style={th}>Previous School</th>
-                <th style={th}>Orphan Status</th>
-                <th style={th}>Parent Password</th>
-                <th style={th}>Student Photo</th>
-                <th style={{ ...th, textAlign: "center" }}></th>
-              </tr>
-            </thead>
+        <div style={grid}>
+          <Field icon={User} label="Full Name">
+            <input
+              style={input}
+              name="fullName"
+              placeholder="Tusaale: Ahmed Cali"
+              value={student.fullName}
+              onChange={handleChange}
+            />
+          </Field>
 
-            <tbody>
-              {students.map((student, index) => (
-                <tr key={index}>
-                  <td style={td}>
-                    <input
-                      style={input}
-                      data-row={index}
-                      data-field="fullName"
-                      placeholder="Magaca oo dhan"
-                      value={student.fullName}
-                      onChange={(e) =>
-                        handleChange(index, "fullName", e.target.value)
-                      }
-                    />
-                  </td>
+          {/* ✅ Field cusub: Magaca Hooyada */}
+          <Field icon={User} label="Mother Name">
+            <input
+              style={input}
+              name="motherName"
+              placeholder="Tusaale: Faadumo Xasan"
+              value={student.motherName}
+              onChange={handleChange}
+            />
+          </Field>
 
-                  {/* ✅ Column cusub: Magaca Hooyada */}
-                  <td style={td}>
-                    <input
-                      style={input}
-                      data-row={index}
-                      data-field="motherName"
-                      placeholder="Magaca Hooyada"
-                      value={student.motherName}
-                      onChange={(e) =>
-                        handleChange(index, "motherName", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  <td style={td}>
-                    <select
-                      style={input}
-                      value={student.className}
-                      onChange={(e) =>
-                        handleChange(index, "className", e.target.value)
-                      }
-                    >
-                      <option value="">Select Class</option>
-                      {classOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-
-                  <td style={td}>
-                    <select
-                      style={input}
-                      value={student.shift}
-                      onChange={(e) =>
-                        handleChange(index, "shift", e.target.value)
-                      }
-                    >
-                      <option value="">Select</option>
-                      <option value="Morning">🌅 Morning</option>
-                      <option value="Afternoon">🌇 Afternoon</option>
-                    </select>
-                  </td>
-
-                  <td style={td}>
-                    <select
-                      style={input}
-                      value={student.feeType}
-                      onChange={(e) =>
-                        handleFeeTypeChange(index, e.target.value)
-                      }
-                    >
-                      <option value="Free">🆓 Free</option>
-                      <option value="Paid">💵 Paid</option>
-                    </select>
-                  </td>
-
-                  <td style={td}>
-                    <input
-                      style={{
-                        ...input,
-                        opacity: student.feeType === "Free" ? 0.4 : 1,
-                      }}
-                      type="number"
-                      placeholder="0.00"
-                      disabled={student.feeType === "Free"}
-                      value={student.feeType === "Free" ? "0" : student.monthlyFee}
-                      onChange={(e) =>
-                        handleChange(index, "monthlyFee", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  {/* ✅ Column cusub: Registration Fees */}
-                  <td style={td}>
-                    <input
-                      style={input}
-                      type="number"
-                      placeholder="0.00"
-                      value={student.registrationFees}
-                      onChange={(e) =>
-                        handleChange(index, "registrationFees", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  {/* ✅ Column cusub: Roll Number Fees */}
-                  <td style={td}>
-                    <input
-                      style={input}
-                      type="number"
-                      placeholder="0.00"
-                      value={student.rollNumberFees}
-                      onChange={(e) =>
-                        handleChange(index, "rollNumberFees", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  {/* ✅ Column cusub: Examination Fees */}
-                  <td style={td}>
-                    <input
-                      style={input}
-                      type="number"
-                      placeholder="0.00"
-                      value={student.examinationFees}
-                      onChange={(e) =>
-                        handleChange(index, "examinationFees", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  <td style={td}>
-                    <input
-                      style={input}
-                      type="tel"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="61xxxxxxx"
-                      value={student.parentPhone}
-                      onChange={(e) =>
-                        handlePhoneChange(index, "parentPhone", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  <td style={td}>
-                    <input
-                      style={input}
-                      type="tel"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      placeholder="61xxxxxxx"
-                      value={student.studentPhone}
-                      onChange={(e) =>
-                        handlePhoneChange(index, "studentPhone", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  <td style={td}>
-                    <input
-                      style={input}
-                      placeholder="Degmada"
-                      value={student.district}
-                      onChange={(e) =>
-                        handleChange(index, "district", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  <td style={td}>
-                    <input
-                      style={input}
-                      placeholder="Dugsigii hore"
-                      value={student.previousSchool}
-                      onChange={(e) =>
-                        handleChange(index, "previousSchool", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  <td style={td}>
-                    <select
-                      style={input}
-                      value={student.orphanStatus}
-                      onChange={(e) =>
-                        handleChange(index, "orphanStatus", e.target.value)
-                      }
-                    >
-                      <option>No</option>
-                      <option>Yes</option>
-                    </select>
-                  </td>
-
-                  <td style={td}>
-                    <input
-                      style={input}
-                      placeholder="••••••••"
-                      value={student.parentPassword}
-                      onChange={(e) =>
-                        handleChange(index, "parentPassword", e.target.value)
-                      }
-                    />
-                  </td>
-
-                  <td style={td}>
-                    <label
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        color: student.studentPhoto ? "#4ade80" : "#a9a6c4",
-                        fontSize: 12,
-                        cursor: "pointer",
-                        border: student.studentPhoto
-                          ? "1px solid rgba(74,222,128,0.4)"
-                          : "1px dashed rgba(139,108,245,0.4)",
-                        borderRadius: 8,
-                        padding: "7px 9px",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <Upload size={13} color={student.studentPhoto ? "#4ade80" : "#a9a6c4"} />
-                      {student.studentPhoto ? student.studentPhoto.name.slice(0, 10) + "…" : "Upload"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        data-row={index}
-                        data-field="studentPhoto"
-                        onChange={(e) =>
-                          handleFileChange(index, e.target.files[0])
-                        }
-                        onKeyDown={(e) => handleLastFieldKeyDown(index, e)}
-                        style={{ display: "none" }}
-                      />
-                    </label>
-                  </td>
-
-                  <td style={{ ...td, textAlign: "center" }}>
-                    <button
-                      onClick={() => removeRow(index)}
-                      style={{
-                        background: "rgba(239,68,68,0.15)",
-                        color: "#f87171",
-                        border: "1px solid rgba(239,68,68,0.3)",
-                        borderRadius: 8,
-                        width: 30,
-                        height: 30,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <X size={14} />
-                    </button>
-                  </td>
-                </tr>
+          <Field icon={School} label="Class Name">
+            <select
+              style={input}
+              name="className"
+              value={student.className}
+              onChange={handleChange}
+            >
+              <option value="">Select Class</option>
+              {classOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
-            </tbody>
-          </table>
+            </select>
+          </Field>
+
+          <Field icon={Clock} label="Shift">
+            <select
+              style={input}
+              name="shift"
+              value={student.shift}
+              onChange={handleChange}
+            >
+              <option value="">Select Shift</option>
+              <option value="Morning">🌅 Morning</option>
+              <option value="Afternoon">🌇 Afternoon</option>
+            </select>
+          </Field>
+
+          <Field icon={Wallet} label="Fee Type">
+            <select
+              style={input}
+              name="feeType"
+              value={student.feeType}
+              onChange={handleFeeTypeChange}
+            >
+              <option value="Free">🆓 Free</option>
+              <option value="Paid">💵 Paid</option>
+            </select>
+          </Field>
+
+          {student.feeType === "Paid" && (
+            <Field icon={Wallet} label="Monthly Fee ($)">
+              <input
+                style={input}
+                type="number"
+                name="monthlyFee"
+                placeholder="0.00"
+                value={student.monthlyFee}
+                onChange={handleChange}
+              />
+            </Field>
+          )}
+
+          {/* ✅ Field cusub: Registration Fees */}
+          <Field icon={Receipt} label="Registration Fees">
+            <input
+              style={input}
+              type="number"
+              name="registrationFees"
+              placeholder="0.00"
+              value={student.registrationFees}
+              onChange={handleChange}
+            />
+          </Field>
+
+          {/* ✅ Field cusub: Roll Number Fees */}
+          <Field icon={IdCard} label="Roll Number Fees">
+            <input
+              style={input}
+              type="number"
+              name="rollNumberFees"
+              placeholder="0.00"
+              value={student.rollNumberFees}
+              onChange={handleChange}
+            />
+          </Field>
+
+          {/* ✅ Field cusub: Examination Fees */}
+          <Field icon={FileEdit} label="Examination Fees">
+            <input
+              style={input}
+              type="number"
+              name="examinationFees"
+              placeholder="0.00"
+              value={student.examinationFees}
+              onChange={handleChange}
+            />
+          </Field>
+
+          {/* ✅ Parent Phone — lambar keliya ayaa la ogolaanayaa */}
+          <Field icon={Phone} label="Parent Phone">
+            <input
+              style={input}
+              name="parentPhone"
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="61xxxxxxx"
+              value={student.parentPhone}
+              onChange={handlePhoneChange}
+            />
+          </Field>
+
+          {/* ✅ Student Phone — lambar keliya ayaa la ogolaanayaa */}
+          <Field icon={Smartphone} label="Student Phone">
+            <input
+              style={input}
+              name="studentPhone"
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="61xxxxxxx"
+              value={student.studentPhone}
+              onChange={handlePhoneChange}
+            />
+          </Field>
+
+          <Field icon={MapPin} label="District">
+            <input
+              style={input}
+              name="district"
+              placeholder="Tusaale: Hodan"
+              value={student.district}
+              onChange={handleChange}
+            />
+          </Field>
+
+          <Field icon={BookOpen} label="Previous School">
+            <input
+              style={input}
+              name="previousSchool"
+              placeholder="Magaca dugsiga hore"
+              value={student.previousSchool}
+              onChange={handleChange}
+            />
+          </Field>
+
+          <Field icon={Heart} label="Orphan Status">
+            <select
+              style={input}
+              name="orphanStatus"
+              value={student.orphanStatus}
+              onChange={handleChange}
+            >
+              <option>No</option>
+              <option>Yes</option>
+            </select>
+          </Field>
+
+          <Field icon={Lock} label="Parent Password">
+            <input
+              style={input}
+              type="password"
+              name="parentPassword"
+              placeholder="••••••••"
+              value={student.parentPassword}
+              onChange={handleChange}
+            />
+          </Field>
         </div>
 
-        {/* ---- Buttons-ka hoose ---- */}
-        <div style={{ display: "flex", gap: 14, marginTop: 24 }}>
-          <button onClick={addRow} style={btnSecondary}>
-            <Plus size={17} />
-            Add Row
-          </button>
-
-          <button
-            onClick={saveStudents}
-            disabled={saving}
-            style={{
-              ...btnPrimary,
-              opacity: saving ? 0.7 : 1,
-              cursor: saving ? "not-allowed" : "pointer",
-            }}
-          >
-            <Save size={17} />
-            {saving ? "Kaydinaya..." : "Save All"}
-          </button>
-        </div>
+        <button
+          onClick={saveStudent}
+          disabled={saving}
+          style={{
+            ...btnPrimary,
+            opacity: saving ? 0.7 : 1,
+            cursor: saving ? "not-allowed" : "pointer",
+          }}
+        >
+          {saving ? (
+            <>
+              <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+              Kaydinaya...
+            </>
+          ) : (
+            <>
+              <UserPlus size={18} />
+              Complete Registration
+            </>
+          )}
+        </button>
       </div>
 
-      {/* ---- Popup-ka guusha ---- */}
-      {showPopup && (
-        <div style={popupOverlay}>
-          <div style={popupCard}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-              <div
-                style={{
-                  width: 46,
-                  height: 46,
-                  minWidth: 46,
-                  borderRadius: "50%",
-                  background: "rgba(34,197,94,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <CheckCircle2 color="#4ade80" size={24} />
-              </div>
-              <h2 style={{ color: "#fff", margin: 0, fontSize: 19 }}>
-                Students Saved Successfully
-              </h2>
-            </div>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {savedStudents.map((student) => (
-                <div
-                  key={student.studentId}
-                  style={{
-                    background: "rgba(255,255,255,0.03)",
-                    borderRadius: 10,
-                    padding: "10px 14px",
-                    border: "1px solid rgba(139,108,245,0.15)",
-                  }}
-                >
-                  <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
-                    {student.fullName || "—"}
-                  </div>
-                  <div style={{ color: "#8b87ad", fontSize: 12.5, marginTop: 2 }}>
-                    Student ID: {student.studentId}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={() => {
-                // ✅ Marka la aado bogga ardayda, popup-ka xir oo
-                // savedStudents nadiifi si booqasho dambe uusan u muuqan
-                setShowPopup(false);
-                setSavedStudents([]);
-                navigate("/admin/students");
-              }}
-              style={{ ...btnPrimary, width: "100%", marginTop: 22, justifyContent: "center" }}
-            >
-              Go To Students
-              <ArrowRight size={17} />
-            </button>
-          </div>
-        </div>
-      )}
-
       <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
         input::placeholder {
           color: #6b6890;
         }
@@ -726,81 +576,59 @@ export default function BulkRegistration() {
   );
 }
 
-const th = {
-  padding: "12px 10px",
-  color: "#a9a6c4",
-  fontSize: 12,
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-  borderBottom: "1px solid rgba(139,108,245,0.2)",
-};
+function Field({ icon: Icon, label, children }) {
+  return (
+    <div>
+      <label
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          fontWeight: 600,
+          marginBottom: 10,
+          color: "#fff",
+          fontSize: 15,
+        }}
+      >
+        <Icon size={17} color="#8b6cf5" />
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
 
-const td = {
-  padding: "8px 10px",
-  borderBottom: "1px solid rgba(139,108,245,0.1)",
+const grid = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: "24px 32px",
+  marginBottom: 34,
 };
 
 const input = {
   width: "100%",
-  padding: "8px 10px",
+  padding: "14px 16px",
   boxSizing: "border-box",
-  border: "1.5px solid rgba(139,108,245,0.3)",
-  borderRadius: 9,
-  fontSize: 12.5,
+  border: "1.5px solid rgba(139,108,245,0.35)",
+  borderRadius: 12,
+  fontSize: 14.5,
   color: "#e5e3f7",
-  background: "rgba(255,255,255,0.02)",
   outline: "none",
-  minWidth: 110,
+  background: "rgba(255,255,255,0.02)",
+  transition: "border-color .2s",
 };
 
 const btnPrimary = {
   display: "inline-flex",
   alignItems: "center",
-  gap: 9,
+  justifyContent: "center",
+  gap: 10,
   background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
   color: "#fff",
   border: "none",
-  borderRadius: 12,
-  padding: "13px 24px",
+  borderRadius: 14,
+  padding: "16px 28px",
   fontWeight: 700,
-  fontSize: 14.5,
+  fontSize: 15,
   boxShadow: "0 10px 24px rgba(109,93,240,0.35)",
-};
-
-const btnSecondary = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 9,
-  background: "rgba(255,255,255,0.04)",
-  color: "#fff",
-  border: "1.5px solid rgba(139,108,245,0.35)",
-  borderRadius: 12,
-  padding: "13px 24px",
-  fontWeight: 700,
-  fontSize: 14.5,
-  cursor: "pointer",
-};
-
-const popupOverlay = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "rgba(0,0,0,0.6)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 1000,
-};
-
-const popupCard = {
-  background: "linear-gradient(160deg,#151233,#181341)",
-  border: "1px solid rgba(139,108,245,0.3)",
-  borderRadius: 18,
-  padding: 30,
-  minWidth: 380,
-  maxWidth: 500,
-  maxHeight: "80vh",
-  overflowY: "auto",
 };
