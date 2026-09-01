@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { db, storage } from "../../firebase/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -43,6 +43,8 @@ const feeCategoryOptions = [
   { value: "Examination Fees", label: "Examination Fees" },
 ];
 
+const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
+
 const emptyRow = () => ({
   fullName: "",
   motherName: "", // ✅ Magaca Hooyada - field cusub
@@ -69,6 +71,38 @@ export default function BulkRegistration() {
   const [showPopup, setShowPopup] = useState(false);
   const [savedStudents, setSavedStudents] = useState([]);
   const [saving, setSaving] = useState(false);
+
+  // ✅ Fasalada admin-ku "Create Class" ka daray AddStudent.jsx — waxaa
+  // lagu kaydiyay Firestore collection "customClasses". Halkan ayaan ka
+  // soo aqrinaynaa si dropdown-ka Class Name ee Bulk Registration uu
+  // isla wada aragaan fasalada cusub, isla habka AddStudent.jsx.
+  const [customClasses, setCustomClasses] = useState([]);
+
+  useEffect(() => {
+    fetchCustomClasses();
+  }, []);
+
+  const fetchCustomClasses = async () => {
+    try {
+      const snap = await getDocs(collection(db, "customClasses"));
+      setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  // ✅ Liiska dhamaystiran ee dropdown-ka Class Name: fasalada rasmiga
+  // ah oo hore u jiray, kadibna fasalada cusub ee la sameeyay — kuwaas
+  // oo si alphabetical ah loo kala saaray, isla habka AddStudent.jsx.
+  const allClassOptions = useMemo(() => {
+    const customNames = customClasses
+      .map((c) => c.name)
+      .filter(
+        (name) => !classOptions.some((c) => normalizeClassName(c) === normalizeClassName(name))
+      )
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...classOptions, ...customNames];
+  }, [customClasses]);
 
   const addRow = () => {
     setStudents([...students, emptyRow()]);
@@ -457,7 +491,7 @@ export default function BulkRegistration() {
                       }
                     >
                       <option value="">Select Class</option>
-                      {classOptions.map((c) => (
+                      {allClassOptions.map((c) => (
                         <option key={c} value={c}>
                           {c}
                         </option>

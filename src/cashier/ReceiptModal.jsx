@@ -241,24 +241,24 @@ export default function ReceiptModal({ payment, onClose }) {
                     <span className="rc-value">{dateStr}</span>
                   </div>
 
-                  <div className="rc-field">
-                    <span className="rc-label">
-                      Received from: <em>(Laga quaday)</em>
-                    </span>
-                    <span className="rc-value rc-value-strong">{payment.studentName}</span>
+                  <div className="rc-field-block">
+                    <div className="rc-field-top">
+                      <span className="rc-label">Received from:</span>
+                      <span className="rc-value rc-value-strong">{payment.studentName}</span>
+                    </div>
+                    <div className="rc-field-caption">(Laga quaday)</div>
                   </div>
 
-                  <div className="rc-amount-row">
-                    <div className="rc-amount-sos">
-                      <span className="rc-label">
-                        Amount of So Sh. <em>(Lacag dhan)</em>
+                  <div className="rc-amount-block">
+                    <div className="rc-amount-top">
+                      <span className="rc-label">Amount of So Sh.</span>
+                      <span className="rc-amount-box-sos">{sosAmount.toLocaleString()}</span>
+                      <span className="rc-usd-group">
+                        <span className="rc-usd-tag">US$</span>
+                        <span className="rc-amount-box-usd">{usdAmount}</span>
                       </span>
-                      <span className="rc-amount-box">{sosAmount.toLocaleString()}</span>
                     </div>
-                    <div className="rc-amount-usd">
-                      <span className="rc-usd-tag">US$</span>
-                      <span className="rc-amount-box">{usdAmount}</span>
-                    </div>
+                    <div className="rc-field-caption">(Lacag dhan)</div>
                   </div>
 
                   <div className="rc-field">
@@ -515,6 +515,7 @@ export default function ReceiptModal({ payment, onClose }) {
           align-items: baseline;
           gap: 8px;
           font-size: 12px;
+          padding: 5px 0;
         }
 
         .rc-field em {
@@ -543,27 +544,54 @@ export default function ReceiptModal({ payment, onClose }) {
           font-size: 13px;
         }
 
-        .rc-amount-row {
-          display: flex;
-          gap: 14px;
-          align-items: flex-end;
+        .rc-field-block, .rc-amount-block {
+          padding: 5px 0;
         }
 
-        .rc-amount-sos, .rc-amount-usd {
+        .rc-field-top {
           display: flex;
-          flex-direction: column;
-          gap: 3px;
+          align-items: baseline;
+          gap: 8px;
+          font-size: 12px;
         }
 
-        .rc-amount-sos { flex: 1; }
+        .rc-field-caption {
+          font-style: italic;
+          font-size: 9.5px;
+          color: #475569;
+          margin-top: 2px;
+        }
 
-        .rc-amount-box {
+        .rc-amount-top {
+          display: flex;
+          align-items: stretch;
+          gap: 10px;
+        }
+
+        .rc-amount-top .rc-label {
+          align-self: center;
+        }
+
+        .rc-amount-box-sos {
+          flex: 1;
           border: 1.5px solid #0b1f4d;
           border-radius: 8px;
           padding: 6px 12px;
           font-weight: 800;
           font-size: 13px;
           text-align: right;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
+        .rc-usd-group {
+          display: flex;
+          align-items: stretch;
+          border: 1.5px solid #0b1f4d;
+          border-radius: 8px;
+          overflow: hidden;
+          flex-shrink: 0;
         }
 
         .rc-usd-tag {
@@ -571,9 +599,20 @@ export default function ReceiptModal({ payment, onClose }) {
           color: #fff;
           font-weight: 800;
           font-size: 12px;
-          padding: 5px 10px;
-          border-radius: 6px;
-          text-align: center;
+          padding: 6px 10px;
+          display: flex;
+          align-items: center;
+        }
+
+        .rc-amount-box-usd {
+          padding: 6px 12px;
+          font-weight: 800;
+          font-size: 13px;
+          min-width: 44px;
+          text-align: right;
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
         }
 
         .rc-being-row {

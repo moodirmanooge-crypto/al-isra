@@ -16,12 +16,28 @@ import {
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 
-// Fixed class order: 1 -> 8 (primary), then F1 -> F4 (secondary/form)
-const CLASS_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
-function classRank(className) {
-  const idx = CLASS_ORDER.indexOf(String(className || "").toUpperCase());
-  return idx === -1 ? 999 : idx;
-}
+// ✅ Liiska fasalada rasmiga ah — isla midka AddStudent.jsx isticmaalo
+// (classOptions), si magacyadu isugu mid noqdaan meel kasta oo app-ka
+// ah (Fasalka 1aad/2aad/3aad, PP, PI, G8 A/B, F1-F4).
+const DEFAULT_CLASS_OPTIONS = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+];
+
+// Isku dar (normalize) magaca fasalka — trim + hal space + lower case —
+// si isbarbardhigga magacyada uusan ka welwelin xarfaha waaweyn/yaryar
+// ama meelaha banaan ee dheeraadka ah.
+const normalizeClassName = (name) =>
+  String(name || "").trim().replace(/\s+/g, " ").toLowerCase();
 
 function ResponsiveStyles() {
   return (
@@ -57,6 +73,11 @@ export default function Attendance() {
   const [expandedDate, setExpandedDate] = useState({});
   const [savingId, setSavingId] = useState(null);
 
+  // ✅ Fasalada admin-ku "Create Class" ku daray gudaha AddStudent.jsx —
+  // waxaa lagu kaydiyaa Firestore collection "customClasses". Halkan
+  // waxaan ka soo qaadaneynaa si Attendance-ku isla fasalladaas u aragto.
+  const [customClasses, setCustomClasses] = useState([]);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -65,7 +86,12 @@ export default function Attendance() {
     try {
       setLoading(true);
 
-      const teachersSnap = await getDocs(collection(db, "teachers"));
+      const [teachersSnap, attSnap, customClassesSnap] = await Promise.all([
+        getDocs(collection(db, "teachers")),
+        getDocs(collection(db, "attendance")),
+        getDocs(collection(db, "customClasses")),
+      ]);
+
       const teacherMap = {};
       teachersSnap.docs.forEach((d) => {
         const data = d.data();
@@ -77,7 +103,6 @@ export default function Attendance() {
       });
       setTeachers(teacherMap);
 
-      const attSnap = await getDocs(collection(db, "attendance"));
       const list = attSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
         // Drop records with no valid className / studentId / date — these are
@@ -91,6 +116,12 @@ export default function Attendance() {
             r.date
         );
       setRecords(list);
+
+      setCustomClasses(
+        customClassesSnap.docs
+          .map((d) => (d.data().name || "").trim())
+          .filter(Boolean)
+      );
     } catch (err) {
       console.log(err);
       alert(err.message);
@@ -99,39 +130,74 @@ export default function Attendance() {
     }
   };
 
-  // Group: className -> teacherId -> { dates: Set, records: [] }
+  // ✅ Liiska dhamaystiran ee fasalada la ordinaayo — kuwa rasmiga ah
+  // (DEFAULT_CLASS_OPTIONS) oo la raacayo, kadibna kuwa cusub ee admin-ku
+  // ku daray "Create Class" ee aan horey ugu jirin liiska rasmiga ah.
+  const ALL_CLASS_NAMES = useMemo(() => {
+    const extra = customClasses.filter(
+      (name) =>
+        !DEFAULT_CLASS_OPTIONS.some(
+          (c) => normalizeClassName(c) === normalizeClassName(name)
+        )
+    );
+    return [...DEFAULT_CLASS_OPTIONS, ...extra];
+  }, [customClasses]);
+
+  function classRank(className) {
+    const idx = ALL_CLASS_NAMES.findIndex(
+      (c) => normalizeClassName(c) === normalizeClassName(className)
+    );
+    return idx === -1 ? 999 : idx;
+  }
+
+  // Group: normalized className -> { displayName, teacherId -> { dates: Set, records: [] } }
   const groupedByClass = useMemo(() => {
     const map = {};
 
     records.forEach((r) => {
-      const className = String(r.className || "-").toUpperCase();
+      const displayName = String(r.className || "-").trim();
+      const key = normalizeClassName(displayName);
       const teacherId = r.teacherId || "Unknown";
 
-      if (!map[className]) map[className] = {};
-      if (!map[className][teacherId]) {
-        map[className][teacherId] = { dates: new Set(), records: [] };
+      if (!map[key]) map[key] = { displayName, teachers: {} };
+      if (!map[key].teachers[teacherId]) {
+        map[key].teachers[teacherId] = { dates: new Set(), records: [] };
       }
 
-      if (r.date) map[className][teacherId].dates.add(r.date);
-      map[className][teacherId].records.push(r);
+      if (r.date) map[key].teachers[teacherId].dates.add(r.date);
+      map[key].teachers[teacherId].records.push(r);
     });
 
     return map;
   }, [records]);
 
   const classNames = useMemo(() => {
-    // Start from the fixed list of 12 classes so every class always shows,
-    // even ones with zero attendance records. Any class present in the data
-    // but not in CLASS_ORDER (shouldn't normally happen) still gets included.
-    const allClassNames = Array.from(
-      new Set([...CLASS_ORDER, ...Object.keys(groupedByClass)])
+    // Ka bilow liiska rasmiga ah + kan cusub (ALL_CLASS_NAMES) si fasal
+    // kastaa u soo baxo xitaa haddii aanu weli lahayn xaadirin (0
+    // records). Fasal kasta oo ku jira xogta (records) oo aan ku jirin
+    // liiska la yaqaan waa la sii darayaa sidoo kale (case aan caadi
+    // ahayn).
+    const knownKeys = new Set(ALL_CLASS_NAMES.map((c) => normalizeClassName(c)));
+    const extraKeysFromRecords = Object.keys(groupedByClass).filter(
+      (k) => !knownKeys.has(k)
     );
 
-    return allClassNames
-      .filter((className) => {
+    const allEntries = [
+      ...ALL_CLASS_NAMES.map((name) => ({
+        key: normalizeClassName(name),
+        displayName: name,
+      })),
+      ...extraKeysFromRecords.map((key) => ({
+        key,
+        displayName: groupedByClass[key].displayName,
+      })),
+    ];
+
+    return allEntries
+      .filter(({ key, displayName }) => {
         if (!search.trim()) return true;
-        const teacherIdsForClass = Object.keys(groupedByClass[className] || {});
-        const matchesClass = className.toLowerCase().includes(search.toLowerCase());
+        const teacherIdsForClass = Object.keys(groupedByClass[key]?.teachers || {});
+        const matchesClass = displayName.toLowerCase().includes(search.toLowerCase());
         const matchesTeacher = teacherIdsForClass.some((tid) => {
           const name = teachers[tid]?.fullName || tid;
           return (
@@ -141,8 +207,8 @@ export default function Attendance() {
         });
         return matchesClass || matchesTeacher;
       })
-      .sort((a, b) => classRank(a) - classRank(b));
-  }, [groupedByClass, search, teachers]);
+      .sort((a, b) => classRank(a.displayName) - classRank(b.displayName));
+  }, [ALL_CLASS_NAMES, groupedByClass, search, teachers]);
 
   const toggleClassExpand = (key) => {
     setExpandedClass((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -215,7 +281,7 @@ export default function Attendance() {
             <div>
               <h1 className="att-header-title" style={{ margin: 0, fontSize: 26, color: "#fff" }}>Attendance</h1>
               <div style={{ color: "#8b87ad", fontSize: 14 }}>
-                Xaadirinta Fasallada oo dhan (1-8, F1-F4) iyo Macallimiintooda
+                Xaadirinta Fasallada oo dhan iyo Macallimiintooda
               </div>
             </div>
           </div>
@@ -268,20 +334,21 @@ export default function Attendance() {
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              {classNames.map((className) => {
-                const teachersMap = groupedByClass[className] || {};
+              {classNames.map(({ key: classKeyName, displayName: className }) => {
+                const classGroup = groupedByClass[classKeyName];
+                const teachersMap = classGroup?.teachers || {};
                 const teacherIdsForClass = Object.keys(teachersMap).sort();
                 const totalDaysForClass = new Set(
                   teacherIdsForClass.flatMap((tid) =>
                     Array.from(teachersMap[tid].dates)
                   )
                 ).size;
-                const classKey = `class__${className}`;
+                const classKey = `class__${classKeyName}`;
                 const isClassOpen = !!expandedClass[classKey];
 
                 return (
                   <div
-                    key={className}
+                    key={classKeyName}
                     className="att-class-card"
                     style={{
                       background: "linear-gradient(160deg,#151233,#181341)",
@@ -314,8 +381,10 @@ export default function Attendance() {
                             justifyContent: "center",
                             color: "#fff",
                             fontWeight: 700,
-                            fontSize: 15,
+                            fontSize: 13,
                             flexShrink: 0,
+                            textAlign: "center",
+                            padding: "0 4px",
                           }}
                         >
                           {className}

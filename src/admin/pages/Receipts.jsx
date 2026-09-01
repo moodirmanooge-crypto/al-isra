@@ -599,24 +599,24 @@ function ReceiptVoucherBody({ receipt, prefix }) {
             <span className={`${p}-value`}>{formatDate(paidDate)}</span>
           </div>
 
-          <div className={`${p}-field`}>
-            <span className={`${p}-label`}>
-              Received from: <em>(Laga quaday)</em>
-            </span>
-            <span className={`${p}-value ${p}-value-strong`}>{receipt.studentName || "—"}</span>
+          <div className={`${p}-field-block`}>
+            <div className={`${p}-field-top`}>
+              <span className={`${p}-label`}>Received from:</span>
+              <span className={`${p}-value ${p}-value-strong`}>{receipt.studentName || "—"}</span>
+            </div>
+            <div className={`${p}-field-caption`}>(Laga quaday)</div>
           </div>
 
-          <div className={`${p}-amount-row`}>
-            <div className={`${p}-amount-sos`}>
-              <span className={`${p}-label`}>
-                Amount of So Sh. <em>(Lacag dhan)</em>
+          <div className={`${p}-amount-block`}>
+            <div className={`${p}-amount-top`}>
+              <span className={`${p}-label`}>Amount of So Sh.</span>
+              <span className={`${p}-amount-box-sos`}>{sosAmount.toLocaleString()}</span>
+              <span className={`${p}-usd-group`}>
+                <span className={`${p}-usd-tag`}>US$</span>
+                <span className={`${p}-amount-box-usd`}>{usdAmount}</span>
               </span>
-              <span className={`${p}-amount-box`}>{sosAmount.toLocaleString()}</span>
             </div>
-            <div className={`${p}-amount-usd`}>
-              <span className={`${p}-usd-tag`}>US$</span>
-              <span className={`${p}-amount-box`}>{usdAmount}</span>
-            </div>
+            <div className={`${p}-field-caption`}>(Lacag dhan)</div>
           </div>
 
           <div className={`${p}-field`}>
@@ -730,16 +730,27 @@ function receiptVoucherCss(p, { fontScale = 1, compact = false } = {}) {
       flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 2px; font-weight: 600; min-height: 12px;
     }
     .${p}-value-strong { font-weight: 800; font-size: ${f(13)}; }
-    .${p}-amount-row { display: flex; gap: 14px; align-items: flex-end; }
-    .${p}-amount-sos, .${p}-amount-usd { display: flex; flex-direction: column; gap: 3px; }
-    .${p}-amount-sos { flex: 1; }
-    .${p}-amount-box {
-      border: 1.5px solid #0b1f4d; border-radius: 8px; padding: ${compact ? "3px 8px" : "6px 12px"};
+    .${p}-field-block, .${p}-amount-block { display: flex; flex-direction: column; gap: 1px; }
+    .${p}-field-top { display: flex; align-items: baseline; gap: 8px; font-size: ${f(12)}; }
+    .${p}-field-caption { font-style: italic; font-size: ${f(9.5)}; color: #475569; margin-top: 1px; }
+    .${p}-amount-top { display: flex; align-items: stretch; gap: 10px; }
+    .${p}-amount-top .${p}-label { align-self: center; }
+    .${p}-amount-box-sos {
+      flex: 1; border: 1.5px solid #0b1f4d; border-radius: 8px; padding: ${compact ? "3px 8px" : "6px 12px"};
       font-weight: 800; font-size: ${f(13)}; text-align: right;
+      display: flex; align-items: center; justify-content: flex-end;
+    }
+    .${p}-usd-group {
+      display: flex; align-items: stretch; border: 1.5px solid #0b1f4d; border-radius: 8px;
+      overflow: hidden; flex-shrink: 0;
     }
     .${p}-usd-tag {
       background: #0b1f4d; color: #fff; font-weight: 800; font-size: ${f(12)};
-      padding: 5px 10px; border-radius: 6px; text-align: center;
+      padding: ${compact ? "3px 8px" : "6px 10px"}; display: flex; align-items: center;
+    }
+    .${p}-amount-box-usd {
+      padding: ${compact ? "3px 8px" : "6px 12px"}; font-weight: 800; font-size: ${f(13)};
+      min-width: ${f(44)}; text-align: right; display: flex; align-items: center; justify-content: flex-end;
     }
     .${p}-being-row { display: flex; gap: 14px; }
     .${p}-being-of { flex: 1; display: flex; align-items: baseline; gap: 8px; font-size: ${f(12)}; }
