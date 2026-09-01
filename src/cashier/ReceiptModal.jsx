@@ -1,5 +1,5 @@
 //src/cashier/ReceiptModal.jsx
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   doc,
   runTransaction,
@@ -128,7 +128,6 @@ const saveReceiptRecord = async (receiptNo, payment, paidDate) => {
 export default function ReceiptModal({ payment, onClose }) {
   const [receiptNo, setReceiptNo] = useState(null);
   const [loading, setLoading] = useState(true);
-  const printedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,16 +156,12 @@ export default function ReceiptModal({ payment, onClose }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!loading && receiptNo && !printedRef.current) {
-      printedRef.current = true;
-      const t = setTimeout(() => {
-        window.print();
-      }, 200);
-      return () => clearTimeout(t);
-    }
-  }, [loading, receiptNo]);
-
+  // ✅ Auto-print-ka waa la joojiyay — wuxuu keenayay dialog-yo OS-ka
+  // ah oo la xiriira printer-ka default-ka ah ee kombiyuutarka (tusaale
+  // "HP Programmable Key is not installed"), oo aan la xiriirin
+  // koodhka boggan. Hadda cashier-ku wuxuu isticmaalaa button-ka
+  // "🖨️ Print" gacanta si uu u doorto printer-ka rabo marka uu
+  // dhab ahaan diyaar u yahay inuu daabaco.
   if (!payment) return null;
 
   const paidDate = payment.createdAt?.seconds
@@ -754,10 +749,18 @@ export default function ReceiptModal({ payment, onClose }) {
           }
           .receipt-paper {
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             box-shadow: none;
             width: 190mm;
+            max-height: 138mm;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .rc-frame {
+            width: 100%;
           }
           .no-print {
             display: none !important;

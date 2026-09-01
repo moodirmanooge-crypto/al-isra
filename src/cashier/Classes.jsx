@@ -37,6 +37,8 @@ import {
   collection,
   getDocs,
   doc,
+  setDoc,
+  updateDoc,
   writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
@@ -44,6 +46,37 @@ import {
 import { db } from "../firebase/firebase";
 import { theme } from "./theme.js";
 import ReceiptModal from "./ReceiptModal.jsx";
+
+// ✅ Collection cusub oo dheeraad ah: "receiptCashier" — waxay u
+// kaydisaa hal diiwaan (record) rasiidkaas oo isla qiimaha $ ee dhab
+// ahaan la kaydiyay (entered, isla qiimaha savePayment/saveAll batch
+// ku diray "payments" collection-ka). Collection-ka "receipts" ee
+// hore (ReceiptModal.jsx) WAX LAGA BEDELIN — waa la iska daayay sida
+// uu yahay, kani waa mid dheeraad ah oo labadaba isku mar u kaydiya.
+// Ficilkan kuma xidho batch-ka "payments"-ka (haddii uu fashilmo,
+// wax kama beddelayo kaydinta lacagta) — waa hal isticmaal (setDoc)
+// oo dheeraad ah, sida daabacaadda rasiidka (ReceiptModal.jsx) oo
+// kale, sidaas awgeed khalad ka dhaca kaydinta rasiidka lagama arki
+// karo laakiin ma xidho save-ka lacagta.
+function saveReceiptCashierRecord({ student, entered, updates }) {
+  try {
+    const docId = `${student.studentId}_${Date.now()}`;
+    setDoc(doc(db, "receiptCashier", docId), {
+      studentId: student.studentId,
+      studentName: student.fullName,
+      className: student.className || "",
+      schoolName: SCHOOL_NAME,
+      studentPhone: student.studentPhone || "",
+      parentPhone: student.parentPhone || "",
+      paidAmount: entered,
+      monthKeys: updates.map((u) => u.monthKey),
+      monthLabels: updates.map((u) => u.monthLabel),
+      createdAt: serverTimestamp(),
+    }).catch((err) => console.log(err));
+  } catch (err) {
+    console.log(err);
+  }
+}
 
 const SCHOOL_NAME = "Rising School";
 
@@ -70,6 +103,15 @@ const monthLabel = (key) => {
   const d = new Date(Number(y), Number(m) - 1, 1);
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 };
+
+// ✅ Taariikhda saxda ah (maalinta + bisha + sanadka) ee lacagta la
+// bixiyay dhab ahaan la kaydiyay (createdAt) — isla format-ka
+// Payments.jsx isticmaalo, si labada bogga ay isku waafaqaan.
+function formatPaidDate(createdAt) {
+  if (!createdAt?.seconds) return "—";
+  const d = new Date(createdAt.seconds * 1000);
+  return d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
+}
 
 // "2026-03" + 2 -> "2026-05"
 function monthKeyAdd(key, n) {
@@ -149,6 +191,12 @@ export default function Classes() {
   const [selectedClass, setSelectedClass] = useState(null);
   const [search, setSearch] = useState("");
   const [amounts, setAmounts] = useState({});
+  // ✅ "Immisa bilood?" — cashier-ku wuxuu gacanta ku dooranayaa tirada
+  // bilaha lacagta la geliyay u socoto (1, 2, 3, 4...); marka la doorto,
+  // Enter Amount waxaa si toos ah loo buuxiyaa (monthlyFee × bilaha).
+  // Cashier-ku weli wuu bedeli karaa Enter Amount gacanta haddii uu
+  // rabo lacag qeyb ahaan ah oo aan buuxin tirada bilaha la doortay.
+  const [monthsSelected, setMonthsSelected] = useState({});
   const [savingId, setSavingId] = useState(null);
   const [savingAll, setSavingAll] = useState(false);
   // ✅ Studentyada horeyba "Paid" u ah bishan — "Enter Amount" column-ka
@@ -159,7 +207,17 @@ export default function Classes() {
   // Payments.jsx isticmaalo, halkan sidoo kale wax marnaba lama xidho.
   const [editingIds, setEditingIds] = useState({});
   const [receiptPayment, setReceiptPayment] = useState(null);
+  // ✅ "Save All" — marka dhowr arday hal mar la kaydiyo, mid kastaba
+  // wuxuu u baahan yahay rasiidkiisa gaarka ah. Waxaan halkan ku
+  // hayaa safka (queue) ee rasiidhada la sugayo in la daawado/daabaco
+  // — mid kastaba wuu ka soo bixi doonaa "Xir" ka dib.
+  const [receiptQueue, setReceiptQueue] = useState([]);
   const [profileStudent, setProfileStudent] = useState(null);
+  // ✅ Fee Category (Registration/Roll Number/Examination) — isla
+  // hal-mar (one-time) column-ka Payments.jsx isticmaalo, halkan
+  // sidoo kale ka muuqda si labada bogga ay isku waafaqaan.
+  const [specialSavingId, setSpecialSavingId] = useState(null);
+  const [specialAmounts, setSpecialAmounts] = useState({});
 
   useEffect(() => {
     loadData();
@@ -232,6 +290,63 @@ export default function Classes() {
   }, [students, selectedClass, search]);
 
   const isFreeStudent = (student) => student.feeType === "Free";
+
+  // ✅ Marka cashier-ku doorto tirada bilaha ("Immisa bilood?"), Enter
+  // Amount waxaa si toos ah loo buuxiyaa (monthlyFee × bilaha la
+  // doortay) — cashier-ku weli wuu bedeli karaa qiimaha haddii uu rabo.
+  const selectMonths = (student, months) => {
+    const fee = Number(student.monthlyFee || 0);
+    setMonthsSelected({ ...monthsSelected, [student.id]: months });
+    if (months > 0 && fee > 0) {
+      setAmounts({ ...amounts, [student.id]: String(fee * months) });
+    }
+  };
+
+  // ✅ Ka soo qaad qiimaha Fee Category-ga gaarka ah ee ardaygan sida
+  // maamulku (Add Student) markii hore u soo qoray — isla habka
+  // Payments.jsx.
+  const getAdminFeeAmount = (student) => {
+    if (student.feeCategory === "Registration Fees") return Number(student.registrationFees || 0);
+    if (student.feeCategory === "Roll Number Fees") return Number(student.rollNumberFees || 0);
+    if (student.feeCategory === "Examination Fees") return Number(student.examinationFees || 0);
+    return 0;
+  };
+
+  // ✅ Hal-mar oo kaliya (one-time) — isla habka Payments.jsx: marka
+  // la kaydiyo, `specialFeeAmount`/`specialFeeSaved` waxay ku
+  // kaydsan yihiin `students/{id}`, oo mar dambe lama badali karo.
+  const saveSpecialFee = async (student) => {
+    if (!student.feeCategory) return;
+    if (student.specialFeeSaved) return;
+
+    const entered = Number(specialAmounts[student.id] || 0);
+    if (entered <= 0) {
+      alert("Fadlan geli lacagta la bixiyay");
+      return;
+    }
+
+    try {
+      setSpecialSavingId(student.id);
+      await updateDoc(doc(db, "students", student.id), {
+        specialFeeAmount: entered,
+        specialFeeSaved: true,
+        specialFeeSavedAt: serverTimestamp(),
+      });
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === student.id
+            ? { ...s, specialFeeAmount: entered, specialFeeSaved: true }
+            : s
+        )
+      );
+    } catch (err) {
+      console.log(err);
+      alert(err.message);
+    } finally {
+      setSpecialSavingId(null);
+    }
+  };
 
   // ---- Xaaladda "this month" ee arday gaar ah, sida Payments.jsx u
   // tusayo miiska (Paid / Remaining / Status columns) — waxaa laga
@@ -311,35 +426,42 @@ export default function Classes() {
   async function savePayment(student) {
     if (isFreeStudent(student)) return;
 
-    const entered = Number(amounts[student.id] || 0);
-    if (entered <= 0) {
-      alert("Fadlan geli lacagta la bixiyay");
-      return;
-    }
-
-    const monthlyFee = Number(student.monthlyFee || 0);
-    if (monthlyFee <= 0) {
-      alert("Ardaygan Monthly Fee sax ah lama helin.");
-      return;
-    }
-
-    const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
-    const startKey = findNextUnpaidMonth(
-      fullyPaidSet,
-      registrationMonthKey(student)
-    );
-
-    const updates = distributePayment({
-      entered,
-      monthlyFee,
-      fullyPaidSet: new Set(fullyPaidSet), // koobiye — yaan lama-taaban lahayn state-ka asalka ah
-      partialMap: { ...partialMap },
-      startKey,
-    });
-
-    if (updates.length === 0) return;
-
+    // ✅ Try/catch-ku hadda wuxuu daboolayaa HANTIDA HOWSHA oo dhan —
+    // xisaabinta (getStudentMonthState/findNextUnpaidMonth/
+    // distributePayment) iyo kaydinta Firestore-ka labaduba. Hore
+    // waxay ahaayeen xisaabintu ka baxsan try-ga, sidaas darteed
+    // khalad kasta oo ka dhaca xisaabinta wuxuu si aan la arki karin
+    // u dhinteen — button-ku "Save" buu sii ahaan jiray, wax lama
+    // arag. Hadda khalad kastaa wuxuu keenayaa alert() cad.
     try {
+      const entered = Number(amounts[student.id] || 0);
+      if (entered <= 0) {
+        alert("Fadlan geli lacagta la bixiyay");
+        return;
+      }
+
+      const monthlyFee = Number(student.monthlyFee || 0);
+      if (monthlyFee <= 0) {
+        alert("Ardaygan Monthly Fee sax ah lama helin.");
+        return;
+      }
+
+      const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
+      const startKey = findNextUnpaidMonth(
+        fullyPaidSet,
+        registrationMonthKey(student)
+      );
+
+      const updates = distributePayment({
+        entered,
+        monthlyFee,
+        fullyPaidSet: new Set(fullyPaidSet), // koobiye — yaan lama-taaban lahayn state-ka asalka ah
+        partialMap: { ...partialMap },
+        startKey,
+      });
+
+      if (updates.length === 0) return;
+
       setSavingId(student.id);
 
       const batch = writeBatch(db);
@@ -363,6 +485,11 @@ export default function Classes() {
       });
       await batch.commit();
 
+      // ✅ Kaydi isla goobtaan diiwaan dheeraad ah "receiptCashier"
+      // collection-ka — isla qiimaha "entered" ee la kaydiyay
+      // batch-ka kore ("payments"), si aan labada iska soo horjeedin.
+      saveReceiptCashierRecord({ student, entered, updates });
+
       // ---- Cusboonaysii state-ka local-ka ah si miiska/profile-ku
       // isla markiiba u tuso xogta cusub, iyada oo aan loo baahnayn
       // in bogga dib loo soo shubo ----
@@ -385,6 +512,7 @@ export default function Classes() {
           };
           if (idx >= 0) existing[idx] = record;
           else existing.push(record);
+
         });
         existing.sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
         next[student.studentId] = existing;
@@ -392,6 +520,7 @@ export default function Classes() {
       });
 
       setAmounts((prev) => ({ ...prev, [student.id]: "" }));
+      setMonthsSelected((prev) => ({ ...prev, [student.id]: "" }));
       setEditingIds((prev) => {
         const next = { ...prev };
         delete next[student.id];
@@ -399,15 +528,28 @@ export default function Classes() {
       });
 
       // ---- Rasiid — hal rasiid oo tusaya lacagta la bixiyay oo dhan.
-      // Haddii bil qura la bixiyay, tus bishaas kaliya; haddii dhowr
-      // bilood la bixiyay, tus tiro-jireedka "Bisha 1 – Bisha u
-      // dambeysa (X Months)". ----
-      const receiptMonthLabel =
-        updates.length === 1
-          ? monthLabel(updates[0].monthKey)
-          : `${monthLabel(updates[0].monthKey)} – ${monthLabel(
-              updates[updates.length - 1].monthKey
-            )} (${updates.length} Months)`;
+      // Haddii bil qura la bixiyay, tus bishaas kaliya (magaceeda +
+      // sanadka); haddii dhowr bilood la bixiyay, sheeg magac-magac
+      // dhammaan bilaha la bixiyay (tusaale: "September, October,
+      // November and December 2026"), si "Being of" ee warqadda
+      // rasiidka uu si cad u sheego bilaha ardaygu bixiyay. ----
+      const receiptMonthLabel = (() => {
+        if (updates.length === 1) return monthLabel(updates[0].monthKey);
+
+        const names = updates.map((u) => {
+          const [, m] = u.monthKey.split("-");
+          const d = new Date(2000, Number(m) - 1, 1);
+          return d.toLocaleDateString("en-US", { month: "long" });
+        });
+        const year = updates[updates.length - 1].monthKey.split("-")[0];
+
+        const joined =
+          names.length === 2
+            ? `${names[0]} and ${names[1]}`
+            : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+
+        return `${joined} ${year} (${updates.length} Months)`;
+      })();
 
       setReceiptPayment({
         studentId: student.studentId,
@@ -420,7 +562,7 @@ export default function Classes() {
       });
     } catch (err) {
       console.log(err);
-      alert(err.message);
+      alert(err?.message || "Khalad aan la garanayn ayaa dhacay marka lacagta la kaydinayay.");
     } finally {
       setSavingId(null);
     }
@@ -453,6 +595,7 @@ export default function Classes() {
 
       const batch = writeBatch(db);
       const nextPaymentsByStudent = { ...paymentsByStudent };
+      const newReceipts = [];
 
       targets.forEach((student) => {
         const entered = Number(amounts[student.id] || 0);
@@ -512,26 +655,58 @@ export default function Classes() {
         });
         existing.sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
         nextPaymentsByStudent[student.studentId] = existing;
+
+        // ✅ Rasiid — hal rasiid oo tusaya lacagta la bixiyay oo dhan
+        // ardaygan, isla habka savePayment isticmaalo: haddii bil
+        // qura la bixiyay, tus bishaas kaliya; haddii dhowr bilood la
+        // bixiyay, sheeg magac-magac dhammaan bilaha la bixiyay.
+        const receiptMonthLabel = (() => {
+          if (updates.length === 1) return monthLabel(updates[0].monthKey);
+
+          const names = updates.map((u) => {
+            const [, m] = u.monthKey.split("-");
+            const d = new Date(2000, Number(m) - 1, 1);
+            return d.toLocaleDateString("en-US", { month: "long" });
+          });
+          const year = updates[updates.length - 1].monthKey.split("-")[0];
+
+          const joined =
+            names.length === 2
+              ? `${names[0]} and ${names[1]}`
+              : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+
+          return `${joined} ${year} (${updates.length} Months)`;
+        })();
+
+        newReceipts.push({
+          studentId: student.studentId,
+          studentName: student.fullName,
+          className: student.className || "",
+          schoolName: SCHOOL_NAME,
+          monthLabel: receiptMonthLabel,
+          paidAmount: entered,
+          createdAt: { seconds: Math.floor(Date.now() / 1000) },
+        });
       });
 
       await batch.commit();
 
       setPaymentsByStudent(nextPaymentsByStudent);
       setAmounts({});
+      setMonthsSelected({});
       setEditingIds((prev) => {
         const next = { ...prev };
         targets.forEach((student) => delete next[student.id]);
         return next;
       });
 
-      alert(
-        `${targets.length} arday ayaa lacagtoodii (${monthLabel(
-          currentMonthKey()
-        )}) la kaydiyay.`
-      );
+      // ✅ Isla marka batch-ku guulaysto, fur rasiidka ugu horeeya
+      // safka (queue); kuwa kale way sii sugayaan ilaa kan hore la
+      // xiro ("Xir"), markaas ayaa mid xigaa si toos ah u furma.
+      setReceiptQueue(newReceipts);
     } catch (err) {
       console.log(err);
-      alert(err.message);
+      alert(err?.message || "Khalad aan la garanayn ayaa dhacay marka lacagta la kaydinayay.");
     } finally {
       setSavingAll(false);
     }
@@ -635,9 +810,11 @@ export default function Classes() {
                   <th style={styles.th}>Monthly Fee</th>
                   <th style={styles.th}>Paid</th>
                   <th style={styles.th}>Remaining</th>
+                  <th style={styles.th}>Months</th>
                   <th style={styles.th}>Enter Amount</th>
                   <th style={styles.th}>Status</th>
                   <th style={styles.th}>Save</th>
+                  <th style={styles.th}>Fee Category</th>
                 </tr>
               </thead>
 
@@ -645,14 +822,15 @@ export default function Classes() {
                 {currentClassStudents.map((student, i) => {
                   const free = isFreeStudent(student);
                   const fee = Number(student.monthlyFee || 0);
-                  const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
+                  const { fullyPaidSet, partialMap, records } = getStudentMonthState(student.studentId);
                   const paidThisMonth = !free && fullyPaidSet.has(currentMonthKey());
                   const partialThisMonth = partialMap[currentMonthKey()] || 0;
 
                   // ✅ Arday "Paid" ah bishan wuu sii xidhan yahay ILAA
                   // la taabto "Edit" gaarkiisa (ama "Edit All") —
                   // markaas ayaa input-kiisa la furayaa, si lacagta
-                  // loo bedeli karo kadibna dib loo kaydiyo.
+                  // loo bedeli karo kadibna dib loo kaydiyo. Wax
+                  // marnaba lama xidho — isla habka Payments.jsx.
                   const isEditing = !!editingIds[student.id];
                   const locked = paidThisMonth && !isEditing;
 
@@ -661,16 +839,29 @@ export default function Classes() {
                       ? Number(amounts[student.id] || 0)
                       : 0;
 
-                  const displayPaid = free
+                  // ✅ "Paid" waxay tusaysaa KALIYA lacagta dhab ahaan
+                  // la kaydiyay bishan — haddii "Paid" buuxa tahay
+                  // (locked), tus fee-ga oo dhan; haddii qeyb ahaan la
+                  // bixiyay, tus qiimihii la kaydiyay; haddii kalese
+                  // "0" (ma tusayo qiimaha la geliyay ee weli aan la
+                  // kaydin, si aan lala arki "horeyba waa la bixiyay"
+                  // ka hor inta Save aan la taaban).
+                  const displayPaid = free ? 0 : locked ? fee : partialThisMonth;
+                  // ✅ Remaining — wadarta guud ee lacagta loo baahan
+                  // yahay ilaa iyo bisha xigta ee aan la bixin, ma
+                  // ahan kaliya inta ka hadhay bishan. Tusaale: haddii
+                  // fee-gu yahay $19/bishii oo ardaygu $76 bixiyay
+                  // (4 bilood buuxa), Remaining wuxuu tusayaa $0
+                  // (wax kama hadho); haddii uu bixiyay $57 (3 bilood
+                  // buuxa), Remaining wuxuu tusayaa $19 (bisha 4aad).
+                  const nextUnpaidForRow = findNextUnpaidMonth(
+                    fullyPaidSet,
+                    registrationMonthKey(student)
+                  );
+                  const owedForNextUnpaid = free
                     ? 0
-                    : locked
-                    ? fee
-                    : partialThisMonth || entered;
-                  const displayRemaining = free
-                    ? 0
-                    : locked
-                    ? 0
-                    : Math.max(fee - (partialThisMonth || entered), 0);
+                    : Math.max(fee - (partialMap[nextUnpaidForRow] || 0), 0);
+                  const displayRemaining = free ? 0 : owedForNextUnpaid;
 
                   const status = free
                     ? "Free"
@@ -679,6 +870,10 @@ export default function Classes() {
                     : "Not Paid";
                   const isPaidStatus = status === "Paid";
                   const isSaving = savingId === student.id;
+
+                  // ✅ Taariikhda dhabta ah ee lacagta bishan la bixiyay
+                  // (createdAt) — isla format-ka Payments.jsx.
+                  const thisMonthRecord = records.find((r) => r.monthKey === currentMonthKey());
 
                   return (
                     <tr
@@ -703,10 +898,45 @@ export default function Classes() {
                         {free ? "—" : `$${fee}`}
                       </td>
                       <td style={{ ...styles.td, ...styles.money }}>
-                        {free ? "—" : `$${displayPaid}`}
+                        {free ? (
+                          "—"
+                        ) : (
+                          <div style={{ display: "flex", flexDirection: "column" }}>
+                            <span>${displayPaid}</span>
+                            {locked && thisMonthRecord?.createdAt && (
+                              <span style={styles.paidDate}>
+                                {formatPaidDate(thisMonthRecord.createdAt)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td style={{ ...styles.td, ...styles.money }}>
                         {free ? "—" : `$${displayRemaining}`}
+                      </td>
+                      <td style={styles.td}>
+                        {free ? (
+                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                        ) : locked ? (
+                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                        ) : (
+                          <select
+                            value={monthsSelected[student.id] || ""}
+                            onChange={(e) => selectMonths(student, Number(e.target.value))}
+                            style={{
+                              ...styles.monthsSelect,
+                              background: theme.colors.card,
+                              color: theme.colors.ink,
+                            }}
+                          >
+                            <option value="">Months</option>
+                            {Array.from({ length: 12 }, (_, idx) => idx + 1).map((m) => (
+                              <option key={m} value={m}>
+                                {m} {m === 1 ? "Month" : "Months"}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </td>
                       <td style={styles.td}>
                         {free ? (
@@ -782,6 +1012,61 @@ export default function Classes() {
                           </button>
                         )}
                       </td>
+                      <td style={styles.td}>
+                        {!student.feeCategory ? (
+                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                        ) : student.specialFeeSaved ? (
+                          <span
+                            style={{
+                              ...styles.specialFeeChip,
+                              background: `${theme.colors.mint}1A`,
+                              color: theme.colors.mintDark,
+                              border: `1px solid ${theme.colors.mint}55`,
+                            }}
+                          >
+                            {student.feeCategory}: ${student.specialFeeAmount ?? 0} ✓
+                          </span>
+                        ) : (
+                          (() => {
+                            const isSpecialSaving = specialSavingId === student.id;
+                            const adminAmount = getAdminFeeAmount(student);
+                            return (
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <input
+                                  type="number"
+                                  placeholder={adminAmount ? `$${adminAmount}` : "Amount"}
+                                  value={specialAmounts[student.id] || ""}
+                                  onChange={(e) =>
+                                    setSpecialAmounts({
+                                      ...specialAmounts,
+                                      [student.id]: e.target.value,
+                                    })
+                                  }
+                                  style={{
+                                    ...styles.specialFeeInput,
+                                    background: theme.colors.card,
+                                    color: theme.colors.ink,
+                                  }}
+                                />
+                                <button
+                                  onClick={() => saveSpecialFee(student)}
+                                  disabled={isSpecialSaving}
+                                  title={student.feeCategory}
+                                  style={{
+                                    ...styles.specialFeeSaveBtn,
+                                    background: theme.colors.mint,
+                                    color: "#FFFFFF",
+                                    cursor: isSpecialSaving ? "not-allowed" : "pointer",
+                                    opacity: isSpecialSaving ? 0.7 : 1,
+                                  }}
+                                >
+                                  {isSpecialSaving ? "…" : "Save"}
+                                </button>
+                              </div>
+                            );
+                          })()
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -792,6 +1077,17 @@ export default function Classes() {
 
         {receiptPayment && (
           <ReceiptModal payment={receiptPayment} onClose={() => setReceiptPayment(null)} />
+        )}
+
+        {/* ✅ "Save All" — daawo/daabac rasiidhada mid-mid ah: kan ugu
+            horeeya safka (queue) ayaa la furayaa; marka la xiro
+            ("Xir"), kan xiga si toos ah ayuu u furmayaa, ilaa
+            dhammaantood la daawado. */}
+        {!receiptPayment && receiptQueue.length > 0 && (
+          <ReceiptModal
+            payment={receiptQueue[0]}
+            onClose={() => setReceiptQueue((prev) => prev.slice(1))}
+          />
         )}
 
         {profileStudent && (
@@ -982,7 +1278,10 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
               ) : (
                 records.map((r) => (
                   <div key={r.monthKey} style={profileStyles.row}>
-                    <span style={profileStyles.rowMonth}>{monthLabel(r.monthKey)}</span>
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      <span style={profileStyles.rowMonth}>{monthLabel(r.monthKey)}</span>
+                      <span style={profileStyles.rowPaidDate}>{formatPaidDate(r.createdAt)}</span>
+                    </div>
                     <span style={profileStyles.rowAmount}>${Number(r.paidAmount || 0).toFixed(2)}</span>
                     <span
                       style={{
@@ -1179,6 +1478,13 @@ const styles = {
     border: `1px solid ${theme.colors.border}`,
     fontSize: 13.5,
   },
+  monthsSelect: {
+    width: 100,
+    padding: "8px 10px",
+    borderRadius: theme.radius.sm,
+    border: `1px solid ${theme.colors.border}`,
+    fontSize: 13,
+  },
   badge: {
     display: "inline-flex",
     alignItems: "center",
@@ -1206,6 +1512,35 @@ const styles = {
     fontSize: 12.5,
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+  specialFeeChip: {
+    display: "inline-block",
+    padding: "8px 12px",
+    borderRadius: theme.radius.sm,
+    fontWeight: 700,
+    fontSize: 11.5,
+    whiteSpace: "nowrap",
+  },
+  specialFeeInput: {
+    width: 80,
+    padding: "8px 10px",
+    borderRadius: theme.radius.sm,
+    border: `1px solid ${theme.colors.border}`,
+    fontSize: 13,
+  },
+  specialFeeSaveBtn: {
+    border: "none",
+    padding: "8px 12px",
+    borderRadius: theme.radius.sm,
+    fontWeight: 700,
+    fontSize: 12,
+    whiteSpace: "nowrap",
+  },
+  paidDate: {
+    fontSize: 11,
+    color: theme.colors.inkMuted,
+    fontWeight: 400,
+    marginTop: 2,
   },
   classGrid: {
     display: "grid",
@@ -1476,6 +1811,7 @@ const profileStyles = {
     border: `1px solid ${theme.colors.border}`,
   },
   rowMonth: { fontSize: 13, fontWeight: 600, color: theme.colors.ink },
+  rowPaidDate: { fontSize: 11, color: theme.colors.inkMuted, marginTop: 2 },
   rowAmount: {
     fontSize: 13,
     fontWeight: 700,

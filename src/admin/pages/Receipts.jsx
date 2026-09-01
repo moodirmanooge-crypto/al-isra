@@ -863,8 +863,13 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           body * { visibility: hidden; }
           .rv-paper, .rv-paper * { visibility: visible; }
           .rv-paper {
-            position: absolute; top: 0; left: 0;
-            box-shadow: none; width: 190mm;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: none;
+            width: 190mm;
+            max-height: 138mm;
           }
           .no-print { display: none !important; }
           @page { size: A5 landscape; margin: 4mm; }

@@ -17,6 +17,12 @@ const isToday = (ts) => {
   );
 };
 
+// ✅ Registration / Roll Number / Examination Fees — hal-mar oo kaliya
+// (one-time), ka duwan Monthly Fee-ga. Waxaa lagu xisaabiyaa qiimaha
+// cashier-ku gacanta ku qoray (`specialFeeAmount`) ee ardayda
+// `specialFeeSaved: true` leh, isla xogta Payments.jsx ku kaydiyo
+// `students/{id}`.
+
 export default function Dashboard() {
   const [students, setStudents] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -85,11 +91,31 @@ export default function Dashboard() {
       0
     );
 
+    // ✅ Registration / Roll Number / Examination Fees — hal-mar oo
+    // kaliya (one-time), ka duwan Monthly Fee-ga. Waxaa lagu xisaabiyaa
+    // wadarta lacagta ee ardayda "specialFeeSaved: true" ku qoran, mid
+    // kastaba oo doorashadiisa Fee Category-ga ah — isla xogta
+    // Payments.jsx ku kaydiyo `students/{id}`.
+    const registrationTotal = students
+      .filter((s) => s.feeCategory === "Registration Fees" && s.specialFeeSaved)
+      .reduce((sum, s) => sum + Number(s.specialFeeAmount || 0), 0);
+
+    const rollNumberTotal = students
+      .filter((s) => s.feeCategory === "Roll Number Fees" && s.specialFeeSaved)
+      .reduce((sum, s) => sum + Number(s.specialFeeAmount || 0), 0);
+
+    const examinationTotal = students
+      .filter((s) => s.feeCategory === "Examination Fees" && s.specialFeeSaved)
+      .reduce((sum, s) => sum + Number(s.specialFeeAmount || 0), 0);
+
     return {
       todaysCollection,
       monthlyCollection,
       studentsPaid,
       studentsRemaining,
+      registrationTotal,
+      rollNumberTotal,
+      examinationTotal,
     };
   }, [students, payments]);
 
@@ -117,6 +143,24 @@ export default function Dashboard() {
       value: stats.studentsRemaining,
       accent: theme.colors.amber,
       icon: "⏳",
+    },
+    {
+      label: "Registration Fees",
+      value: `$${stats.registrationTotal}`,
+      accent: theme.colors.brand,
+      icon: "📝",
+    },
+    {
+      label: "Roll Number Fees",
+      value: `$${stats.rollNumberTotal}`,
+      accent: theme.colors.brand,
+      icon: "🔢",
+    },
+    {
+      label: "Examination Fees",
+      value: `$${stats.examinationTotal}`,
+      accent: theme.colors.brand,
+      icon: "🧾",
     },
   ];
 
