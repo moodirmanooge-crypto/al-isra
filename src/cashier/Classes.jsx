@@ -150,6 +150,14 @@ export default function Classes() {
   const [search, setSearch] = useState("");
   const [amounts, setAmounts] = useState({});
   const [savingId, setSavingId] = useState(null);
+  const [savingAll, setSavingAll] = useState(false);
+  // ✅ Studentyada horeyba "Paid" u ah bishan — "Enter Amount" column-ka
+  // waxa lagu tusayaa "Edit" button. Marka la taabto, meeshaas waxay ku
+  // soo noqotaa input furan oo hore u buuxsan lacagtii ugu dambeysay ee
+  // la kaydiyay bishan (partialThisMonth/fee), si lacagta loo bedeli
+  // karo kadibna dib loo kaydiyo (Save ama Save All) — isla habka
+  // Payments.jsx isticmaalo, halkan sidoo kale wax marnaba lama xidho.
+  const [editingIds, setEditingIds] = useState({});
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [profileStudent, setProfileStudent] = useState(null);
 
@@ -250,6 +258,54 @@ export default function Classes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentClassStudents, paymentsByStudent]);
 
+  // ✅ Fur "Edit" — ka soo buuxi input-ka lacagtii ugu dambeysay ee
+  // BISHAN la kaydiyay (fee-ga oo dhan haddii "Paid" yahay), si
+  // cashier-ku u arko waxa horeyba jira kadibna u bedelo.
+  const startEdit = (student) => {
+    const fee = Number(student.monthlyFee || 0);
+    const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
+    const thisMonthKey = currentMonthKey();
+    const paidThisMonth = fullyPaidSet.has(thisMonthKey);
+    const partialThisMonth = partialMap[thisMonthKey] || 0;
+    const prefill = paidThisMonth ? fee : partialThisMonth;
+
+    setAmounts({
+      ...amounts,
+      [student.id]: String(prefill || ""),
+    });
+    setEditingIds({ ...editingIds, [student.id]: true });
+  };
+
+  // ✅ "Edit All" — fur mar hal ku dhammaan ardayda muuqda (currentClassStudents)
+  // ee horeyba "Paid" u ah bishan, midkastana lacagtiisii ugu dambeysay
+  // ee bishan lagu soo buuxinayo, si dhammaantood lacagahooda loo bedeli
+  // karo, kadibna hal mar "Save All" lagu kaydiyo.
+  const editAll = () => {
+    const thisMonthKey = currentMonthKey();
+    const targets = currentClassStudents.filter((s) => {
+      if (isFreeStudent(s)) return false;
+      const { fullyPaidSet } = getStudentMonthState(s.studentId);
+      return fullyPaidSet.has(thisMonthKey);
+    });
+
+    if (targets.length === 0) {
+      alert("Ma jiraan arday 'Paid' ah bishan oo la edit-gareyn karo.");
+      return;
+    }
+
+    const nextAmounts = { ...amounts };
+    const nextEditing = { ...editingIds };
+
+    targets.forEach((student) => {
+      const fee = Number(student.monthlyFee || 0);
+      nextAmounts[student.id] = String(fee || "");
+      nextEditing[student.id] = true;
+    });
+
+    setAmounts(nextAmounts);
+    setEditingIds(nextEditing);
+  };
+
   // ---- Kaydi lacagta la geliyay, iyada oo bilo-bilo loo qaybinayo,
   // laga bilaabo bisha ugu horeysa ee aan la bixin ----
   async function savePayment(student) {
@@ -336,6 +392,11 @@ export default function Classes() {
       });
 
       setAmounts((prev) => ({ ...prev, [student.id]: "" }));
+      setEditingIds((prev) => {
+        const next = { ...prev };
+        delete next[student.id];
+        return next;
+      });
 
       // ---- Rasiid — hal rasiid oo tusaya lacagta la bixiyay oo dhan.
       // Haddii bil qura la bixiyay, tus bishaas kaliya; haddii dhowr
@@ -362,6 +423,117 @@ export default function Classes() {
       alert(err.message);
     } finally {
       setSavingId(null);
+    }
+  }
+
+  // ✅ "Save All" — kaydi hal mar dhammaan ardayda fasalkan ee lacagta
+  // loo geliyay (kuwa "Enter Amount" ku jira — kuwa madhan waa la iska
+  // dhaafaa). Ardayda horeyba "Paid" ah bishan waa la iska dhaafaa,
+  // MADAAMA ay kaliya la bedeli karaan marka la taabto "Edit"
+  // gaarkooda (ama "Edit All") oo la furo (editingIds) — sidaas ayaan
+  // lacag looga badalin arday aan la doonayn in la taabto. Wax lama
+  // xidho — waa mid la isticmaali karo goor kasta.
+  async function saveAll() {
+    const targets = currentClassStudents.filter((s) => {
+      if (isFreeStudent(s)) return false;
+      const entered = Number(amounts[s.id] || 0);
+      if (entered <= 0) return false;
+      const { fullyPaidSet } = getStudentMonthState(s.studentId);
+      const paidThisMonth = fullyPaidSet.has(currentMonthKey());
+      return !paidThisMonth || editingIds[s.id];
+    });
+
+    if (targets.length === 0) {
+      alert("Ma jiro arday lacag loo geliyay ee weli aan la kaydin.");
+      return;
+    }
+
+    try {
+      setSavingAll(true);
+
+      const batch = writeBatch(db);
+      const nextPaymentsByStudent = { ...paymentsByStudent };
+
+      targets.forEach((student) => {
+        const entered = Number(amounts[student.id] || 0);
+        const monthlyFee = Number(student.monthlyFee || 0);
+        if (monthlyFee <= 0) return;
+
+        const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
+        const startKey = findNextUnpaidMonth(
+          fullyPaidSet,
+          registrationMonthKey(student)
+        );
+
+        const updates = distributePayment({
+          entered,
+          monthlyFee,
+          fullyPaidSet: new Set(fullyPaidSet),
+          partialMap: { ...partialMap },
+          startKey,
+        });
+
+        if (updates.length === 0) return;
+
+        const existing = [...(nextPaymentsByStudent[student.studentId] || [])];
+        updates.forEach((u) => {
+          const paymentDocId = `${student.studentId}_${u.monthKey}`;
+          batch.set(doc(db, "payments", paymentDocId), {
+            studentId: student.studentId,
+            studentName: student.fullName,
+            className: student.className || "",
+            schoolName: SCHOOL_NAME,
+            monthlyFee,
+            paidAmount: u.paidAmount,
+            remaining: u.remaining,
+            status: u.status,
+            monthKey: u.monthKey,
+            monthLabel: monthLabel(u.monthKey),
+            studentPhone: student.studentPhone || "",
+            parentPhone: student.parentPhone || "",
+            createdAt: serverTimestamp(),
+          });
+
+          const idx = existing.findIndex((r) => r.monthKey === u.monthKey);
+          const record = {
+            studentId: student.studentId,
+            studentName: student.fullName,
+            className: student.className || "",
+            monthlyFee,
+            paidAmount: u.paidAmount,
+            remaining: u.remaining,
+            status: u.status,
+            monthKey: u.monthKey,
+            monthLabel: monthLabel(u.monthKey),
+            createdAt: { seconds: Math.floor(Date.now() / 1000) },
+          };
+          if (idx >= 0) existing[idx] = record;
+          else existing.push(record);
+        });
+        existing.sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
+        nextPaymentsByStudent[student.studentId] = existing;
+      });
+
+      await batch.commit();
+
+      setPaymentsByStudent(nextPaymentsByStudent);
+      setAmounts({});
+      setEditingIds((prev) => {
+        const next = { ...prev };
+        targets.forEach((student) => delete next[student.id]);
+        return next;
+      });
+
+      alert(
+        `${targets.length} arday ayaa lacagtoodii (${monthLabel(
+          currentMonthKey()
+        )}) la kaydiyay.`
+      );
+    } catch (err) {
+      console.log(err);
+      alert(err.message);
+    } finally {
+      setSavingAll(false);
     }
   }
 
@@ -398,14 +570,43 @@ export default function Classes() {
           </div>
         </header>
 
-        <div style={styles.searchRow}>
-          <span style={styles.searchIcon}>🔍</span>
-          <input
-            placeholder="Search Student ID / Name"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            style={styles.search}
-          />
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+          <div style={{ ...styles.searchRow, marginBottom: 0, flex: "0 0 360px" }}>
+            <span style={styles.searchIcon}>🔍</span>
+            <input
+              placeholder="Search Student ID / Name"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={styles.search}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={editAll}
+            disabled={savingAll}
+            style={{
+              ...styles.editAllBtn,
+              cursor: savingAll ? "not-allowed" : "pointer",
+              opacity: savingAll ? 0.7 : 1,
+            }}
+          >
+            ✏️ Edit All
+          </button>
+
+          <button
+            onClick={saveAll}
+            disabled={savingAll}
+            style={{
+              ...styles.saveAllBtn,
+              background: theme.colors.brand,
+              color: "#FFFFFF",
+              cursor: savingAll ? "not-allowed" : "pointer",
+              opacity: savingAll ? 0.7 : 1,
+            }}
+          >
+            {savingAll ? "Saving…" : "💾 Save All"}
+          </button>
         </div>
 
         <div style={styles.tableCard}>
@@ -448,22 +649,32 @@ export default function Classes() {
                   const paidThisMonth = !free && fullyPaidSet.has(currentMonthKey());
                   const partialThisMonth = partialMap[currentMonthKey()] || 0;
 
-                  const entered = Number(amounts[student.id] || 0);
+                  // ✅ Arday "Paid" ah bishan wuu sii xidhan yahay ILAA
+                  // la taabto "Edit" gaarkiisa (ama "Edit All") —
+                  // markaas ayaa input-kiisa la furayaa, si lacagta
+                  // loo bedeli karo kadibna dib loo kaydiyo.
+                  const isEditing = !!editingIds[student.id];
+                  const locked = paidThisMonth && !isEditing;
+
+                  const entered =
+                    amounts[student.id] !== undefined
+                      ? Number(amounts[student.id] || 0)
+                      : 0;
 
                   const displayPaid = free
                     ? 0
-                    : paidThisMonth
+                    : locked
                     ? fee
                     : partialThisMonth || entered;
                   const displayRemaining = free
                     ? 0
-                    : paidThisMonth
+                    : locked
                     ? 0
                     : Math.max(fee - (partialThisMonth || entered), 0);
 
                   const status = free
                     ? "Free"
-                    : paidThisMonth
+                    : locked
                     ? "Paid"
                     : "Not Paid";
                   const isPaidStatus = status === "Paid";
@@ -500,17 +711,24 @@ export default function Classes() {
                       <td style={styles.td}>
                         {free ? (
                           <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                        ) : locked ? (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(student)}
+                            style={styles.editBtn}
+                          >
+                            ✏️ Edit
+                          </button>
                         ) : (
                           <input
                             type="number"
-                            disabled={paidThisMonth}
                             value={amounts[student.id] || ""}
                             onChange={(e) =>
                               setAmounts({ ...amounts, [student.id]: e.target.value })
                             }
                             style={{
                               ...styles.amountInput,
-                              background: paidThisMonth ? "#F0F3F2" : theme.colors.card,
+                              background: theme.colors.card,
                               color: theme.colors.ink,
                             }}
                           />
@@ -551,16 +769,16 @@ export default function Classes() {
                         ) : (
                           <button
                             onClick={() => savePayment(student)}
-                            disabled={paidThisMonth || isSaving}
+                            disabled={locked || isSaving}
                             style={{
                               ...styles.saveBtn,
-                              background: paidThisMonth ? "#DDE4E2" : theme.colors.mint,
-                              color: paidThisMonth ? theme.colors.inkMuted : "#FFFFFF",
-                              cursor: paidThisMonth || isSaving ? "not-allowed" : "pointer",
+                              background: locked ? "#DDE4E2" : theme.colors.mint,
+                              color: locked ? theme.colors.inkMuted : "#FFFFFF",
+                              cursor: locked || isSaving ? "not-allowed" : "pointer",
                               opacity: isSaving ? 0.7 : 1,
                             }}
                           >
-                            {paidThisMonth ? "Paid" : isSaving ? "Saving…" : "Save"}
+                            {locked ? "Paid" : isSaving ? "Saving…" : "Save"}
                           </button>
                         )}
                       </td>
@@ -750,8 +968,8 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
 
             {paidThisMonth && (
               <div style={profileStyles.alreadyPaidNotice}>
-                ✓ Ardaygan horeyba wuu u bixiyay bishan ({monthLabel(thisMonthKey)}) — lacag
-                mar labaad looma qaadi karo bishan.
+                ✓ Ardaygan horeyba wuu u bixiyay bishan ({monthLabel(thisMonthKey)}) — waxaad ka
+                bedeli kartaa "Edit" ee bogga Classes haddii loo baahdo.
               </div>
             )}
 
@@ -874,6 +1092,24 @@ const styles = {
     outline: "none",
     boxSizing: "border-box",
   },
+  saveAllBtn: {
+    border: "none",
+    padding: "12px 22px",
+    borderRadius: theme.radius.sm,
+    fontWeight: 700,
+    fontSize: 13.5,
+    whiteSpace: "nowrap",
+  },
+  editAllBtn: {
+    border: `1px solid ${theme.colors.border}`,
+    background: theme.colors.card,
+    color: theme.colors.brand,
+    padding: "12px 22px",
+    borderRadius: theme.radius.sm,
+    fontWeight: 700,
+    fontSize: 13.5,
+    whiteSpace: "nowrap",
+  },
   tableCard: {
     background: theme.colors.card,
     borderRadius: theme.radius.lg,
@@ -959,6 +1195,17 @@ const styles = {
     borderRadius: theme.radius.sm,
     fontWeight: 700,
     fontSize: 13,
+  },
+  editBtn: {
+    border: `1px solid ${theme.colors.border}`,
+    background: theme.colors.card,
+    color: theme.colors.brand,
+    padding: "8px 14px",
+    borderRadius: theme.radius.sm,
+    fontWeight: 700,
+    fontSize: 12.5,
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   classGrid: {
     display: "grid",
