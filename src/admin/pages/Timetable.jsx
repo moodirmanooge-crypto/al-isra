@@ -10,6 +10,7 @@ import {
   setDoc,
   deleteDoc,
   writeBatch,
+  onSnapshot,
 } from "firebase/firestore";
 import {
   Clock,
@@ -26,10 +27,31 @@ import {
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 
-// Fixed class order: 1 -> 8 (primary), then F1 -> F4 (secondary/form)
-const CLASS_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+// ✅ Isla liiska fasalada rasmiga ah (permanent) ee AddStudent.jsx,
+// Classes.jsx iyo BulkRegistration.jsx isticmaalaan — si Timetable-ku
+// uu la jaan qaado class-yada dhabta ah ee ardayda lagu diiwaan
+// geliyo, halkii uu isticmaali lahaa liis go'an oo kala duwan.
+const BUILT_IN_CLASSES = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+];
+
+const normalizeClassName = (name) =>
+  String(name || "").trim().replace(/\s+/g, " ").toLowerCase();
+
 function classRank(className) {
-  const idx = CLASS_ORDER.indexOf(String(className || "").toUpperCase());
+  const idx = BUILT_IN_CLASSES.findIndex(
+    (c) => normalizeClassName(c) === normalizeClassName(className)
+  );
   return idx === -1 ? 999 : idx;
 }
 
@@ -75,6 +97,9 @@ const SUBJECTS_SECONDARY = [
   "English",
 ];
 
+// Default subject list used for custom/unrecognized classes (fallback).
+const SUBJECTS_DEFAULT = SUBJECTS_LOWER_PRIMARY;
+
 // ---- Isku dheelitir maadada macalinka (subjects: ["arabic", ...]) iyo
 // liiska maadooyinka fasalka (sida "Arabic", "Carabi"). Waxaan u
 // isticmaalnaa lower-case comparison + isbeddel fudud si loo
@@ -117,19 +142,37 @@ function matchTeacherSubjectToClassList(teacherSubjects, classSubjectList) {
   return "";
 }
 
+// ---- Heerka fasalka (dugsiga hoose / dhexe / sare) ----
+// Waxaan ka fahansanahay magaca fasalka (tusaale "Fasalka 1aad" -> 1,
+// "G8 A"/"G8 B" -> 8, "PP"/"PI" -> hoose, "F1..F4" -> secondary) si
+// loo helo liiska maadooyinka saxda ah, xitaa haddii magaca fasalku
+// uusan si toos ah u ekayn tirooyinka fudud.
 function classLevel(className) {
-  const c = String(className || "").toUpperCase();
-  if (["1", "2", "3", "4"].includes(c)) return "lower_primary";
-  if (["5", "6", "7", "8"].includes(c)) return "upper_primary";
-  if (["F1", "F2", "F3", "F4"].includes(c)) return "secondary";
-  return "lower_primary";
+  const c = normalizeClassName(className);
+
+  if (c.startsWith("f") && /^f[1-4]$/.test(c)) return "secondary";
+  if (c === "pp" || c === "pi") return "lower_primary";
+
+  // "fasalka 1aad", "fasalka 2aad", ... -> extract the leading number
+  const numMatch = c.match(/(\d+)/);
+  if (numMatch) {
+    const n = parseInt(numMatch[1], 10);
+    if (n >= 1 && n <= 4) return "lower_primary";
+    if (n >= 5 && n <= 8) return "upper_primary";
+  }
+
+  // "g8 a", "g8 b" -> grade 8 -> upper primary
+  if (c.startsWith("g8")) return "upper_primary";
+
+  return null; // unknown/custom class -> use default subject list
 }
 
 function subjectsForClass(className) {
   const level = classLevel(className);
   if (level === "upper_primary") return SUBJECTS_UPPER_PRIMARY;
   if (level === "secondary") return SUBJECTS_SECONDARY;
-  return SUBJECTS_LOWER_PRIMARY;
+  if (level === "lower_primary") return SUBJECTS_LOWER_PRIMARY;
+  return SUBJECTS_DEFAULT;
 }
 
 const DAYS = [
@@ -558,6 +601,11 @@ export default function Timetable() {
   const [saving, setSaving] = useState(false);
   const [teachers, setTeachers] = useState({}); // id -> { fullName, photoUrl, subject, classes }
   const [timetableDocs, setTimetableDocs] = useState({}); // `${className}__${day}` -> { sessions: [] }
+  // ✅ Fasallada admin-ku "Create Class" ku daray gudaha AddStudent —
+  // waxaan halkan ku dhagaysanaynaa si toos ah (onSnapshot) collection-ka
+  // Firestore "customClasses", si Timetable-ku isla markiiba u arko
+  // fasal cusub oo la sameeyay, iyada oo aan bogga dib loo soo geliyeynin.
+  const [customClasses, setCustomClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [activeDay, setActiveDay] = useState(DAYS[0].key);
   const [draftSessions, setDraftSessions] = useState([]);
@@ -565,6 +613,21 @@ export default function Timetable() {
 
   useEffect(() => {
     load();
+  }, []);
+
+  // ✅ Isla liiska "allClassOptions" ee AddStudent.jsx isticmaalo: dooda
+  // hore ee CLASS_ORDER ayaa halkan lagu beddelay in la isticmaalo
+  // fasallada dhabta ah ee AddStudent (BUILT_IN_CLASSES) + fasallada
+  // custom ee laga soo akhriyay collection-ka "customClasses" — real-time.
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, "customClasses"),
+      (snap) => {
+        setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      },
+      (err) => console.log("customClasses listen error:", err)
+    );
+    return () => unsub();
   }, []);
 
   async function load() {
@@ -603,9 +666,19 @@ export default function Timetable() {
     }
   }
 
+  // ✅ Liiska dhamaystiran ee fasallada: kuwa rasmiga ah (BUILT_IN_CLASSES,
+  // isla midka AddStudent) + kuwa custom ee la sameeyay "Create Class",
+  // iyagoo la sorto sida allClassOptions ee AddStudent.jsx.
   const classes = useMemo(() => {
-    return [...CLASS_ORDER].sort((a, b) => classRank(a) - classRank(b));
-  }, []);
+    const customNames = customClasses
+      .map((c) => c.name)
+      .filter(
+        (name) =>
+          !BUILT_IN_CLASSES.some((c) => normalizeClassName(c) === normalizeClassName(name))
+      )
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...BUILT_IN_CLASSES, ...customNames];
+  }, [customClasses]);
 
   // ---- Macallimiinta u gaarka ah fasalka la doortay kaliya ----
   // Macallin wuxuu ku muuqdaa liiska haddii uu leeyahay class
@@ -615,7 +688,7 @@ export default function Timetable() {
     const filtered = {};
     Object.entries(teachers).forEach(([tid, info]) => {
       const teachesThisClass = (info.classes || []).some(
-        (c) => String(c.className || "").toUpperCase() === String(selectedClass).toUpperCase()
+        (c) => normalizeClassName(c.className) === normalizeClassName(selectedClass)
       );
       if (teachesThisClass) {
         filtered[tid] = info;
@@ -625,9 +698,8 @@ export default function Timetable() {
   }, [teachers, selectedClass]);
 
   // ---- Maadooyinka ku habboon heerka fasalka la doortay ----
-  // 1-4 = dugsiga hoose, 5-8 = dugsiga dhexe, F1-F4 = dugsiga sare.
-  // Mid kastaa liistadiisa maadooyin ayaa lagu soo bandhigayaa
-  // SubjectSelect-ka gudaha row-ka xiisadda.
+  // 1-4 = dugsiga hoose, 5-8 = dugsiga dhexe, F1-F4 = dugsiga sare,
+  // fasallada custom ee aan la aqoon waxay isticmaalaan liiska default.
   const subjectOptionsForSelectedClass = useMemo(() => {
     if (!selectedClass) return [];
     return subjectsForClass(selectedClass);

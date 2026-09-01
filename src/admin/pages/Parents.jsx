@@ -35,9 +35,14 @@ export default function Parents() {
     }
   }
 
+  // ---- Ka soo shubo lacagaha collection-ka "cashier" ----
+  // Sida sawirka Firebase muujinayo, xogta lacagta arday kastaa
+  // waxay ku jirtaa collection "cashier", document ID-giisu waa
+  // isla studentId-ga (tusaale: cashier/0001), oo leh field-ka
+  // "feeType" (tusaale qiimaha: "Paid").
   async function loadPayments() {
     try {
-      const snap = await getDocs(collection(db, "payments"));
+      const snap = await getDocs(collection(db, "cashier"));
       const map = {};
       snap.docs.forEach((doc) => {
         map[doc.id] = doc.data();
@@ -49,9 +54,10 @@ export default function Parents() {
   }
 
   // ---- Xisaabi inta la bixiyay iyo inta la rabo ee arday kasta ----
-  // U shaqeeya si dabacsan: haddii payments/{studentId} yahay hal document
-  // leh 'amountPaid', ama haddii uu leeyahay liis 'entries'/'history' oo
-  // dhammaantood la isku daro.
+  // U shaqeeya si dabacsan: haddii cashier/{studentId} leeyahay
+  // 'entries'/'history' (taariikh lacago badan), ama 'amountPaid'/'paid'
+  // (hal lacag oo tirsan), ama 'feeType' (qoraal sida "Paid"/"Partial"),
+  // dhammaantood waa la fahmi karaa.
   //
   // Ardayda "Free" ah (monthlyFee === 0) marwalba waa "Full Paid" —
   // wax lacag ah kama laha school-ka, sidaas darteed ma xiisayn karto
@@ -65,6 +71,7 @@ export default function Parents() {
     }
 
     let paidTotal = 0;
+    let explicitStatus = null;
 
     if (record) {
       if (Array.isArray(record.entries)) {
@@ -81,16 +88,27 @@ export default function Parents() {
         paidTotal = Number(record.amountPaid) || 0;
       } else if (record.paid !== undefined) {
         paidTotal = Number(record.paid) || 0;
-      } else if (record.status === "Paid") {
+      } else if (record.feeType === "Paid" || record.status === "Paid") {
+        // Xogta cashier-ku waxay isticmaashaa "feeType" halkii ay
+        // ka isticmaali lahayd 'amountPaid' — haddii la yiraahdo "Paid"
+        // waxaan u qaadanaynaa in lacagta oo dhan la bixiyay.
         paidTotal = fee;
+      } else if (record.feeType === "Partial" || record.status === "Partial") {
+        explicitStatus = "Partial";
+        // Haddii xogtu leedahay qiime gaar ah oo lagu bixiyay
+        // isticmaal, haddii kalese ka tag 0 (waxaad ku dari kartaa
+        // field cusub sida record.amount haddii la sameeyo).
+        paidTotal = Number(record.amount) || 0;
       }
     }
 
     const remaining = Math.max(fee - paidTotal, 0);
 
-    let status = "Unpaid";
-    if (paidTotal >= fee) status = "Full Paid";
-    else if (paidTotal > 0 && paidTotal < fee) status = "Partial";
+    let status = explicitStatus || "Unpaid";
+    if (!explicitStatus) {
+      if (paidTotal >= fee) status = "Full Paid";
+      else if (paidTotal > 0 && paidTotal < fee) status = "Partial";
+    }
 
     return { paidTotal, remaining, status };
   }

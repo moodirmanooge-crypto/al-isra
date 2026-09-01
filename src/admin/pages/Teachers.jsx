@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { db } from "../../firebase/firebase";
 import {
@@ -26,17 +26,35 @@ import {
   Loader2,
 } from "lucide-react";
 
+// ✅ Isla taxanaha maalmaha ee Timetable.jsx isticmaalo (DAYS array):
+// Saturday, Sunday, Monday, Tuesday, Wednesday — Thursday iyo Friday
+// waa la saaray si labada bogga ay isku jaan u qaadaan.
 const weekDays = [
+  "Saturday",
+  "Sunday",
   "Monday",
   "Tuesday",
   "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
 ];
 
-const classOptions = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+// ✅ Isla liiska fasalada rasmiga ah ee AddStudent.jsx iyo Classes.jsx
+// isticmaalaan — si Teacher edit modal-ku uu isla wada aragaan fasalada
+// saxda ah (iyo kuwa cusub ee la abuuray).
+const classOptions = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+];
+
+const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 const emptySession = () => ({ startTime: "", endTime: "" });
 
@@ -49,8 +67,14 @@ export default function Teachers() {
   const [editData, setEditData] = useState(null);
   const [saving, setSaving] = useState(false);
 
+  // ✅ Fasalada admin-ku "Create Class" ku daray ee ku kaydsan
+  // Firestore collection "customClasses" — isla source-ka AddStudent.jsx
+  // isticmaalo.
+  const [customClasses, setCustomClasses] = useState([]);
+
   useEffect(() => {
     fetchTeachers();
+    fetchCustomClasses();
   }, []);
 
   async function fetchTeachers() {
@@ -64,6 +88,26 @@ export default function Teachers() {
       setLoading(false);
     }
   }
+
+  async function fetchCustomClasses() {
+    try {
+      const snap = await getDocs(collection(db, "customClasses"));
+      setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  // ✅ Liiska dhamaystiran ee dropdown-ka Class: fasalada rasmiga ah oo
+  // hore u jiray, kadibna fasalada cusub ee admin-ku sameeyay — isku
+  // mid la AddStudent.jsx si aan is-qas u dhicin.
+  const allClassOptions = useMemo(() => {
+    const customNames = customClasses
+      .map((c) => c.name)
+      .filter((name) => !classOptions.some((c) => normalizeClassName(c) === normalizeClassName(name)))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...classOptions, ...customNames];
+  }, [customClasses]);
 
   // NOTE: macalimiinta la calaamadeeyay in la tirtirayo (pendingDeletion)
   // waxaa laga qariyaa liiska front-end-ka ilaa backend-ku uu approve gareeyo.
@@ -92,6 +136,9 @@ export default function Teachers() {
       password: teacher.password || "",
       classes: JSON.parse(JSON.stringify(teacher.classes || [])),
     });
+    // ✅ Hubi in liiska fasalada uu ahaado tan ugu dambeysay marka
+    // modal-ka la furo (haddii class cusub la daray inta lagu jiray).
+    fetchCustomClasses();
   }
 
   function closeEdit() {
@@ -441,8 +488,10 @@ export default function Teachers() {
                         onChange={(e) => updateClassBlock(index, "className", e.target.value)}
                       >
                         <option value="">-- Dooro --</option>
-                        {classOptions.map((c) => (
-                          <option key={c}>{c}</option>
+                        {allClassOptions.map((c) => (
+                          <option key={c} value={c}>
+                            {c}
+                          </option>
                         ))}
                       </select>
                     </Field>
