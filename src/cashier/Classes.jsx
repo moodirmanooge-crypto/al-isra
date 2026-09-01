@@ -1,86 +1,24 @@
 // src/cashier/Classes.jsx
-//
-// A second entry point onto the exact same `payments` Firestore collection
-// that Payments.jsx and Reports.jsx already read/write — grouped by class,
-// with real multi-month payment tracking instead of "only remembers the
-// latest month."
-//
-// WHY THIS EXISTS: Payments.jsx always saves against *this calendar month*
-// only (`payments/{studentId}_{currentMonthKey}`), and only ever reads the
-// single most-recent record per student. It has no way to know which
-// months are actually covered when a parent pays several months' fees at
-// once — e.g. a $17/month student paying $114 has covered 6 months, and
-// the system should know exactly which 6 months those are and that the
-// 7th is still owed.
-//
-// This page adds that: every payment entered here is spread forward,
-// month by month, starting from the earliest month the student has not
-// yet fully paid (based on their registration month and their existing
-// payment records for that studentId — pulled from the SAME `payments`
-// collection Payments.jsx writes to). Each covered month is written as
-// its own `payments/{studentId}_{monthKey}` doc with the exact same
-// field shape Payments.jsx already uses, so Payments.jsx and Reports.jsx
-// need no changes at all and stay perfectly in sync with what happens
-// here.
-//
-// Example: student owes $17/month, has paid nothing yet, registered in
-// March. Cashier enters $114 → 114 / 17 = 6 full months exactly →
-// March–August all get marked Paid. Next time the cashier looks this
-// student up, the next unpaid month is September. If a partial amount
-// is entered that doesn't complete a month (say $124 when 7 months are
-// still owed: 7×17=119, remainder 5), the 7th month gets a partial
-// "Not Paid" record (paidAmount 5, remaining 12) and the 8th month
-// onward stays untouched — exactly mirroring how Payments.jsx already
-// represents a partially-paid month.
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   getDocs,
   doc,
-  setDoc,
   updateDoc,
   writeBatch,
   serverTimestamp,
+  query,
+  where,
 } from "firebase/firestore";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 import { db } from "../firebase/firebase";
 import { theme } from "./theme.js";
 import ReceiptModal from "./ReceiptModal.jsx";
 
-// ✅ Collection cusub oo dheeraad ah: "receiptCashier" — waxay u
-// kaydisaa hal diiwaan (record) rasiidkaas oo isla qiimaha $ ee dhab
-// ahaan la kaydiyay (entered, isla qiimaha savePayment/saveAll batch
-// ku diray "payments" collection-ka). Collection-ka "receipts" ee
-// hore (ReceiptModal.jsx) WAX LAGA BEDELIN — waa la iska daayay sida
-// uu yahay, kani waa mid dheeraad ah oo labadaba isku mar u kaydiya.
-// Ficilkan kuma xidho batch-ka "payments"-ka (haddii uu fashilmo,
-// wax kama beddelayo kaydinta lacagta) — waa hal isticmaal (setDoc)
-// oo dheeraad ah, sida daabacaadda rasiidka (ReceiptModal.jsx) oo
-// kale, sidaas awgeed khalad ka dhaca kaydinta rasiidka lagama arki
-// karo laakiin ma xidho save-ka lacagta.
-function saveReceiptCashierRecord({ student, entered, updates }) {
-  try {
-    const docId = `${student.studentId}_${Date.now()}`;
-    setDoc(doc(db, "receiptCashier", docId), {
-      studentId: student.studentId,
-      studentName: student.fullName,
-      className: student.className || "",
-      schoolName: SCHOOL_NAME,
-      studentPhone: student.studentPhone || "",
-      parentPhone: student.parentPhone || "",
-      paidAmount: entered,
-      monthKeys: updates.map((u) => u.monthKey),
-      monthLabels: updates.map((u) => u.monthLabel),
-      createdAt: serverTimestamp(),
-    }).catch((err) => console.log(err));
-  } catch (err) {
-    console.log(err);
-  }
-}
-
 const SCHOOL_NAME = "Rising School";
 
-// ✅ Isla liiska fasalada ee AddStudent.jsx/BulkRegistration.jsx isticmaalaan
 const classOptions = [
   "Fasalka 1aad",
   "Fasalka 2aad",
@@ -95,7 +33,7 @@ const classOptions = [
   "F4",
 ];
 
-const currentMonthKey = () => new Date().toISOString().slice(0, 7); // "2026-07"
+const currentMonthKey = () => new Date().toISOString().slice(0, 7);
 
 const monthLabel = (key) => {
   if (!key) return "—";
@@ -104,25 +42,27 @@ const monthLabel = (key) => {
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 };
 
-// ✅ Taariikhda saxda ah (maalinta + bisha + sanadka) ee lacagta la
-// bixiyay dhab ahaan la kaydiyay (createdAt) — isla format-ka
-// Payments.jsx isticmaalo, si labada bogga ay isku waafaqaan.
 function formatPaidDate(createdAt) {
   if (!createdAt?.seconds) return "—";
   const d = new Date(createdAt.seconds * 1000);
   return d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 }
 
-// "2026-03" + 2 -> "2026-05"
 function monthKeyAdd(key, n) {
   const [y, m] = key.split("-").map(Number);
   const d = new Date(y, m - 1 + n, 1);
   return d.toISOString().slice(0, 7);
 }
 
-// Bisha ardaygu ku bilaabmay (createdAt) — waa bisha ugu horeysa ee uu
-// lacag ku leeyahay. Haddii createdAt maqan yahay, bisha hadda waa la
-// isticmaalaa (safety fallback).
+function addMonthsToKey(monthKey, months) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(year, month - 1, 1);
+  date.setMonth(date.getMonth() + months);
+  const newYear = date.getFullYear();
+  const newMonth = String(date.getMonth() + 1).padStart(2, "0");
+  return `${newYear}-${newMonth}`;
+}
+
 function registrationMonthKey(student) {
   const ts = student.createdAt;
   if (ts?.seconds) {
@@ -131,8 +71,6 @@ function registrationMonthKey(student) {
   return currentMonthKey();
 }
 
-// Ka soo mar bilaha, laga bilaabo `startKey`, ilaa la helo mid aan
-// gabi ahaanba la bixin (ma jirin `fullyPaid` set-ka).
 function findNextUnpaidMonth(fullyPaidSet, startKey, safetyCap = 120) {
   let key = startKey;
   for (let i = 0; i < safetyCap; i++) {
@@ -142,11 +80,6 @@ function findNextUnpaidMonth(fullyPaidSet, startKey, safetyCap = 120) {
   return key;
 }
 
-// Qaybi lacagta la geliyay (entered) bilo-bilo, laga bilaabo bisha ugu
-// horeysa ee aan la bixin — marka hore dhamaystir bishii hore ee qeyb
-// ahaan la bixiyay (partialMap) haddii ay jirto, kadibna sii wad bilaha
-// xiga ilaa lacagtu dhammaato. Waxay soo celisaa liis update ah oo
-// bil-bil ah, kala mid ah `{ monthKey, paidAmount, remaining, status }`.
 function distributePayment({ entered, monthlyFee, fullyPaidSet, partialMap, startKey }) {
   const updates = [];
   let cash = entered;
@@ -174,7 +107,6 @@ function distributePayment({ entered, monthlyFee, fullyPaidSet, partialMap, star
       fullyPaidSet.add(cursor);
       cursor = monthKeyAdd(cursor, 1);
     } else {
-      // Lacagtii way dhammaatay bishan gudaheeda — jooji halkan.
       break;
     }
     guard += 1;
@@ -185,39 +117,29 @@ function distributePayment({ entered, monthlyFee, fullyPaidSet, partialMap, star
 
 export default function Classes() {
   const [students, setStudents] = useState([]);
-  const [paymentsByStudent, setPaymentsByStudent] = useState({}); // studentId -> record[] (sorted by monthKey)
+  const [paymentsByStudent, setPaymentsByStudent] = useState({});
   const [loading, setLoading] = useState(true);
 
   const [selectedClass, setSelectedClass] = useState(null);
   const [search, setSearch] = useState("");
   const [amounts, setAmounts] = useState({});
-  // ✅ "Immisa bilood?" — cashier-ku wuxuu gacanta ku dooranayaa tirada
-  // bilaha lacagta la geliyay u socoto (1, 2, 3, 4...); marka la doorto,
-  // Enter Amount waxaa si toos ah loo buuxiyaa (monthlyFee × bilaha).
-  // Cashier-ku weli wuu bedeli karaa Enter Amount gacanta haddii uu
-  // rabo lacag qeyb ahaan ah oo aan buuxin tirada bilaha la doortay.
   const [monthsSelected, setMonthsSelected] = useState({});
   const [savingId, setSavingId] = useState(null);
   const [savingAll, setSavingAll] = useState(false);
-  // ✅ Studentyada horeyba "Paid" u ah bishan — "Enter Amount" column-ka
-  // waxa lagu tusayaa "Edit" button. Marka la taabto, meeshaas waxay ku
-  // soo noqotaa input furan oo hore u buuxsan lacagtii ugu dambeysay ee
-  // la kaydiyay bishan (partialThisMonth/fee), si lacagta loo bedeli
-  // karo kadibna dib loo kaydiyo (Save ama Save All) — isla habka
-  // Payments.jsx isticmaalo, halkan sidoo kale wax marnaba lama xidho.
+  const [resettingAll, setResettingAll] = useState(false);
   const [editingIds, setEditingIds] = useState({});
   const [receiptPayment, setReceiptPayment] = useState(null);
-  // ✅ "Save All" — marka dhowr arday hal mar la kaydiyo, mid kastaba
-  // wuxuu u baahan yahay rasiidkiisa gaarka ah. Waxaan halkan ku
-  // hayaa safka (queue) ee rasiidhada la sugayo in la daawado/daabaco
-  // — mid kastaba wuu ka soo bixi doonaa "Xir" ka dib.
   const [receiptQueue, setReceiptQueue] = useState([]);
   const [profileStudent, setProfileStudent] = useState(null);
-  // ✅ Fee Category (Registration/Roll Number/Examination) — isla
-  // hal-mar (one-time) column-ka Payments.jsx isticmaalo, halkan
-  // sidoo kale ka muuqda si labada bogga ay isku waafaqaan.
   const [specialSavingId, setSpecialSavingId] = useState(null);
   const [specialAmounts, setSpecialAmounts] = useState({});
+
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -260,9 +182,6 @@ export default function Classes() {
     }
   }
 
-  // ---- Class grid: fasalada 11-ka ah + fasal kasta oo dheeraad ah oo
-  // xogta ku jira (si aan cid loo qariyin haddii className aanu ka mid
-  // ahayn liiska caadiga ah) ----
   const classGroups = useMemo(() => {
     const groups = {};
     classOptions.forEach((c) => (groups[c] = []));
@@ -291,9 +210,6 @@ export default function Classes() {
 
   const isFreeStudent = (student) => student.feeType === "Free";
 
-  // ✅ Marka cashier-ku doorto tirada bilaha ("Immisa bilood?"), Enter
-  // Amount waxaa si toos ah loo buuxiyaa (monthlyFee × bilaha la
-  // doortay) — cashier-ku weli wuu bedeli karaa qiimaha haddii uu rabo.
   const selectMonths = (student, months) => {
     const fee = Number(student.monthlyFee || 0);
     setMonthsSelected({ ...monthsSelected, [student.id]: months });
@@ -302,9 +218,6 @@ export default function Classes() {
     }
   };
 
-  // ✅ Ka soo qaad qiimaha Fee Category-ga gaarka ah ee ardaygan sida
-  // maamulku (Add Student) markii hore u soo qoray — isla habka
-  // Payments.jsx.
   const getAdminFeeAmount = (student) => {
     if (student.feeCategory === "Registration Fees") return Number(student.registrationFees || 0);
     if (student.feeCategory === "Roll Number Fees") return Number(student.rollNumberFees || 0);
@@ -312,9 +225,6 @@ export default function Classes() {
     return 0;
   };
 
-  // ✅ Hal-mar oo kaliya (one-time) — isla habka Payments.jsx: marka
-  // la kaydiyo, `specialFeeAmount`/`specialFeeSaved` waxay ku
-  // kaydsan yihiin `students/{id}`, oo mar dambe lama badali karo.
   const saveSpecialFee = async (student) => {
     if (!student.feeCategory) return;
     if (student.specialFeeSaved) return;
@@ -348,9 +258,6 @@ export default function Classes() {
     }
   };
 
-  // ---- Xaaladda "this month" ee arday gaar ah, sida Payments.jsx u
-  // tusayo miiska (Paid / Remaining / Status columns) — waxaa laga
-  // soo qaatay diiwaannada dhammaan bilaha ee ardaygan. ----
   function getStudentMonthState(studentId) {
     const records = paymentsByStudent[studentId] || [];
     const fullyPaidSet = new Set();
@@ -370,12 +277,8 @@ export default function Classes() {
       return fullyPaidSet.has(currentMonthKey());
     }).length;
     return { total: currentClassStudents.length, paidThisMonthCount };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentClassStudents, paymentsByStudent]);
 
-  // ✅ Fur "Edit" — ka soo buuxi input-ka lacagtii ugu dambeysay ee
-  // BISHAN la kaydiyay (fee-ga oo dhan haddii "Paid" yahay), si
-  // cashier-ku u arko waxa horeyba jira kadibna u bedelo.
   const startEdit = (student) => {
     const fee = Number(student.monthlyFee || 0);
     const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
@@ -391,10 +294,6 @@ export default function Classes() {
     setEditingIds({ ...editingIds, [student.id]: true });
   };
 
-  // ✅ "Edit All" — fur mar hal ku dhammaan ardayda muuqda (currentClassStudents)
-  // ee horeyba "Paid" u ah bishan, midkastana lacagtiisii ugu dambeysay
-  // ee bishan lagu soo buuxinayo, si dhammaantood lacagahooda loo bedeli
-  // karo, kadibna hal mar "Save All" lagu kaydiyo.
   const editAll = () => {
     const thisMonthKey = currentMonthKey();
     const targets = currentClassStudents.filter((s) => {
@@ -421,46 +320,178 @@ export default function Classes() {
     setEditingIds(nextEditing);
   };
 
-  // ---- Kaydi lacagta la geliyay, iyada oo bilo-bilo loo qaybinayo,
-  // laga bilaabo bisha ugu horeysa ee aan la bixin ----
+  async function resetClassPayments() {
+    if (!selectedClass) return;
+    const confirmReset = window.confirm(
+      `Ma weyddiisanaysaa in dhammaan lacagaha iyo rasiidhyada ardayda fasalka "${selectedClass}" laga dhigo Unpaid (Tir dhan)?`
+    );
+    if (!confirmReset) return;
+
+    try {
+      setResettingAll(true);
+      const batch = writeBatch(db);
+
+      const targetStudentIds = currentClassStudents.map((s) => s.studentId);
+      const studentDocIds = currentClassStudents.map((s) => s.id);
+
+      studentDocIds.forEach((id) => {
+        batch.update(doc(db, "students", id), {
+          creditBalance: 0,
+          specialFeeSaved: false,
+          specialFeeAmount: 0,
+        });
+      });
+
+      const paymentsSnap = await getDocs(
+        query(collection(db, "payments"), where("className", "==", selectedClass))
+      );
+
+      paymentsSnap.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+
+      const receiptCashierSnap = await getDocs(
+        query(collection(db, "receiptCashier"), where("className", "==", selectedClass))
+      );
+
+      receiptCashierSnap.docs.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+
+      await batch.commit();
+
+      setPaymentsByStudent((prev) => {
+        const next = { ...prev };
+        targetStudentIds.forEach((sid) => {
+          delete next[sid];
+        });
+        return next;
+      });
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          studentDocIds.includes(s.id)
+            ? { ...s, creditBalance: 0, specialFeeSaved: false, specialFeeAmount: 0 }
+            : s
+        )
+      );
+
+      setAmounts({});
+      setMonthsSelected({});
+      setEditingIds({});
+      setReceiptQueue([]);
+      setReceiptPayment(null);
+
+      alert(`Dhamaan xogta fasalka ${selectedClass} waa  lawada Reset-gareeyay.`);
+    } catch (err) {
+      console.error(err);
+      alert("Khalad ayaa dhacay marka xogta la tiri yay.");
+    } finally {
+      setResettingAll(false);
+    }
+  }
+
+  const generateMonthlyRevenuePDF = (paidRecords) => {
+    const docPdf = new jsPDF();
+    const formattedMonth = monthLabel(currentMonthKey());
+    const dateStr = now.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    docPdf.setFontSize(18);
+    docPdf.setTextColor(20, 50, 40);
+    docPdf.text(SCHOOL_NAME, 14, 18);
+
+    docPdf.setFontSize(12);
+    docPdf.setTextColor(100);
+    docPdf.text(`Warbixinta Daqliga Bisha: ${formattedMonth}`, 14, 25);
+    docPdf.text(`Fasalka: ${selectedClass || "Dhamaan Fasalada"}`, 14, 31);
+    docPdf.text(`Taariikhda Xiridda: ${dateStr}`, 14, 37);
+
+    const tableRows = paidRecords.map((item, index) => [
+      index + 1,
+      item.studentId,
+      item.studentName,
+      item.className,
+      `$${item.paidAmount}`,
+      item.status,
+    ]);
+
+    const totalRevenue = paidRecords.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0);
+
+    autoTable(docPdf, {
+      startY: 44,
+      head: [["#", "ID", "Magaca Ardayga", "Fasalka", "Lacagta Bixiyay", "Status"]],
+      body: tableRows,
+      theme: "striped",
+      headStyles: { fillColor: [15, 80, 60] },
+    });
+
+    const finalY = docPdf.lastAutoTable.finalY + 10;
+    docPdf.setFontSize(14);
+    docPdf.setTextColor(0);
+    docPdf.text(`Wadarta Daqliga Bisha Soogalay: $${totalRevenue}`, 14, finalY);
+
+    docPdf.save(`Daqliga_${selectedClass}_${currentMonthKey()}.pdf`);
+  };
+
   async function savePayment(student) {
     if (isFreeStudent(student)) return;
 
-    // ✅ Try/catch-ku hadda wuxuu daboolayaa HANTIDA HOWSHA oo dhan —
-    // xisaabinta (getStudentMonthState/findNextUnpaidMonth/
-    // distributePayment) iyo kaydinta Firestore-ka labaduba. Hore
-    // waxay ahaayeen xisaabintu ka baxsan try-ga, sidaas darteed
-    // khalad kasta oo ka dhaca xisaabinta wuxuu si aan la arki karin
-    // u dhinteen — button-ku "Save" buu sii ahaan jiray, wax lama
-    // arag. Hadda khalad kastaa wuxuu keenayaa alert() cad.
     try {
-      const entered = Number(amounts[student.id] || 0);
-      if (entered <= 0) {
-        alert("Fadlan geli lacagta la bixiyay");
-        return;
-      }
-
       const monthlyFee = Number(student.monthlyFee || 0);
       if (monthlyFee <= 0) {
         alert("Ardaygan Monthly Fee sax ah lama helin.");
         return;
       }
 
+      let entered = Number(amounts[student.id] || 0);
+      if (entered <= 0) {
+        entered = monthlyFee;
+      }
+
       const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
+
+      const workingFullyPaidSet = new Set(fullyPaidSet);
+      const workingPartialMap = { ...partialMap };
+      if (editingIds[student.id]) {
+        workingFullyPaidSet.delete(currentMonthKey());
+        delete workingPartialMap[currentMonthKey()];
+      }
+
       const startKey = findNextUnpaidMonth(
-        fullyPaidSet,
+        workingFullyPaidSet,
         registrationMonthKey(student)
       );
 
-      const updates = distributePayment({
-        entered,
+      const existingCredit = Number(student.creditBalance || 0);
+      const cashToDistribute = entered + existingCredit;
+
+      let updates = distributePayment({
+        entered: cashToDistribute,
         monthlyFee,
-        fullyPaidSet: new Set(fullyPaidSet), // koobiye — yaan lama-taaban lahayn state-ka asalka ah
-        partialMap: { ...partialMap },
+        fullyPaidSet: new Set(workingFullyPaidSet),
+        partialMap: { ...workingPartialMap },
         startKey,
       });
 
-      if (updates.length === 0) return;
+      if (updates.length === 0) {
+        updates = [{
+          monthKey: startKey,
+          paidAmount: entered,
+          remaining: Math.max(monthlyFee - entered, 0),
+          status: entered >= monthlyFee ? "Paid" : "Not Paid"
+        }];
+      }
+
+      const totalApplied = updates.reduce((sum, u) => {
+        const already = workingPartialMap[u.monthKey] || 0;
+        return sum + (u.paidAmount - already);
+      }, 0);
+      const newCreditBalance = Math.max(cashToDistribute - totalApplied, 0);
 
       setSavingId(student.id);
 
@@ -483,16 +514,30 @@ export default function Classes() {
           createdAt: serverTimestamp(),
         });
       });
+
+      if (newCreditBalance !== existingCredit) {
+        batch.update(doc(db, "students", student.id), {
+          creditBalance: newCreditBalance,
+        });
+      }
+
+      const receiptCashierRef = doc(collection(db, "receiptCashier"));
+      batch.set(receiptCashierRef, {
+        studentId: student.studentId,
+        studentName: student.fullName,
+        className: student.className || "",
+        schoolName: SCHOOL_NAME,
+        monthlyFee,
+        paidAmount: entered,
+        monthsCovered: updates.map((u) => u.monthKey),
+        creditBalanceAfter: newCreditBalance,
+        studentPhone: student.studentPhone || "",
+        parentPhone: student.parentPhone || "",
+        createdAt: serverTimestamp(),
+      });
+
       await batch.commit();
 
-      // ✅ Kaydi isla goobtaan diiwaan dheeraad ah "receiptCashier"
-      // collection-ka — isla qiimaha "entered" ee la kaydiyay
-      // batch-ka kore ("payments"), si aan labada iska soo horjeedin.
-      saveReceiptCashierRecord({ student, entered, updates });
-
-      // ---- Cusboonaysii state-ka local-ka ah si miiska/profile-ku
-      // isla markiiba u tuso xogta cusub, iyada oo aan loo baahnayn
-      // in bogga dib loo soo shubo ----
       setPaymentsByStudent((prev) => {
         const next = { ...prev };
         const existing = [...(next[student.studentId] || [])];
@@ -512,12 +557,17 @@ export default function Classes() {
           };
           if (idx >= 0) existing[idx] = record;
           else existing.push(record);
-
         });
         existing.sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
         next[student.studentId] = existing;
         return next;
       });
+
+      setStudents((prev) =>
+        prev.map((s) =>
+          s.id === student.id ? { ...s, creditBalance: newCreditBalance } : s
+        )
+      );
 
       setAmounts((prev) => ({ ...prev, [student.id]: "" }));
       setMonthsSelected((prev) => ({ ...prev, [student.id]: "" }));
@@ -527,13 +577,8 @@ export default function Classes() {
         return next;
       });
 
-      // ---- Rasiid — hal rasiid oo tusaya lacagta la bixiyay oo dhan.
-      // Haddii bil qura la bixiyay, tus bishaas kaliya (magaceeda +
-      // sanadka); haddii dhowr bilood la bixiyay, sheeg magac-magac
-      // dhammaan bilaha la bixiyay (tusaale: "September, October,
-      // November and December 2026"), si "Being of" ee warqadda
-      // rasiidka uu si cad u sheego bilaha ardaygu bixiyay. ----
       const receiptMonthLabel = (() => {
+        if (updates.length === 0) return monthLabel(startKey);
         if (updates.length === 1) return monthLabel(updates[0].monthKey);
 
         const names = updates.map((u) => {
@@ -558,6 +603,7 @@ export default function Classes() {
         schoolName: SCHOOL_NAME,
         monthLabel: receiptMonthLabel,
         paidAmount: entered,
+        creditBalanceAfter: newCreditBalance,
         createdAt: { seconds: Math.floor(Date.now() / 1000) },
       });
     } catch (err) {
@@ -568,25 +614,16 @@ export default function Classes() {
     }
   }
 
-  // ✅ "Save All" — kaydi hal mar dhammaan ardayda fasalkan ee lacagta
-  // loo geliyay (kuwa "Enter Amount" ku jira — kuwa madhan waa la iska
-  // dhaafaa). Ardayda horeyba "Paid" ah bishan waa la iska dhaafaa,
-  // MADAAMA ay kaliya la bedeli karaan marka la taabto "Edit"
-  // gaarkooda (ama "Edit All") oo la furo (editingIds) — sidaas ayaan
-  // lacag looga badalin arday aan la doonayn in la taabto. Wax lama
-  // xidho — waa mid la isticmaali karo goor kasta.
   async function saveAll() {
     const targets = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
-      const entered = Number(amounts[s.id] || 0);
-      if (entered <= 0) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
       const paidThisMonth = fullyPaidSet.has(currentMonthKey());
       return !paidThisMonth || editingIds[s.id];
     });
 
     if (targets.length === 0) {
-      alert("Ma jiro arday lacag loo geliyay ee weli aan la kaydin.");
+      alert("Ma jiro arday la kaydin karo.");
       return;
     }
 
@@ -596,27 +633,57 @@ export default function Classes() {
       const batch = writeBatch(db);
       const nextPaymentsByStudent = { ...paymentsByStudent };
       const newReceipts = [];
+      const creditUpdatesByStudentDocId = {};
+      const reportPaidList = [];
 
       targets.forEach((student) => {
-        const entered = Number(amounts[student.id] || 0);
         const monthlyFee = Number(student.monthlyFee || 0);
         if (monthlyFee <= 0) return;
 
+        let entered = Number(amounts[student.id] || 0);
+        if (entered <= 0) {
+          entered = monthlyFee;
+        }
+
         const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
+
+        const workingFullyPaidSet = new Set(fullyPaidSet);
+        const workingPartialMap = { ...partialMap };
+        if (editingIds[student.id]) {
+          workingFullyPaidSet.delete(currentMonthKey());
+          delete workingPartialMap[currentMonthKey()];
+        }
+
         const startKey = findNextUnpaidMonth(
-          fullyPaidSet,
+          workingFullyPaidSet,
           registrationMonthKey(student)
         );
 
-        const updates = distributePayment({
-          entered,
+        const existingCredit = Number(student.creditBalance || 0);
+        const cashToDistribute = entered + existingCredit;
+
+        let updates = distributePayment({
+          entered: cashToDistribute,
           monthlyFee,
-          fullyPaidSet: new Set(fullyPaidSet),
-          partialMap: { ...partialMap },
+          fullyPaidSet: new Set(workingFullyPaidSet),
+          partialMap: { ...workingPartialMap },
           startKey,
         });
 
-        if (updates.length === 0) return;
+        if (updates.length === 0) {
+          updates = [{
+            monthKey: startKey,
+            paidAmount: entered,
+            remaining: Math.max(monthlyFee - entered, 0),
+            status: entered >= monthlyFee ? "Paid" : "Not Paid"
+          }];
+        }
+
+        const totalApplied = updates.reduce((sum, u) => {
+          const already = workingPartialMap[u.monthKey] || 0;
+          return sum + (u.paidAmount - already);
+        }, 0);
+        const newCreditBalance = Math.max(cashToDistribute - totalApplied, 0);
 
         const existing = [...(nextPaymentsByStudent[student.studentId] || [])];
         updates.forEach((u) => {
@@ -635,6 +702,14 @@ export default function Classes() {
             studentPhone: student.studentPhone || "",
             parentPhone: student.parentPhone || "",
             createdAt: serverTimestamp(),
+          });
+
+          reportPaidList.push({
+            studentId: student.studentId,
+            studentName: student.fullName,
+            className: student.className || "",
+            paidAmount: u.paidAmount,
+            status: u.status,
           });
 
           const idx = existing.findIndex((r) => r.monthKey === u.monthKey);
@@ -656,11 +731,15 @@ export default function Classes() {
         existing.sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
         nextPaymentsByStudent[student.studentId] = existing;
 
-        // ✅ Rasiid — hal rasiid oo tusaya lacagta la bixiyay oo dhan
-        // ardaygan, isla habka savePayment isticmaalo: haddii bil
-        // qura la bixiyay, tus bishaas kaliya; haddii dhowr bilood la
-        // bixiyay, sheeg magac-magac dhammaan bilaha la bixiyay.
+        if (newCreditBalance !== existingCredit) {
+          batch.update(doc(db, "students", student.id), {
+            creditBalance: newCreditBalance,
+          });
+          creditUpdatesByStudentDocId[student.id] = newCreditBalance;
+        }
+
         const receiptMonthLabel = (() => {
+          if (updates.length === 0) return monthLabel(startKey);
           if (updates.length === 1) return monthLabel(updates[0].monthKey);
 
           const names = updates.map((u) => {
@@ -685,13 +764,36 @@ export default function Classes() {
           schoolName: SCHOOL_NAME,
           monthLabel: receiptMonthLabel,
           paidAmount: entered,
+          creditBalanceAfter: newCreditBalance,
           createdAt: { seconds: Math.floor(Date.now() / 1000) },
+        });
+
+        const receiptCashierRef = doc(collection(db, "receiptCashier"));
+        batch.set(receiptCashierRef, {
+          studentId: student.studentId,
+          studentName: student.fullName,
+          className: student.className || "",
+          schoolName: SCHOOL_NAME,
+          monthlyFee,
+          paidAmount: entered,
+          monthsCovered: updates.map((u) => u.monthKey),
+          creditBalanceAfter: newCreditBalance,
+          studentPhone: student.studentPhone || "",
+          parentPhone: student.parentPhone || "",
+          createdAt: serverTimestamp(),
         });
       });
 
       await batch.commit();
 
       setPaymentsByStudent(nextPaymentsByStudent);
+      setStudents((prev) =>
+        prev.map((s) =>
+          creditUpdatesByStudentDocId[s.id] !== undefined
+            ? { ...s, creditBalance: creditUpdatesByStudentDocId[s.id] }
+            : s
+        )
+      );
       setAmounts({});
       setMonthsSelected({});
       setEditingIds((prev) => {
@@ -700,10 +802,11 @@ export default function Classes() {
         return next;
       });
 
-      // ✅ Isla marka batch-ku guulaysto, fur rasiidka ugu horeeya
-      // safka (queue); kuwa kale way sii sugayaan ilaa kan hore la
-      // xiro ("Xir"), markaas ayaa mid xigaa si toos ah u furma.
       setReceiptQueue(newReceipts);
+
+      if (reportPaidList.length > 0) {
+        generateMonthlyRevenuePDF(reportPaidList);
+      }
     } catch (err) {
       console.log(err);
       alert(err?.message || "Khalad aan la garanayn ayaa dhacay marka lacagta la kaydinayay.");
@@ -712,447 +815,452 @@ export default function Classes() {
     }
   }
 
-  // ---- Boggu marka fasal la furay (liiska ardayda + lacagaha) ----
-  if (selectedClass) {
-    return (
-      <div style={{ fontFamily: theme.font.body }}>
-        <button
-          onClick={() => {
-            setSelectedClass(null);
-            setSearch("");
-          }}
-          style={styles.backBtn}
-        >
-          ← Dib ugu noqo Fasalada
-        </button>
+  return (
+    <div style={{ fontFamily: theme.font.body }}>
+      <div style={styles.calendarWidget}>
+        <span style={{ fontSize: 18 }}>📅</span>
+        <span style={{ fontWeight: 700 }}>
+          {now.toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}
+        </span>
+        <span style={{ marginLeft: "auto", fontWeight: 800, color: theme.colors.brand }}>
+          ⏰ {now.toLocaleTimeString("en-US")}
+        </span>
+      </div>
 
-        <header style={styles.header}>
-          <div>
-            <h1 style={styles.title}>{selectedClass}</h1>
-            <p style={styles.subtitle}>
-              Diiwaan geli oo la soco lacagaha bilaha ee ardayda fasalkan
-            </p>
-          </div>
-          <div style={styles.headerStats}>
-            <div style={styles.statPill}>
-              <span style={styles.statNum}>{filteredClassStats.total}</span>
-              <span style={styles.statLabel}>Students</span>
-            </div>
-            <div style={styles.statPill}>
-              <span style={styles.statNum}>{filteredClassStats.paidThisMonthCount}</span>
-              <span style={styles.statLabel}>Paid this month</span>
-            </div>
-          </div>
-        </header>
+      {selectedClass ? (
+        <div>
+          <button
+            onClick={() => {
+              setSelectedClass(null);
+              setSearch("");
+            }}
+            style={styles.backBtn}
+          >
+            ← Dib ugu noqo Fasalada
+          </button>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
-          <div style={{ ...styles.searchRow, marginBottom: 0, flex: "0 0 360px" }}>
-            <span style={styles.searchIcon}>🔍</span>
-            <input
-              placeholder="Search Student ID / Name"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={styles.search}
+          <header style={styles.header}>
+            <div>
+              <h1 style={styles.title}>{selectedClass}</h1>
+              <p style={styles.subtitle}>
+                Diiwaan geli oo la soco lacagaha bilaha ee ardayda fasalkan
+              </p>
+            </div>
+            <div style={styles.headerStats}>
+              <div style={styles.statPill}>
+                <span style={styles.statNum}>{filteredClassStats.total}</span>
+                <span style={styles.statLabel}>Students</span>
+              </div>
+              <div style={styles.statPill}>
+                <span style={styles.statNum}>{filteredClassStats.paidThisMonthCount}</span>
+                <span style={styles.statLabel}>Paid this month</span>
+              </div>
+            </div>
+          </header>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 20 }}>
+            <div style={{ ...styles.searchRow, marginBottom: 0, flex: "0 0 360px" }}>
+              <span style={styles.searchIcon}>🔍</span>
+              <input
+                placeholder="Search Student ID / Name"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={styles.search}
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={editAll}
+              disabled={savingAll || resettingAll}
+              style={{
+                ...styles.editAllBtn,
+                cursor: savingAll || resettingAll ? "not-allowed" : "pointer",
+                opacity: savingAll || resettingAll ? 0.7 : 1,
+              }}
+            >
+              ✏️ Edit All
+            </button>
+
+            <button
+              type="button"
+              onClick={resetClassPayments}
+              disabled={resettingAll || savingAll}
+              style={{
+                ...styles.resetAllBtn,
+                background: theme.colors.danger || "#E53E3E",
+                color: "#FFFFFF",
+                cursor: resettingAll || savingAll ? "not-allowed" : "pointer",
+                opacity: resettingAll || savingAll ? 0.7 : 1,
+              }}
+            >
+              {resettingAll ? "Resetting…" : "🔄 Reset / Unpaid All"}
+            </button>
+
+            <button
+              onClick={saveAll}
+              disabled={savingAll || resettingAll}
+              style={{
+                ...styles.saveAllBtn,
+                background: theme.colors.brand,
+                color: "#FFFFFF",
+                cursor: savingAll || resettingAll ? "not-allowed" : "pointer",
+                opacity: savingAll || resettingAll ? 0.7 : 1,
+              }}
+            >
+              {savingAll ? "Saving…" : "💾 Save All & PDF Report"}
+            </button>
+          </div>
+
+          <div style={styles.tableCard}>
+            {loading ? (
+              <div style={styles.emptyState}>
+                <div style={styles.spinner} />
+                <p style={{ color: theme.colors.inkMuted, marginTop: 12 }}>
+                  Loading students...
+                </p>
+              </div>
+            ) : currentClassStudents.length === 0 ? (
+              <div style={styles.emptyState}>
+                <span style={{ fontSize: 34 }}>🗂️</span>
+                <p style={{ color: theme.colors.inkMuted, marginTop: 8 }}>
+                  Wax arday ah kuma jiraan fasalkan.
+                </p>
+              </div>
+            ) : (
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>ID</th>
+                    <th style={styles.th}>Name</th>
+                    <th style={styles.th}>Student Phone</th>
+                    <th style={styles.th}>Parent Phone</th>
+                    <th style={styles.th}>Monthly Fee</th>
+                    <th style={styles.th}>Paid</th>
+                    <th style={styles.th}>Remaining</th>
+                    <th style={styles.th}>Credit</th>
+                    <th style={styles.th}>Months</th>
+                    <th style={styles.th}>Enter Amount</th>
+                    <th style={styles.th}>Status</th>
+                    <th style={styles.th}>Save</th>
+                    <th style={styles.th}>Fee Category</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {currentClassStudents.map((student, i) => {
+                    const free = isFreeStudent(student);
+                    const fee = Number(student.monthlyFee || 0);
+                    const { fullyPaidSet, partialMap, records } = getStudentMonthState(student.studentId);
+                    
+                    // Hubinta bisha bixinta (Checking Next Unpaid Month)
+                    const targetMonth = findNextUnpaidMonth(fullyPaidSet, registrationMonthKey(student));
+                    const isTargetMonthPaid = fullyPaidSet.has(targetMonth);
+                    const isCurrentMonthPaid = fullyPaidSet.has(currentMonthKey());
+
+                    const isEditing = !!editingIds[student.id];
+                    const locked = isCurrentMonthPaid && !isEditing;
+
+                    const partialAmount = partialMap[targetMonth] || 0;
+                    const displayPaid = free
+                      ? 0
+                      : locked
+                      ? fee
+                      : partialAmount || (amounts[student.id] ? Number(amounts[student.id]) : 0);
+
+                    const displayRemaining = free ? 0 : Math.max(fee - displayPaid, 0);
+
+                    const status = free
+                      ? "Free"
+                      : isCurrentMonthPaid
+                      ? "Paid"
+                      : "Not Paid";
+
+                    const isPaidStatus = status === "Paid";
+                    const isSaving = savingId === student.id;
+
+                    const thisMonthRecord = records.find((r) => r.monthKey === currentMonthKey());
+
+                    return (
+                      <tr
+                        key={student.id}
+                        style={{ background: i % 2 === 0 ? "#FFFFFF" : "#FAFCFB" }}
+                      >
+                        <td style={styles.td}>
+                          <span style={styles.idChip}>{student.studentId}</span>
+                        </td>
+                        <td style={{ ...styles.td, fontWeight: 600 }}>
+                          <button
+                            onClick={() => setProfileStudent(student)}
+                            style={styles.nameBtn}
+                            title="Eeg profile-ka lacagaha"
+                          >
+                            {student.fullName}
+                          </button>
+                        </td>
+                        <td style={styles.td}>{student.studentPhone || "—"}</td>
+                        <td style={styles.td}>{student.parentPhone || "—"}</td>
+                        <td style={{ ...styles.td, ...styles.money }}>
+                          {free ? "—" : `$${fee}`}
+                        </td>
+                        <td style={{ ...styles.td, ...styles.money }}>
+                          {free ? (
+                            "—"
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column" }}>
+                              <span>${displayPaid}</span>
+                              {locked && thisMonthRecord?.createdAt && (
+                                <span style={styles.paidDate}>
+                                  {formatPaidDate(thisMonthRecord.createdAt)}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ ...styles.td, ...styles.money }}>
+                          {free ? "—" : `$${displayRemaining}`}
+                        </td>
+                        <td style={{ ...styles.td, ...styles.money }}>
+                          {free || Number(student.creditBalance || 0) <= 0 ? (
+                            <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                          ) : (
+                            <span style={{ color: theme.colors.mintDark, fontWeight: 700 }}>
+                              +${student.creditBalance}
+                            </span>
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          {free ? (
+                            <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                          ) : locked ? (
+                            <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                          ) : (
+                            <select
+                              value={monthsSelected[student.id] || ""}
+                              onChange={(e) => selectMonths(student, Number(e.target.value))}
+                              style={{
+                                ...styles.monthsSelect,
+                                background: theme.colors.card,
+                                color: theme.colors.ink,
+                              }}
+                            >
+                              <option value="">Months</option>
+                              {Array.from({ length: 12 }, (_, idx) => idx + 1).map((m) => (
+                                <option key={m} value={m}>
+                                  {m} {m === 1 ? "Month" : "Months"}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          {free ? (
+                            <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                          ) : locked ? (
+                            <button
+                              type="button"
+                              onClick={() => startEdit(student)}
+                              style={styles.editBtn}
+                            >
+                              ✏️ Edit
+                            </button>
+                          ) : (
+                            <input
+                              type="number"
+                              value={amounts[student.id] || ""}
+                              placeholder={`$${fee}`}
+                              onChange={(e) =>
+                                setAmounts({ ...amounts, [student.id]: e.target.value })
+                              }
+                              style={{
+                                ...styles.amountInput,
+                                background: theme.colors.card,
+                                color: theme.colors.ink,
+                              }}
+                            />
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          <span
+                            style={{
+                              ...styles.badge,
+                              color: free
+                                ? theme.colors.brand
+                                : isPaidStatus
+                                ? theme.colors.mintDark
+                                : theme.colors.danger,
+                              background: free
+                                ? `${theme.colors.brand}14`
+                                : isPaidStatus
+                                ? `${theme.colors.mint}1A`
+                                : `${theme.colors.danger}14`,
+                            }}
+                          >
+                            <span
+                              style={{
+                                ...styles.badgeDot,
+                                background: free
+                                  ? theme.colors.brand
+                                  : isPaidStatus
+                                  ? theme.colors.mint
+                                  : theme.colors.danger,
+                              }}
+                            />
+                            {status}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          {free ? (
+                            <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                          ) : (
+                            <button
+                              onClick={() => savePayment(student)}
+                              disabled={locked || isSaving}
+                              style={{
+                                ...styles.saveBtn,
+                                background: locked ? "#DDE4E2" : theme.colors.mint,
+                                color: locked ? theme.colors.inkMuted : "#FFFFFF",
+                                cursor: locked || isSaving ? "not-allowed" : "pointer",
+                                opacity: isSaving ? 0.7 : 1,
+                              }}
+                            >
+                              {locked ? "Paid" : isSaving ? "Saving…" : "Save"}
+                            </button>
+                          )}
+                        </td>
+                        <td style={styles.td}>
+                          {!student.feeCategory ? (
+                            <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
+                          ) : student.specialFeeSaved ? (
+                            <span
+                              style={{
+                                ...styles.specialFeeChip,
+                                background: `${theme.colors.mint}1A`,
+                                color: theme.colors.mintDark,
+                                border: `1px solid ${theme.colors.mint}55`,
+                              }}
+                            >
+                              {student.feeCategory}: ${student.specialFeeAmount ?? 0} ✓
+                            </span>
+                          ) : (
+                            (() => {
+                              const isSpecialSaving = specialSavingId === student.id;
+                              const adminAmount = getAdminFeeAmount(student);
+                              return (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <input
+                                    type="number"
+                                    placeholder={adminAmount ? `$${adminAmount}` : "Amount"}
+                                    value={specialAmounts[student.id] || ""}
+                                    onChange={(e) =>
+                                      setSpecialAmounts({
+                                        ...specialAmounts,
+                                        [student.id]: e.target.value,
+                                      })
+                                    }
+                                    style={{
+                                      ...styles.specialFeeInput,
+                                      background: theme.colors.card,
+                                      color: theme.colors.ink,
+                                    }}
+                                  />
+                                  <button
+                                    onClick={() => saveSpecialFee(student)}
+                                    disabled={isSpecialSaving}
+                                    title={student.feeCategory}
+                                    style={{
+                                      ...styles.specialFeeSaveBtn,
+                                      background: theme.colors.mint,
+                                      color: "#FFFFFF",
+                                      cursor: isSpecialSaving ? "not-allowed" : "pointer",
+                                      opacity: isSpecialSaving ? 0.7 : 1,
+                                    }}
+                                  >
+                                    {isSpecialSaving ? "…" : "Save"}
+                                  </button>
+                                </div>
+                              );
+                            })()
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {receiptPayment && (
+            <ReceiptModal payment={receiptPayment} onClose={() => setReceiptPayment(null)} />
+          )}
+
+          {!receiptPayment && receiptQueue.length > 0 && (
+            <ReceiptModal
+              payment={receiptQueue[0]}
+              onClose={() => setReceiptQueue((prev) => prev.slice(1))}
             />
-          </div>
+          )}
 
-          <button
-            type="button"
-            onClick={editAll}
-            disabled={savingAll}
-            style={{
-              ...styles.editAllBtn,
-              cursor: savingAll ? "not-allowed" : "pointer",
-              opacity: savingAll ? 0.7 : 1,
-            }}
-          >
-            ✏️ Edit All
-          </button>
-
-          <button
-            onClick={saveAll}
-            disabled={savingAll}
-            style={{
-              ...styles.saveAllBtn,
-              background: theme.colors.brand,
-              color: "#FFFFFF",
-              cursor: savingAll ? "not-allowed" : "pointer",
-              opacity: savingAll ? 0.7 : 1,
-            }}
-          >
-            {savingAll ? "Saving…" : "💾 Save All"}
-          </button>
+          {profileStudent && (
+            <StudentPaymentProfileModal
+              student={profileStudent}
+              paymentState={getStudentMonthState(profileStudent.studentId)}
+              onClose={() => setProfileStudent(null)}
+            />
+          )}
         </div>
+      ) : (
+        <div>
+          <header style={{ ...styles.header, marginBottom: 18 }}>
+            <div>
+              <h1 style={styles.title}>Classes</h1>
+              <p style={styles.subtitle}>Dooro fasal si aad u aragto ardayda iyo lacagahooda</p>
+            </div>
+          </header>
 
-        <div style={styles.tableCard}>
           {loading ? (
             <div style={styles.emptyState}>
               <div style={styles.spinner} />
-              <p style={{ color: theme.colors.inkMuted, marginTop: 12 }}>
-                Loading students...
-              </p>
-            </div>
-          ) : currentClassStudents.length === 0 ? (
-            <div style={styles.emptyState}>
-              <span style={{ fontSize: 34 }}>🗂️</span>
-              <p style={{ color: theme.colors.inkMuted, marginTop: 8 }}>
-                Wax arday ah kuma jiraan fasalkan.
-              </p>
+              <p style={{ color: theme.colors.inkMuted, marginTop: 12 }}>Loading classes...</p>
             </div>
           ) : (
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>ID</th>
-                  <th style={styles.th}>Name</th>
-                  <th style={styles.th}>Student Phone</th>
-                  <th style={styles.th}>Parent Phone</th>
-                  <th style={styles.th}>Monthly Fee</th>
-                  <th style={styles.th}>Paid</th>
-                  <th style={styles.th}>Remaining</th>
-                  <th style={styles.th}>Months</th>
-                  <th style={styles.th}>Enter Amount</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Save</th>
-                  <th style={styles.th}>Fee Category</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {currentClassStudents.map((student, i) => {
-                  const free = isFreeStudent(student);
-                  const fee = Number(student.monthlyFee || 0);
-                  const { fullyPaidSet, partialMap, records } = getStudentMonthState(student.studentId);
-                  const paidThisMonth = !free && fullyPaidSet.has(currentMonthKey());
-                  const partialThisMonth = partialMap[currentMonthKey()] || 0;
-
-                  // ✅ Arday "Paid" ah bishan wuu sii xidhan yahay ILAA
-                  // la taabto "Edit" gaarkiisa (ama "Edit All") —
-                  // markaas ayaa input-kiisa la furayaa, si lacagta
-                  // loo bedeli karo kadibna dib loo kaydiyo. Wax
-                  // marnaba lama xidho — isla habka Payments.jsx.
-                  const isEditing = !!editingIds[student.id];
-                  const locked = paidThisMonth && !isEditing;
-
-                  const entered =
-                    amounts[student.id] !== undefined
-                      ? Number(amounts[student.id] || 0)
-                      : 0;
-
-                  // ✅ "Paid" waxay tusaysaa KALIYA lacagta dhab ahaan
-                  // la kaydiyay bishan — haddii "Paid" buuxa tahay
-                  // (locked), tus fee-ga oo dhan; haddii qeyb ahaan la
-                  // bixiyay, tus qiimihii la kaydiyay; haddii kalese
-                  // "0" (ma tusayo qiimaha la geliyay ee weli aan la
-                  // kaydin, si aan lala arki "horeyba waa la bixiyay"
-                  // ka hor inta Save aan la taaban).
-                  const displayPaid = free ? 0 : locked ? fee : partialThisMonth;
-                  // ✅ Remaining — wadarta guud ee lacagta loo baahan
-                  // yahay ilaa iyo bisha xigta ee aan la bixin, ma
-                  // ahan kaliya inta ka hadhay bishan. Tusaale: haddii
-                  // fee-gu yahay $19/bishii oo ardaygu $76 bixiyay
-                  // (4 bilood buuxa), Remaining wuxuu tusayaa $0
-                  // (wax kama hadho); haddii uu bixiyay $57 (3 bilood
-                  // buuxa), Remaining wuxuu tusayaa $19 (bisha 4aad).
-                  const nextUnpaidForRow = findNextUnpaidMonth(
-                    fullyPaidSet,
-                    registrationMonthKey(student)
-                  );
-                  const owedForNextUnpaid = free
-                    ? 0
-                    : Math.max(fee - (partialMap[nextUnpaidForRow] || 0), 0);
-                  const displayRemaining = free ? 0 : owedForNextUnpaid;
-
-                  const status = free
-                    ? "Free"
-                    : locked
-                    ? "Paid"
-                    : "Not Paid";
-                  const isPaidStatus = status === "Paid";
-                  const isSaving = savingId === student.id;
-
-                  // ✅ Taariikhda dhabta ah ee lacagta bishan la bixiyay
-                  // (createdAt) — isla format-ka Payments.jsx.
-                  const thisMonthRecord = records.find((r) => r.monthKey === currentMonthKey());
-
-                  return (
-                    <tr
-                      key={student.id}
-                      style={{ background: i % 2 === 0 ? "#FFFFFF" : "#FAFCFB" }}
-                    >
-                      <td style={styles.td}>
-                        <span style={styles.idChip}>{student.studentId}</span>
-                      </td>
-                      <td style={{ ...styles.td, fontWeight: 600 }}>
-                        <button
-                          onClick={() => setProfileStudent(student)}
-                          style={styles.nameBtn}
-                          title="Eeg profile-ka lacagaha"
-                        >
-                          {student.fullName}
-                        </button>
-                      </td>
-                      <td style={styles.td}>{student.studentPhone || "—"}</td>
-                      <td style={styles.td}>{student.parentPhone || "—"}</td>
-                      <td style={{ ...styles.td, ...styles.money }}>
-                        {free ? "—" : `$${fee}`}
-                      </td>
-                      <td style={{ ...styles.td, ...styles.money }}>
-                        {free ? (
-                          "—"
-                        ) : (
-                          <div style={{ display: "flex", flexDirection: "column" }}>
-                            <span>${displayPaid}</span>
-                            {locked && thisMonthRecord?.createdAt && (
-                              <span style={styles.paidDate}>
-                                {formatPaidDate(thisMonthRecord.createdAt)}
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </td>
-                      <td style={{ ...styles.td, ...styles.money }}>
-                        {free ? "—" : `$${displayRemaining}`}
-                      </td>
-                      <td style={styles.td}>
-                        {free ? (
-                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
-                        ) : locked ? (
-                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
-                        ) : (
-                          <select
-                            value={monthsSelected[student.id] || ""}
-                            onChange={(e) => selectMonths(student, Number(e.target.value))}
-                            style={{
-                              ...styles.monthsSelect,
-                              background: theme.colors.card,
-                              color: theme.colors.ink,
-                            }}
-                          >
-                            <option value="">Months</option>
-                            {Array.from({ length: 12 }, (_, idx) => idx + 1).map((m) => (
-                              <option key={m} value={m}>
-                                {m} {m === 1 ? "Month" : "Months"}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                      </td>
-                      <td style={styles.td}>
-                        {free ? (
-                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
-                        ) : locked ? (
-                          <button
-                            type="button"
-                            onClick={() => startEdit(student)}
-                            style={styles.editBtn}
-                          >
-                            ✏️ Edit
-                          </button>
-                        ) : (
-                          <input
-                            type="number"
-                            value={amounts[student.id] || ""}
-                            onChange={(e) =>
-                              setAmounts({ ...amounts, [student.id]: e.target.value })
-                            }
-                            style={{
-                              ...styles.amountInput,
-                              background: theme.colors.card,
-                              color: theme.colors.ink,
-                            }}
-                          />
-                        )}
-                      </td>
-                      <td style={styles.td}>
-                        <span
-                          style={{
-                            ...styles.badge,
-                            color: free
-                              ? theme.colors.brand
-                              : isPaidStatus
-                              ? theme.colors.mintDark
-                              : theme.colors.danger,
-                            background: free
-                              ? `${theme.colors.brand}14`
-                              : isPaidStatus
-                              ? `${theme.colors.mint}1A`
-                              : `${theme.colors.danger}14`,
-                          }}
-                        >
-                          <span
-                            style={{
-                              ...styles.badgeDot,
-                              background: free
-                                ? theme.colors.brand
-                                : isPaidStatus
-                                ? theme.colors.mint
-                                : theme.colors.danger,
-                            }}
-                          />
-                          {status}
-                        </span>
-                      </td>
-                      <td style={styles.td}>
-                        {free ? (
-                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
-                        ) : (
-                          <button
-                            onClick={() => savePayment(student)}
-                            disabled={locked || isSaving}
-                            style={{
-                              ...styles.saveBtn,
-                              background: locked ? "#DDE4E2" : theme.colors.mint,
-                              color: locked ? theme.colors.inkMuted : "#FFFFFF",
-                              cursor: locked || isSaving ? "not-allowed" : "pointer",
-                              opacity: isSaving ? 0.7 : 1,
-                            }}
-                          >
-                            {locked ? "Paid" : isSaving ? "Saving…" : "Save"}
-                          </button>
-                        )}
-                      </td>
-                      <td style={styles.td}>
-                        {!student.feeCategory ? (
-                          <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
-                        ) : student.specialFeeSaved ? (
-                          <span
-                            style={{
-                              ...styles.specialFeeChip,
-                              background: `${theme.colors.mint}1A`,
-                              color: theme.colors.mintDark,
-                              border: `1px solid ${theme.colors.mint}55`,
-                            }}
-                          >
-                            {student.feeCategory}: ${student.specialFeeAmount ?? 0} ✓
-                          </span>
-                        ) : (
-                          (() => {
-                            const isSpecialSaving = specialSavingId === student.id;
-                            const adminAmount = getAdminFeeAmount(student);
-                            return (
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <input
-                                  type="number"
-                                  placeholder={adminAmount ? `$${adminAmount}` : "Amount"}
-                                  value={specialAmounts[student.id] || ""}
-                                  onChange={(e) =>
-                                    setSpecialAmounts({
-                                      ...specialAmounts,
-                                      [student.id]: e.target.value,
-                                    })
-                                  }
-                                  style={{
-                                    ...styles.specialFeeInput,
-                                    background: theme.colors.card,
-                                    color: theme.colors.ink,
-                                  }}
-                                />
-                                <button
-                                  onClick={() => saveSpecialFee(student)}
-                                  disabled={isSpecialSaving}
-                                  title={student.feeCategory}
-                                  style={{
-                                    ...styles.specialFeeSaveBtn,
-                                    background: theme.colors.mint,
-                                    color: "#FFFFFF",
-                                    cursor: isSpecialSaving ? "not-allowed" : "pointer",
-                                    opacity: isSpecialSaving ? 0.7 : 1,
-                                  }}
-                                >
-                                  {isSpecialSaving ? "…" : "Save"}
-                                </button>
-                              </div>
-                            );
-                          })()
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div style={styles.classGrid}>
+              {classGroups.map(([className, list]) => (
+                <button
+                  key={className}
+                  onClick={() => {
+                    setSelectedClass(className);
+                    setSearch("");
+                  }}
+                  style={styles.classCard}
+                >
+                  <span style={styles.classCardIcon}>🏫</span>
+                  <span style={styles.classCardName}>{className}</span>
+                  <span style={styles.classCardCount}>
+                    {list.length} {list.length === 1 ? "student" : "students"}
+                  </span>
+                </button>
+              ))}
+            </div>
           )}
-        </div>
-
-        {receiptPayment && (
-          <ReceiptModal payment={receiptPayment} onClose={() => setReceiptPayment(null)} />
-        )}
-
-        {/* ✅ "Save All" — daawo/daabac rasiidhada mid-mid ah: kan ugu
-            horeeya safka (queue) ayaa la furayaa; marka la xiro
-            ("Xir"), kan xiga si toos ah ayuu u furmayaa, ilaa
-            dhammaantood la daawado. */}
-        {!receiptPayment && receiptQueue.length > 0 && (
-          <ReceiptModal
-            payment={receiptQueue[0]}
-            onClose={() => setReceiptQueue((prev) => prev.slice(1))}
-          />
-        )}
-
-        {profileStudent && (
-          <StudentPaymentProfileModal
-            student={profileStudent}
-            paymentState={getStudentMonthState(profileStudent.studentId)}
-            onClose={() => setProfileStudent(null)}
-          />
-        )}
-      </div>
-    );
-  }
-
-  // ---- Boggu marka aan wax fasal ah la furin (liiska fasalada oo dhan) ----
-  return (
-    <div style={{ fontFamily: theme.font.body }}>
-      <header style={{ ...styles.header, marginBottom: 18 }}>
-        <div>
-          <h1 style={styles.title}>Classes</h1>
-          <p style={styles.subtitle}>Dooro fasal si aad u aragto ardayda iyo lacagahooda</p>
-        </div>
-      </header>
-
-      {loading ? (
-        <div style={styles.emptyState}>
-          <div style={styles.spinner} />
-          <p style={{ color: theme.colors.inkMuted, marginTop: 12 }}>Loading classes...</p>
-        </div>
-      ) : (
-        <div style={styles.classGrid}>
-          {classGroups.map(([className, list]) => (
-            <button
-              key={className}
-              onClick={() => {
-                setSelectedClass(className);
-                setSearch("");
-              }}
-              style={styles.classCard}
-            >
-              <span style={styles.classCardIcon}>🏫</span>
-              <span style={styles.classCardName}>{className}</span>
-              <span style={styles.classCardCount}>
-                {list.length} {list.length === 1 ? "student" : "students"}
-              </span>
-            </button>
-          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ---- Profile-ka lacagaha ardayga — u eg sawirka la bixiyay: sawirka,
-// magaca, magaca hooyada, nooca fee-ga, xogta lacagta bishan, iyo
-// xisaabinta guud (immisa bilood la bixiyay, immisa ka hadhay). ----
 function StudentPaymentProfileModal({ student, paymentState, onClose }) {
   const { records, fullyPaidSet, partialMap } = paymentState;
   const fee = Number(student.monthlyFee || 0);
-  const startKey = registrationMonthKey(student);
-  const nextUnpaid = findNextUnpaidMonth(fullyPaidSet, startKey);
   const isFree = student.feeType === "Free";
+  const creditBalance = Number(student.creditBalance || 0);
 
-  // ---- Xogta bishan (this month) — halkan ayaa cashierku ka arkayaa
-  // hadii ardaygan uu horeyba u bixiyay bishan (already paid), si
-  // uusan mar labaad lacag uga qaadan. ----
   const thisMonthKey = currentMonthKey();
   const paidThisMonth = fullyPaidSet.has(thisMonthKey);
   const partialThisMonth = partialMap[thisMonthKey] || 0;
@@ -1160,10 +1268,22 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
   const thisMonthRemaining = Math.max(fee - thisMonthPaid, 0);
   const thisMonthStatus = isFree ? "Free" : paidThisMonth ? "Paid" : "Not Paid";
 
-  // ---- Xisaabinta guud: immisa bilood oo dhammaystiran ayaa la
-  // bixiyay ilaa hadda, iyo wadarta lacagta la bixiyay oo dhan. ----
   const monthsPaidCount = fullyPaidSet.size;
   const totalPaidAmount = records.reduce((sum, r) => sum + Number(r.paidAmount || 0), 0);
+
+  const creditMonths = fee > 0 ? Math.floor(creditBalance / fee) : 0;
+
+  const firstPaymentRecord =
+    records.length > 0
+      ? [...records].sort(
+          (a, b) => new Date(a.createdAt?.seconds ? a.createdAt.seconds * 1000 : a.createdAt || 0) -
+            new Date(b.createdAt?.seconds ? b.createdAt.seconds * 1000 : b.createdAt || 0)
+        )[0]
+      : null;
+  const paymentStartKey = firstPaymentRecord?.monthKey || registrationMonthKey(student);
+
+  const totalCoveredMonths = monthsPaidCount + creditMonths;
+  const nextPaymentKey = addMonthsToKey(paymentStartKey, totalCoveredMonths);
 
   return (
     <div style={profileStyles.overlay} onClick={onClose}>
@@ -1210,6 +1330,15 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
               <ProfileRow label="Monthly Fee Amount" value={`$${fee.toFixed(2)}`} />
               <ProfileRow label="Total Paid (this month)" value={`$${thisMonthPaid.toFixed(2)}`} />
               <ProfileRow label="Remaining (this month)" value={`$${thisMonthRemaining.toFixed(2)}`} danger={thisMonthRemaining > 0} />
+              {creditBalance > 0 && (
+                <>
+                  <ProfileRow label="Credit Balance" value={`$${creditBalance.toFixed(2)}`} />
+                  <ProfileRow
+                    label="Credit Covers"
+                    value={`${creditMonths} ${creditMonths === 1 ? "Month" : "Months"}`}
+                  />
+                </>
+              )}
               <div style={profileStyles.statusRow}>
                 <span style={profileStyles.rowLabel}>Status</span>
                 <span
@@ -1228,17 +1357,47 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
               <div style={profileStyles.summaryCardGreen}>
                 <div style={profileStyles.summaryTitle}>📅 Payment Summary</div>
                 <div style={profileStyles.summaryBig}>Paid For</div>
-                <div style={profileStyles.summaryHuge}>{monthsPaidCount} Months</div>
+                <div style={profileStyles.summaryHuge}>
+                  {monthsPaidCount} {monthsPaidCount === 1 ? "Month" : "Months"}
+                </div>
+
+                {creditMonths > 0 && (
+                  <>
+                    <div style={profileStyles.summaryLine} />
+                    <div style={profileStyles.summaryBig}>Credit Covers</div>
+                    <div
+                      style={{
+                        fontFamily: theme.font.display,
+                        fontWeight: 800,
+                        fontSize: 20,
+                        color: theme.colors.brand,
+                        marginTop: 3,
+                      }}
+                    >
+                      {creditMonths} {creditMonths === 1 ? "Month" : "Months"}
+                    </div>
+                  </>
+                )}
+
                 <div style={profileStyles.summaryLine} />
                 <div style={profileStyles.summaryTotal}>Total Paid: ${totalPaidAmount.toFixed(2)}</div>
               </div>
               <div style={profileStyles.summaryCardAmber}>
                 <div style={profileStyles.summaryTitleAmber}>💵 Fee Summary</div>
                 <ProfileRow label="Monthly Fee" value={`$${fee.toFixed(2)}`} compact />
-                <ProfileRow label="Paid Months" value={String(monthsPaidCount)} compact />
                 <ProfileRow
-                  label="Next Due Month"
-                  value={monthLabel(nextUnpaid)}
+                  label="Paid Months"
+                  value={`${monthsPaidCount} ${monthsPaidCount === 1 ? "Month" : "Months"}`}
+                  compact
+                />
+                <ProfileRow
+                  label="Credit Covers"
+                  value={`${creditMonths} ${creditMonths === 1 ? "Month" : "Months"}`}
+                  compact
+                />
+                <ProfileRow
+                  label="Next Payment Due"
+                  value={monthLabel(nextPaymentKey)}
                   compact
                   danger
                 />
@@ -1250,13 +1409,13 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
               <div style={profileStyles.periodRow}>
                 <div>
                   <div style={profileStyles.periodLabel}>Payment Start Date</div>
-                  <div style={profileStyles.periodValue}>{monthLabel(startKey)}</div>
+                  <div style={profileStyles.periodValue}>{monthLabel(paymentStartKey)}</div>
                 </div>
                 <div style={profileStyles.periodArrow}>TO</div>
                 <div style={{ textAlign: "right" }}>
                   <div style={profileStyles.periodLabel}>Next Payment Due</div>
                   <div style={{ ...profileStyles.periodValue, color: theme.colors.danger }}>
-                    {monthLabel(nextUnpaid)}
+                    {monthLabel(nextPaymentKey)}
                   </div>
                 </div>
               </div>
@@ -1325,6 +1484,19 @@ function ProfileRow({ label, value, strong, danger, compact }) {
 }
 
 const styles = {
+  calendarWidget: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    background: theme.colors.card,
+    border: `1px solid ${theme.colors.border}`,
+    borderRadius: theme.radius.md,
+    padding: "10px 18px",
+    marginBottom: 20,
+    fontSize: 14,
+    color: theme.colors.ink,
+    boxShadow: theme.shadow.card,
+  },
   backBtn: {
     background: "transparent",
     border: "none",
@@ -1392,6 +1564,14 @@ const styles = {
     boxSizing: "border-box",
   },
   saveAllBtn: {
+    border: "none",
+    padding: "12px 22px",
+    borderRadius: theme.radius.sm,
+    fontWeight: 700,
+    fontSize: 13.5,
+    whiteSpace: "nowrap",
+  },
+  resetAllBtn: {
     border: "none",
     padding: "12px 22px",
     borderRadius: theme.radius.sm,
@@ -1762,7 +1942,7 @@ const profileStyles = {
     color: theme.colors.brand,
     marginBottom: 10,
   },
-  periodRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  periodRow: { display: "flex", justifyConent: "space-between", alignItems: "center" },
   periodLabel: { fontSize: 11.5, color: theme.colors.inkMuted },
   periodValue: {
     fontFamily: theme.font.display,

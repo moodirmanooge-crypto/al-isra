@@ -11,98 +11,48 @@ import {
   Users,
   ClipboardList,
   GraduationCap,
+  Filter,
 } from "lucide-react";
 
-// FIXED, LOCKED class list — exactly these 11 classes, in exactly this order.
-// Nothing else is ever added, no matter what values exist in Firestore.
-const CLASS_ORDER = [
+// ✅ Liiska rasmiga ah ee fasallada u kala horreeya sida aad rabto
+const fixedClassOrder = [
   "Fasalka 1aad",
   "Fasalka 2aad",
   "Fasalka 3aad",
   "PP",
   "PI",
+  "G8 ",
   "G8 A",
-  "G8 B",
   "F1",
+  "F1 A",
   "F2",
   "F3",
   "F4",
 ];
 
-// Normalize any incoming className value (from students/exams docs)
-// so it can be matched against CLASS_ORDER regardless of spacing/case differences.
-function normalizeClassName(raw) {
-  const val = String(raw || "")
+// ✅ Liiska Noocyada Imtixaanka (Exam Types)
+const EXAM_TYPES = [
+  { key: "all", label: "Dhammaan Imtixaannada" },
+  { key: "monthly1", label: "Monthly Exam Test 1" },
+  { key: "midterm", label: "Midterm Exam" },
+  { key: "monthly2", label: "Monthly Test 2" },
+  { key: "final", label: "Final Exam" },
+];
+
+const normalizeStr = (str) =>
+  String(str || "")
     .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
-
-  // Map all common variants to ONE canonical class name.
-  const map = {
-    // Fasalka 1aad
-    "fasalka 1aad": "Fasalka 1aad",
-    "fasalka1aad": "Fasalka 1aad",
-    "1aad": "Fasalka 1aad",
-    "class 1": "Fasalka 1aad",
-
-    // Fasalka 2aad
-    "fasalka 2aad": "Fasalka 2aad",
-    "fasalka2aad": "Fasalka 2aad",
-    "2aad": "Fasalka 2aad",
-    "class 2": "Fasalka 2aad",
-
-    // Fasalka 3aad
-    "fasalka 3aad": "Fasalka 3aad",
-    "fasalka3aad": "Fasalka 3aad",
-    "3aad": "Fasalka 3aad",
-    "class 3": "Fasalka 3aad",
-
-    // PP & PI
-    "pp": "PP",
-    "pi": "PI",
-
-    // G8 A
-    "g8 a": "G8 A",
-    "g8a": "G8 A",
-    "8 a": "G8 A",
-    "8a": "G8 A",
-
-    // G8 B
-    "g8 b": "G8 B",
-    "g8b": "G8 B",
-    "8 b": "G8 B",
-    "8b": "G8 B",
-
-    // Secondary
-    "f1": "F1",
-    "f2": "F2",
-    "f3": "F3",
-    "f4": "F4",
-  };
-
-  return map[val] || null;
-}
-
-function classRank(className) {
-  const idx = CLASS_ORDER.indexOf(className);
-  return idx === -1 ? 999 : idx;
-}
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 
 function getClassBadge(cls) {
   const badges = {
     "Fasalka 1aad": "1aad",
     "Fasalka 2aad": "2aad",
     "Fasalka 3aad": "3aad",
-    "PP": "PP",
-    "PI": "PI",
-    "G8 A": "G8 A",
-    "G8 B": "G8 B",
-    "F1": "F1",
-    "F2": "F2",
-    "F3": "F3",
-    "F4": "F4",
+    PP: "PP",
+    PI: "PI",
   };
-
   return badges[cls] || cls;
 }
 
@@ -169,7 +119,9 @@ export default function Exams() {
   const [students, setStudents] = useState([]);
   const [exams, setExams] = useState([]);
   const [results, setResults] = useState([]);
+  const [customClasses, setCustomClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
+  const [selectedExamType, setSelectedExamType] = useState("all");
 
   useEffect(() => {
     load();
@@ -179,11 +131,13 @@ export default function Exams() {
     try {
       setLoading(true);
 
-      const [studentsSnap, examsSnap, resultsSnap] = await Promise.all([
-        getDocs(collection(db, "students")),
-        getDocs(collection(db, "exams")),
-        getDocs(collection(db, "results")),
-      ]);
+      const [studentsSnap, examsSnap, resultsSnap, customSnap] =
+        await Promise.all([
+          getDocs(collection(db, "students")),
+          getDocs(collection(db, "exams")),
+          getDocs(collection(db, "results")),
+          getDocs(collection(db, "customClasses")),
+        ]);
 
       setStudents(
         studentsSnap.docs.map((d) => ({
@@ -205,6 +159,13 @@ export default function Exams() {
           ...d.data(),
         }))
       );
+
+      setCustomClasses(
+        customSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }))
+      );
     } catch (err) {
       console.error(
         "Khalad ayaa dhacay markii xogta Exams laga soo qaadanayay:",
@@ -215,40 +176,71 @@ export default function Exams() {
     }
   }
 
-  // Ensure unique classes directly from CLASS_ORDER
-  const classes = Array.from(new Set(CLASS_ORDER));
+  // ✅ Habaynta horraynta fasallada siday u kala horreeyaan
+  const allClassOptions = useMemo(() => {
+    const customNames = customClasses
+      .map((c) => c.name)
+      .filter(
+        (name) =>
+          !fixedClassOrder.some(
+            (c) => normalizeStr(c) === normalizeStr(name)
+          )
+      );
 
+    customNames.sort((a, b) =>
+      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })
+    );
+
+    return [...fixedClassOrder, ...customNames];
+  }, [customClasses]);
+
+  // ✅ Imtixaannada fasalka la doortay + kala shaandhaynta nooca imtixaanka
   const examsForClass = useMemo(() => {
     if (!selectedClass) return [];
     return exams
-      .filter((e) => normalizeClassName(e.className) === selectedClass)
+      .filter((e) => {
+        const matchesClass = normalizeStr(e.className) === normalizeStr(selectedClass);
+        const matchesType =
+          selectedExamType === "all" ||
+          normalizeStr(e.examType) === normalizeStr(selectedExamType) ||
+          normalizeStr(e.type) === normalizeStr(selectedExamType);
+        return matchesClass && matchesType;
+      })
       .sort((a, b) => (a.subject || "").localeCompare(b.subject || ""));
-  }, [exams, selectedClass]);
+  }, [exams, selectedClass, selectedExamType]);
 
-  // Build one spreadsheet-style table for the selected class: one row per
-  // student, one column per subject/exam, plus Total and Average columns —
-  // exactly like an Excel gradebook.
+  // ✅ Gradebook-ka oo lagu xiray nooca imtixaanka (Exam Type)
   const gradebook = useMemo(() => {
     if (!selectedClass) return { subjects: [], rows: [] };
 
     const classStudents = students.filter(
-      (s) => normalizeClassName(s.className) === selectedClass
+      (s) => normalizeStr(s.className) === normalizeStr(selectedClass)
     );
+
     const subjectList = Array.from(
-      new Set(examsForClass.map((e) => e.subject || e.examName || "Subject"))
+      new Set(
+        examsForClass.map((e) => e.subject || e.examName || "Subject")
+      )
     );
 
     const rows = classStudents.map((stu) => {
-      const studentResults = results.filter(
-        (r) => r.studentId === (stu.studentId || stu.id)
-      );
+      const studentResults = results.filter((r) => {
+        const matchesStudent = r.studentId === (stu.studentId || stu.id);
+        const matchesType =
+          selectedExamType === "all" ||
+          normalizeStr(r.examType) === normalizeStr(selectedExamType) ||
+          normalizeStr(r.type) === normalizeStr(selectedExamType);
+        return matchesStudent && matchesType;
+      });
 
       let totalMarks = 0;
       let totalMax = 0;
       const bySubject = {};
 
       subjectList.forEach((subj) => {
-        const match = studentResults.find((r) => (r.subject || r.examName) === subj);
+        const match = studentResults.find(
+          (r) => (r.subject || r.examName) === subj
+        );
         if (match) {
           const marks = Number(match.marks) || 0;
           const maxMarks = Number(match.maxMarks) || 0;
@@ -260,7 +252,8 @@ export default function Exams() {
         }
       });
 
-      const average = totalMax > 0 ? Math.round((totalMarks / totalMax) * 100) : 0;
+      const average =
+        totalMax > 0 ? Math.round((totalMarks / totalMax) * 100) : 0;
 
       return {
         studentId: stu.studentId || stu.id,
@@ -274,7 +267,7 @@ export default function Exams() {
     });
 
     return { subjects: subjectList, rows };
-  }, [selectedClass, students, examsForClass, results]);
+  }, [selectedClass, students, examsForClass, results, selectedExamType]);
 
   function exportCSV() {
     if (!selectedClass || gradebook.rows.length === 0) return;
@@ -300,7 +293,7 @@ export default function Exams() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Class-${selectedClass}-Results.csv`;
+    a.download = `Class-${selectedClass}-${selectedExamType}-Results.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -319,7 +312,12 @@ export default function Exams() {
           {/* Header */}
           <div
             className="ex-header-row"
-            style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              marginBottom: 24,
+            }}
           >
             <div
               style={{
@@ -336,11 +334,14 @@ export default function Exams() {
               <GraduationCap color="#fff" size={26} />
             </div>
             <div>
-              <h1 className="ex-header-title" style={{ margin: 0, fontSize: 26, color: "#fff" }}>
-                Exams
+              <h1
+                className="ex-header-title"
+                style={{ margin: 0, fontSize: 26, color: "#fff" }}
+              >
+                Exams & Results
               </h1>
               <div style={{ color: "#8b87ad", fontSize: 14 }}>
-                Dooro fasal si aad u aragto imtixaanada iyo natiijooyinka ardayda.
+                Dooro fasal iyo nooca imtixaanka si aad u aragto natiijooyinka.
               </div>
             </div>
           </div>
@@ -353,12 +354,12 @@ export default function Exams() {
 
           {!loading && !selectedClass && (
             <div className="ex-class-grid">
-              {Array.from(new Set(CLASS_ORDER)).map((cls) => {
+              {allClassOptions.map((cls) => {
                 const examCount = exams.filter(
-                  (e) => normalizeClassName(e.className) === cls
+                  (e) => normalizeStr(e.className) === normalizeStr(cls)
                 ).length;
                 const studentCount = students.filter(
-                  (s) => normalizeClassName(s.className) === cls
+                  (s) => normalizeStr(s.className) === normalizeStr(cls)
                 ).length;
                 return (
                   <button
@@ -376,13 +377,20 @@ export default function Exams() {
                       gap: 14,
                     }}
                   >
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
                       <div
                         style={{
                           width: 44,
                           height: 44,
                           borderRadius: 13,
-                          background: "linear-gradient(135deg,#22C55E,#16A34A)",
+                          background:
+                            "linear-gradient(135deg,#22C55E,#16A34A)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
@@ -395,11 +403,24 @@ export default function Exams() {
                         {getClassBadge(cls)}
                       </div>
                       <div>
-                        <div style={{ fontWeight: 700, fontSize: 16, color: "#fff" }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: 16,
+                            color: "#fff",
+                          }}
+                        >
                           {cls}
                         </div>
-                        <div style={{ fontSize: 12.5, color: "#8b87ad", marginTop: 2 }}>
-                          {examCount} exam{examCount !== 1 ? "s" : ""} · {studentCount} arday
+                        <div
+                          style={{
+                            fontSize: 12.5,
+                            color: "#8b87ad",
+                            marginTop: 2,
+                          }}
+                        >
+                          {examCount} exam{examCount !== 1 ? "s" : ""} ·{" "}
+                          {studentCount} arday
                         </div>
                       </div>
                     </div>
@@ -489,30 +510,71 @@ export default function Exams() {
                   <ChevronLeft size={16} /> Dhamaan Fasallada
                 </button>
 
-                <button
-                  onClick={exportCSV}
-                  disabled={gradebook.rows.length === 0}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "10px 18px",
-                    borderRadius: 12,
-                    border: "none",
-                    background:
-                      gradebook.rows.length === 0
-                        ? "rgba(139,108,245,0.25)"
-                        : "linear-gradient(135deg,#6d5df0,#8b6cf5)",
-                    color: "#fff",
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: gradebook.rows.length === 0 ? "not-allowed" : "pointer",
-                    opacity: gradebook.rows.length === 0 ? 0.6 : 1,
-                  }}
-                >
-                  <Download size={15} />
-                  Export to Excel (CSV)
-                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {/* Filter-ka Exam Type */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      background: "rgba(21, 18, 51, 0.8)",
+                      border: "1px solid rgba(139,108,245,0.3)",
+                      borderRadius: 12,
+                      padding: "6px 12px",
+                    }}
+                  >
+                    <Filter size={15} color="#8b87ad" />
+                    <select
+                      value={selectedExamType}
+                      onChange={(e) => setSelectedExamType(e.target.value)}
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: "#fff",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        outline: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {EXAM_TYPES.map((t) => (
+                        <option
+                          key={t.key}
+                          value={t.key}
+                          style={{ background: "#151233", color: "#fff" }}
+                        >
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={exportCSV}
+                    disabled={gradebook.rows.length === 0}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "10px 18px",
+                      borderRadius: 12,
+                      border: "none",
+                      background:
+                        gradebook.rows.length === 0
+                          ? "rgba(139,108,245,0.25)"
+                          : "linear-gradient(135deg,#6d5df0,#8b6cf5)",
+                      color: "#fff",
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor:
+                        gradebook.rows.length === 0 ? "not-allowed" : "pointer",
+                      opacity: gradebook.rows.length === 0 ? 0.6 : 1,
+                    }}
+                  >
+                    <Download size={15} />
+                    Export CSV
+                  </button>
+                </div>
               </div>
 
               {/* Exams for this class */}
@@ -536,11 +598,13 @@ export default function Exams() {
                     gap: 8,
                   }}
                 >
-                  <BookOpen size={16} color="#8B5CF6" /> {selectedClass} — Imtixaanada
+                  <BookOpen size={16} color="#8B5CF6" /> {selectedClass} —
+                  Imtixaanada (
+                  {EXAM_TYPES.find((t) => t.key === selectedExamType)?.label})
                 </h3>
                 {examsForClass.length === 0 ? (
                   <p style={{ fontSize: 13, color: "#8b87ad", margin: 0 }}>
-                    Weli imtixaano lama diiwaan gelin fasalkan.
+                    Weli imtixaano laguma diiwaan gelin noocan imtixaan ah.
                   </p>
                 ) : (
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
@@ -557,7 +621,8 @@ export default function Exams() {
                           fontWeight: 600,
                         }}
                       >
-                        {e.examName || e.subject} · {e.subject || "—"} · Max {e.maxMarks || "—"}
+                        {e.examName || e.subject} · {e.subject || "—"} · Max{" "}
+                        {e.maxMarks || "—"}
                       </span>
                     ))}
                   </div>
@@ -584,8 +649,8 @@ export default function Exams() {
                     gap: 8,
                   }}
                 >
-                  <ClipboardList size={16} color="#8B5CF6" /> {selectedClass} — Natiijooyinka
-                  (Gradebook)
+                  <ClipboardList size={16} color="#8B5CF6" /> {selectedClass} —
+                  Natiijooyinka (Gradebook)
                 </h3>
 
                 {gradebook.rows.length === 0 ? (
@@ -616,16 +681,25 @@ export default function Exams() {
                         {gradebook.rows.map((row) => (
                           <tr
                             key={row.studentId}
-                            style={{ borderTop: "1px solid rgba(139,108,245,0.12)" }}
+                            style={{
+                              borderTop: "1px solid rgba(139,108,245,0.12)",
+                            }}
                           >
                             <ExamTd sticky bold>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <div
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
                                 <div
                                   style={{
                                     width: 26,
                                     height: 26,
                                     borderRadius: "50%",
-                                    background: "linear-gradient(135deg,#6D5DF0,#8B5CF6)",
+                                    background:
+                                      "linear-gradient(135deg,#6D5DF0,#8B5CF6)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
@@ -635,7 +709,9 @@ export default function Exams() {
                                     flexShrink: 0,
                                   }}
                                 >
-                                  {(row.fullName || "?").charAt(0).toUpperCase()}
+                                  {(row.fullName || "?")
+                                    .charAt(0)
+                                    .toUpperCase()}
                                 </div>
                                 {row.fullName}
                               </div>
@@ -644,7 +720,9 @@ export default function Exams() {
                               const cell = row.bySubject[subj];
                               return (
                                 <ExamTd key={subj}>
-                                  {cell ? `${cell.marks}/${cell.maxMarks}` : "—"}
+                                  {cell
+                                    ? `${cell.marks}/${cell.maxMarks}`
+                                    : "—"}
                                 </ExamTd>
                               );
                             })}
@@ -659,7 +737,10 @@ export default function Exams() {
                                       row.average >= 50
                                         ? "rgba(34,197,94,0.15)"
                                         : "rgba(239,68,68,0.15)",
-                                    color: row.average >= 50 ? "#22C55E" : "#EF4444",
+                                    color:
+                                      row.average >= 50
+                                        ? "#22C55E"
+                                        : "#EF4444",
                                     fontSize: 12,
                                     fontWeight: 700,
                                     padding: "4px 12px",
@@ -697,7 +778,9 @@ function ExamTh({ children, sticky }) {
         fontSize: 12,
         fontWeight: 700,
         whiteSpace: "nowrap",
-        ...(sticky ? { position: "sticky", left: 0, background: "#181341" } : {}),
+        ...(sticky
+          ? { position: "sticky", left: 0, background: "#181341" }
+          : {}),
       }}
     >
       {children}
@@ -714,7 +797,9 @@ function ExamTd({ children, sticky, bold }) {
         fontSize: 13,
         fontWeight: bold ? 700 : 400,
         whiteSpace: "nowrap",
-        ...(sticky ? { position: "sticky", left: 0, background: "#181341" } : {}),
+        ...(sticky
+          ? { position: "sticky", left: 0, background: "#181341" }
+          : {}),
       }}
     >
       {children}

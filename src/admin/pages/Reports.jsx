@@ -29,21 +29,19 @@ const monthNames = [
 const SCHOOL_NAME = "AL - ISRA PRIMARY & SECONDARY SCHOOL";
 
 export default function Reports() {
-  const [payments, setPayments] = useState([]); // unified: regular + examCard
+  const [payments, setPayments] = useState([]);
   const [students, setStudents] = useState({});
   const [loading, setLoading] = useState(true);
 
   const now = new Date();
 
-  // FROM (starts) and TO (ends) month/year - default both to current month/year,
-  // so by default it behaves exactly like "this month only" (same as before).
   const [fromMonth, setFromMonth] = useState(now.getMonth());
   const [fromYear, setFromYear] = useState(now.getFullYear());
   const [toMonth, setToMonth] = useState(now.getMonth());
   const [toYear, setToYear] = useState(now.getFullYear());
 
   const [statusFilter, setStatusFilter] = useState("All");
-  const [typeFilter, setTypeFilter] = useState("All"); // All | regular | examCard
+  const [typeFilter, setTypeFilter] = useState("All"); 
   const [search, setSearch] = useState("");
   const [exporting, setExporting] = useState(false);
 
@@ -86,15 +84,24 @@ export default function Reports() {
       });
       setStudents(studentsMap);
 
-      // 1) Lacagaha caadiga ah ee cashierku ansixiyay (collection: payments)
       const paymentsSnap = await getDocs(collection(db, "payments"));
-      const regularList = paymentsSnap.docs.map((d) => ({
-        id: d.id,
-        type: "regular",
-        ...d.data(),
-      }));
+      const regularList = paymentsSnap.docs.map((d) => {
+        const data = d.data();
+        let derivedType = "regular";
+        
+        const feeTypeStr = (data.feeType || data.type || "").toLowerCase();
+        if (feeTypeStr.includes("registration")) derivedType = "registration";
+        else if (feeTypeStr.includes("roll")) derivedType = "rollNumber";
+        else if (feeTypeStr.includes("examination") || feeTypeStr.includes("exam fee")) derivedType = "examination";
 
-      // 2) Lacagaha kaararka imtixaanka (collection: examCardPayments)
+        return {
+          id: d.id,
+          type: derivedType,
+          originalType: data.type || "regular",
+          ...data,
+        };
+      });
+
       const examSnap = await getDocs(collection(db, "examCardPayments"));
       const examList = examSnap.docs.map((d) => ({
         id: d.id,
@@ -111,22 +118,16 @@ export default function Reports() {
     }
   };
 
-  // Amount la bixiyay - fields way kala duwan yihiin labada collection
   const getPaidAmount = (p) => {
     if (p.type === "examCard") return Number(p.amountPaid) || 0;
-    return Number(p.paidAmount) || 0;
+    return Number(p.paidAmount) || Number(p.amountPaid) || 0;
   };
 
   const getFee = (p) => {
-    if (p.type === "examCard") return 0; // examCard ma lahan monthlyFee
-    return Number(p.monthlyFee) || 0;
+    if (p.type === "examCard") return 0; 
+    return Number(p.monthlyFee) || Number(p.fee) || 0;
   };
 
-  // Numb. Ardayga iyo Numb. Waalidka: labada collection ee payments
-  // (payments / examCardPayments) mar walba kuma hayaan telefoonnada —
-  // haddii ay leeyihiin isticmaal kooda, haddii kalese ka soo qaad
-  // document-ka `students/{studentId}` ee horey loo soo shubay
-  // (studentPhone / parentPhone), sida ku muuqda Firestore-ka.
   const getStudentPhone = (p) => {
     const student = students[p.studentId] || {};
     return p.studentPhone || student.studentPhone || "-";
@@ -137,18 +138,16 @@ export default function Reports() {
     return p.parentPhone || student.parentPhone || "-";
   };
 
-  // Status: aad ugu kalsoonow field-ka `status` haddii uu jiro (waa xaalada ansixinta cashierka),
-  // haddii kalese ku xisaab tir lacagta la bixiyay iyo fee-ga
   const getStatus = (p) => {
-    if (p.type === "examCard") return "Exam Card";
+    if (p.type === "examCard") return "Full Paid";
 
     const paid = getPaidAmount(p);
     const fee = getFee(p);
 
     if (typeof p.status === "string") {
       const s = p.status.toLowerCase();
-      if (s === "paid") return "Full Paid";
-      if (s === "partial") return "Partial Paid";
+      if (s === "paid" || s === "full paid") return "Full Paid";
+      if (s === "partial" || s === "partial paid") return "Partial Paid";
       if (s === "unpaid") return "Unpaid";
     }
 
@@ -157,10 +156,8 @@ export default function Reports() {
     return "Partial Paid";
   };
 
-  // Bil/Sanad saxda ah: payments caadiga ah waxay leeyihiin monthKey ("2026-07") oo la isku halayn karo
-  // examCardPayments ma lahan monthKey, marka waxaan isticmaalnaa createdAt
   const getMonthYear = (p) => {
-    if (p.type === "regular" && p.monthKey && /^\d{4}-\d{2}$/.test(p.monthKey)) {
+    if (p.monthKey && /^\d{4}-\d{2}$/.test(p.monthKey)) {
       const [y, m] = p.monthKey.split("-").map(Number);
       return { year: y, month: m - 1 };
     }
@@ -171,7 +168,6 @@ export default function Reports() {
     return { year: date.getFullYear(), month: date.getMonth() };
   };
 
-  // Convert (year, month) to a single sortable integer index: e.g 2026-08 -> 2026*12+7
   const toIndex = (year, month) => year * 12 + month;
 
   const filteredPayments = useMemo(() => {
@@ -190,7 +186,10 @@ export default function Reports() {
       const status = getStatus(p);
       const statusMatch = statusFilter === "All" || status === statusFilter;
 
-      const typeMatch = typeFilter === "All" || p.type === typeFilter;
+      const typeMatch = 
+        typeFilter === "All" || 
+        p.type === typeFilter || 
+        (typeFilter === "regular" && (p.type === "regular" || p.type === "registration" || p.type === "rollNumber" || p.type === "examination"));
 
       const studentPhone = getStudentPhone(p);
       const parentPhone = getParentPhone(p);
@@ -209,6 +208,9 @@ export default function Reports() {
   const totals = useMemo(() => {
     let totalIncome = 0;
     let regularIncome = 0;
+    let registrationIncome = 0;
+    let rollNumberIncome = 0;
+    let examinationIncome = 0;
     let examCardIncome = 0;
     let fullPaid = 0;
     let partialPaid = 0;
@@ -217,7 +219,11 @@ export default function Reports() {
     filteredPayments.forEach((p) => {
       const paid = getPaidAmount(p);
       totalIncome += paid;
+
       if (p.type === "examCard") examCardIncome += paid;
+      else if (p.type === "registration") registrationIncome += paid;
+      else if (p.type === "rollNumber") rollNumberIncome += paid;
+      else if (p.type === "examination") examinationIncome += paid;
       else regularIncome += paid;
 
       const status = getStatus(p);
@@ -229,7 +235,11 @@ export default function Reports() {
     return {
       totalIncome,
       regularIncome,
+      registrationIncome,
+      rollNumberIncome,
+      examinationIncome,
       examCardIncome,
+      cashierTotal: regularIncome + registrationIncome + rollNumberIncome + examinationIncome,
       fullPaid,
       partialPaid,
       unpaid,
@@ -240,7 +250,6 @@ export default function Reports() {
   const years = [];
   for (let y = now.getFullYear() - 2; y <= now.getFullYear() + 1; y++) years.push(y);
 
-  // Label describing the current selected range, used both on-screen and on the PDF
   const rangeLabel = useMemo(() => {
     const fromIdx = toIndex(fromYear, fromMonth);
     const toIdx = toIndex(toYear, toMonth);
@@ -252,7 +261,6 @@ export default function Reports() {
     return `${monthNames[lo.m]} ${lo.y} — ${monthNames[hi.m]} ${hi.y}`;
   }, [fromMonth, fromYear, toMonth, toYear]);
 
-  // Load an image (like our logo) as a base64 data URL, so jsPDF can embed it
   const loadImageAsDataUrl = (src) =>
     new Promise((resolve, reject) => {
       const img = new Image();
@@ -273,7 +281,6 @@ export default function Reports() {
       img.src = src;
     });
 
-  // Dynamically load jsPDF + autotable from CDN (no extra npm install needed)
   const loadJsPdfLibs = () =>
     new Promise((resolve, reject) => {
       if (window.jspdf && window.jspdf.jsPDF) {
@@ -293,6 +300,14 @@ export default function Reports() {
       s1.onerror = reject;
       document.body.appendChild(s1);
     });
+
+  const getTypeLabel = (p) => {
+    if (p.type === "examCard") return "Exam Card";
+    if (p.type === "registration") return "Registration Fee";
+    if (p.type === "rollNumber") return "Roll Number Fee";
+    if (p.type === "examination") return "Examination Fee";
+    return "Cashier";
+  };
 
   const handleExportPdf = async () => {
     if (filteredPayments.length === 0) {
@@ -314,42 +329,31 @@ export default function Reports() {
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
 
-      // Header: logo + school name + report title + range + generated date
       let cursorY = 40;
       if (logoDataUrl) {
-        doc.addImage(logoDataUrl, "PNG", 40, 20, 55, 55);
+        doc.addImage(logoDataUrl, "PNG", 30, 20, 50, 50);
       }
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
-      doc.text(SCHOOL_NAME, logoDataUrl ? 105 : 40, 40);
+      doc.text(SCHOOL_NAME, logoDataUrl ? 90 : 30, 35);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(11);
-      doc.text("Transaction Report", logoDataUrl ? 105 : 40, 58);
-      doc.text(`Range: ${rangeLabel}`, logoDataUrl ? 105 : 40, 74);
+      doc.text("Transaction Report", logoDataUrl ? 90 : 30, 52);
+      doc.text(`Range: ${rangeLabel}`, logoDataUrl ? 90 : 30, 67);
 
       doc.setFontSize(9);
-      doc.setTextColor(90);
+      doc.setTextColor(80);
       doc.text(
         `Generated: ${new Date().toLocaleString()}`,
-        pageWidth - 40,
-        40,
+        pageWidth - 30,
+        35,
         { align: "right" }
       );
       doc.setTextColor(0);
 
-      cursorY = 95;
+      cursorY = 85;
 
-      // Summary line
-      doc.setFontSize(10);
-      doc.text(
-        `Total Income: $${totals.totalIncome.toLocaleString()}   |   Cashier: $${totals.regularIncome.toLocaleString()}   |   Exam Card: $${totals.examCardIncome.toLocaleString()}   |   Full Paid: ${totals.fullPaid}   |   Partial: ${totals.partialPaid}   |   Unpaid: ${totals.unpaid}`,
-        40,
-        cursorY
-      );
-      cursorY += 15;
-
-      // Table rows
       const rows = filteredPayments.map((p) => {
         const status = getStatus(p);
         const isExamCard = p.type === "examCard";
@@ -363,7 +367,7 @@ export default function Reports() {
           p.studentName || "-",
           p.studentId || "-",
           p.className || "-",
-          isExamCard ? `Exam Card${p.examType ? " (" + p.examType + ")" : ""}` : "Cashier",
+          getTypeLabel(p),
           monthLabel,
           getStudentPhone(p),
           getParentPhone(p),
@@ -386,30 +390,44 @@ export default function Reports() {
             "Numb. Ardayga",
             "Numb. Waalidka",
             "Fee",
-            "La Bixiyay",
-            "Hadhay",
+            "La Bixiyey",
+            "Hadhey",
             "Status",
           ],
         ],
         body: rows,
-        styles: { fontSize: 8, cellPadding: 4 },
+        styles: { fontSize: 8, cellPadding: 5 },
         headStyles: { fillColor: [109, 93, 240], textColor: 255, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [245, 244, 255] },
-        margin: { left: 40, right: 40 },
+        alternateRowStyles: { fillColor: [248, 248, 255] },
+        margin: { left: 20, right: 20, bottom: 60 },
         didDrawPage: (data) => {
-          // Footer with school name + page number, so it reads well on any printer
+          const pageHeight = doc.internal.pageSize.getHeight();
           const pageCount = doc.internal.getNumberOfPages();
+
+          if (data.pageNumber === pageCount) {
+            const finalY = data.cursor.y + 15;
+            if (finalY < pageHeight - 65) {
+              doc.setDrawColor(220, 220, 230);
+              doc.setFillColor(255, 255, 255);
+              doc.roundedRect(20, finalY, pageWidth - 40, 36, 8, 8, "FD");
+
+              doc.setFontSize(8.5);
+              doc.setFont("helvetica", "bold");
+              
+              // Totals oo la raaciyay Registration, Roll number, iyo Examination Fees
+              const summaryText = `Total Income: $${totals.totalIncome}   |   Cashier: $${totals.regularIncome}   |   Registration: $${totals.registrationIncome}   |   Roll Number: $${totals.rollNumberIncome}   |   Examination: $${totals.examinationIncome}   |   Exam Card: $${totals.examCardIncome}   |   Full Paid: ${totals.fullPaid}   |   Partial: ${totals.partialPaid}   |   Unpaid: ${totals.unpaid}`;
+              doc.text(summaryText, 30, finalY + 22);
+            }
+          }
+
           doc.setFontSize(8);
+          doc.setFont("helvetica", "normal");
           doc.setTextColor(120);
-          doc.text(
-            SCHOOL_NAME,
-            40,
-            doc.internal.pageSize.getHeight() - 20
-          );
+          doc.text(SCHOOL_NAME, 20, pageHeight - 15);
           doc.text(
             `Page ${data.pageNumber} of ${pageCount}`,
-            pageWidth - 40,
-            doc.internal.pageSize.getHeight() - 20,
+            pageWidth - 20,
+            pageHeight - 15,
             { align: "right" }
           );
         },
@@ -418,9 +436,6 @@ export default function Reports() {
       const fileSafeRange = rangeLabel.replace(/\s+/g, "_").replace(/[^\w-]/g, "");
       const fileName = `RisingStar_Transaction_Report_${fileSafeRange}.pdf`;
 
-      // Save a real copy to Firebase Storage + a Firestore doc in
-      // `reportHistory`, so every generated report can be reopened later
-      // from the History panel — not just downloaded once and forgotten.
       try {
         const pdfBlob = doc.output("blob");
         const historyFileRef = ref(storage, `reportHistory/${Date.now()}_${fileName}`);
@@ -434,6 +449,9 @@ export default function Reports() {
           rangeLabel,
           totalIncome: totals.totalIncome,
           regularIncome: totals.regularIncome,
+          registrationIncome: totals.registrationIncome,
+          rollNumberIncome: totals.rollNumberIncome,
+          examinationIncome: totals.examinationIncome,
           examCardIncome: totals.examCardIncome,
           fullPaid: totals.fullPaid,
           partialPaid: totals.partialPaid,
@@ -444,8 +462,6 @@ export default function Reports() {
           generatedAt: Timestamp.now(),
         });
       } catch (historyErr) {
-        // A failed history save shouldn't block the admin from getting
-        // their PDF — just log it and continue with the download.
         console.log("Failed to save report to history:", historyErr);
       }
 
@@ -477,6 +493,7 @@ export default function Reports() {
             color: #ffffff;
           }
         `}</style>
+
         {/* Header */}
         <div
           style={{
@@ -579,7 +596,6 @@ export default function Reports() {
             zIndex: 20,
           }}
         >
-          {/* FROM */}
           <FilterBox icon={Calendar} label="Laga bilaabo">
             <select
               style={selectStyle}
@@ -605,7 +621,6 @@ export default function Reports() {
             </select>
           </FilterBox>
 
-          {/* TO */}
           <FilterBox icon={Calendar} label="Ilaa">
             <select
               style={selectStyle}
@@ -641,7 +656,6 @@ export default function Reports() {
               <option value="Full Paid">Full Paid</option>
               <option value="Partial Paid">Partial Paid</option>
               <option value="Unpaid">Unpaid</option>
-              <option value="Exam Card">Exam Card</option>
             </select>
           </FilterBox>
 
@@ -653,6 +667,9 @@ export default function Reports() {
             >
               <option value="All">Dhammaan Nooca Lacagta</option>
               <option value="regular">Lacagta Cashierka (Caadiga ah)</option>
+              <option value="registration">Registration Fees</option>
+              <option value="rollNumber">Roll Number Fees</option>
+              <option value="examination">Examination Fees</option>
               <option value="examCard">Lacagta Kaarka Imtixaanka</option>
             </select>
           </FilterBox>
@@ -690,7 +707,7 @@ export default function Reports() {
           <SummaryCard
             icon={Wallet}
             label="Lacagta Cashierka (Caadiga ah)"
-            value={`$${totals.regularIncome.toLocaleString()}`}
+            value={`$${totals.cashierTotal.toLocaleString()}`}
             color="#38BDF8"
           />
           <SummaryCard
@@ -791,7 +808,7 @@ export default function Reports() {
                       <Td>{p.studentId}</Td>
                       <Td>{p.className || "-"}</Td>
                       <Td>
-                        <TypeBadge isExamCard={isExamCard} examType={p.examType} />
+                        <TypeBadge type={p.type} examType={p.examType} />
                       </Td>
                       <Td>{monthLabel}</Td>
                       <Td>
@@ -821,8 +838,7 @@ export default function Reports() {
         )}
       </div>
 
-      {/* ---- History modal: every PDF ever exported, stored for real in
-          Firestore (`reportHistory`) + Storage — not just this session ---- */}
+      {/* History modal */}
       {showHistory && (
         <div
           style={{
@@ -971,13 +987,7 @@ export default function Reports() {
 
 function FilterBox({ icon: Icon, children, label }) {
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
-    >
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       {label && (
         <span style={{ fontSize: 11, color: "#8b87ad", fontWeight: 600, paddingLeft: 4 }}>
           {label}
@@ -1041,7 +1051,6 @@ function StatusBadge({ status }) {
     "Full Paid": { bg: "#22C55E22", color: "#22C55E" },
     "Partial Paid": { bg: "#F59E0B22", color: "#F59E0B" },
     Unpaid: { bg: "#EF444422", color: "#EF4444" },
-    "Exam Card": { bg: "#A855F722", color: "#A855F7" },
   };
   const s = map[status] || map["Unpaid"];
   return (
@@ -1061,10 +1070,29 @@ function StatusBadge({ status }) {
   );
 }
 
-function TypeBadge({ isExamCard, examType }) {
-  const bg = isExamCard ? "#A855F722" : "#38BDF822";
-  const color = isExamCard ? "#A855F7" : "#38BDF8";
-  const label = isExamCard ? `Exam Card${examType ? " (" + examType + ")" : ""}` : "Cashier";
+function TypeBadge({ type, examType }) {
+  let bg = "#38BDF822";
+  let color = "#38BDF8";
+  let label = "Cashier";
+
+  if (type === "examCard") {
+    bg = "#A855F722";
+    color = "#A855F7";
+    label = `Exam Card${examType ? " (" + examType + ")" : ""}`;
+  } else if (type === "registration") {
+    bg = "#EC489922";
+    color = "#EC4899";
+    label = "Registration";
+  } else if (type === "rollNumber") {
+    bg = "#10B98122";
+    color = "#10B981";
+    label = "Roll Number";
+  } else if (type === "examination") {
+    bg = "#F59E0B22";
+    color = "#F59E0B";
+    label = "Examination";
+  }
+
   return (
     <span
       style={{

@@ -13,14 +13,13 @@ import { theme } from "./theme.js";
 
 const SCHOOL_NAME = "Rising School";
 
-// ---- Nuuca imtixaanka ee maamulku ka doortay Exam Timetable-ka fasalka
-// (isla EXAM_TYPES ee ExamTimetable.jsx iyo ExamCards.jsx isticmaalaan) ----
 const EXAM_TYPE_LABELS = {
   MonthlyExamTest1: "Monthly Exam Test 1",
   MidtermExam: "Midterm Exam",
   MonthlyTest2: "Monthly Test 2",
   FinalExam: "Final Exam",
 };
+
 function examTypeLabel(key) {
   return EXAM_TYPE_LABELS[key] || "Final";
 }
@@ -29,10 +28,6 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// ---- Fasallada xilliga imtixaanku uu maamulku daaray ee weli socda
-// (maanta u dhexeeya startDate iyo endDate) ayaa la soo aqriyaa
-// examWeek collection-ka, si cashierka loogu bandhigo kaliya fasallada
-// imtixaanku maanta socdo. ----
 function isExamWeekActive(wk) {
   if (!wk?.startDate || !wk?.endDate) return false;
   const today = todayISO();
@@ -42,10 +37,11 @@ function isExamWeekActive(wk) {
 export default function ExamPayments() {
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
-  const [examWeeks, setExamWeeks] = useState({}); // className -> {startDate,endDate,examType}
-  const [examTypeByClass, setExamTypeByClass] = useState({}); // CLASSNAME (upper) -> examType
-  const [examCardStatus, setExamCardStatus] = useState({}); // studentId -> {cardNo, paid, examType}
+  const [examWeeks, setExamWeeks] = useState({});
+  const [examTypeByClass, setExamTypeByClass] = useState({});
+  const [examCardStatus, setExamCardStatus] = useState({});
   const [search, setSearch] = useState("");
+  const [selectedClass, setSelectedClass] = useState("All");
   const [amounts, setAmounts] = useState({});
   const [savingId, setSavingId] = useState(null);
   const [lastCard, setLastCard] = useState(null);
@@ -87,10 +83,6 @@ export default function ExamPayments() {
         );
       setStudents(studentData);
 
-      // Xagee la joogaa — arday kastoo horey loo sameeyay Exam Card
-      // nuucan (examType) xilligan (si aan loo soo bandhigin sidii mid
-      // aan la bixin). Nuuca card-ka waa la kaydiyaa si loo barbardhigo
-      // nuuca hadda socda ee fasalkiisa.
       const cardsSnap = await getDocs(collection(db, "examCards"));
       const statusMap = {};
       cardsSnap.docs.forEach((d) => {
@@ -111,21 +103,26 @@ export default function ExamPayments() {
     }
   }
 
+  // Kala soocidda fasallada firfircoon ee imtixaanku ka socdo
+  const availableClasses = useMemo(() => {
+    const active = Object.entries(examWeeks).filter(([, wk]) => isExamWeekActive(wk));
+    return active.map(([cls]) => cls);
+  }, [examWeeks]);
+
   const filtered = students.filter((s) => {
     const t = search.toLowerCase();
-    return (
+    const matchesSearch =
       (s.studentId || "").toLowerCase().includes(t) ||
       (s.fullName || "").toLowerCase().includes(t) ||
-      (s.className || "").toLowerCase().includes(t)
-    );
+      (s.className || "").toLowerCase().includes(t);
+
+    const matchesClass =
+      selectedClass === "All" ||
+      String(s.className || "").toUpperCase() === selectedClass.toUpperCase();
+
+    return matchesSearch && matchesClass;
   });
 
-  // ---- Marka cashierku "Save" riixo: 1) kaydi diiwaanka lacagta
-  // examCardPayments gudihiisa, 2) samee Card No otomatig ah (counter
-  // gaar u leh nuuca imtixaanka ee fasalkan hadda socda — Monthly 1,
-  // Mid Term, Monthly 2 ama Final, sidii Exam Timetable-ka loo doortay),
-  // 3) kaydi examCards gudihiisa oo leh examType-kaas oo sax ah, si
-  // Admin-ka Exam Cards page-ku si toos ah ugu daawado tick-ga saxda ah. ----
   async function savePaymentAndCard(student) {
     const entered = Number(amounts[student.id] || 0);
     if (entered <= 0) {
@@ -174,7 +171,6 @@ export default function ExamPayments() {
       };
       await setDoc(doc(db, "examCards", cardDocId), cardRecord);
 
-      // Diiwaanka lacagta gaarka ah, si loo hayo tarikhda bixinta.
       await setDoc(doc(db, "examCardPayments", cardDocId), {
         ...cardRecord,
       });
@@ -194,10 +190,9 @@ export default function ExamPayments() {
   }
 
   const activeClassLabel = useMemo(() => {
-    const active = Object.entries(examWeeks).filter(([, wk]) => isExamWeekActive(wk));
-    if (active.length === 0) return null;
-    return active.map(([cls]) => cls).join(", ");
-  }, [examWeeks]);
+    if (availableClasses.length === 0) return null;
+    return availableClasses.join(", ");
+  }, [availableClasses]);
 
   return (
     <div style={{ fontFamily: theme.font.body }}>
@@ -210,13 +205,13 @@ export default function ExamPayments() {
         </div>
         <div style={styles.headerStats}>
           <div style={styles.statPill}>
-            <span style={styles.statNum}>{students.length}</span>
+            <span style={styles.statNum}>{filtered.length}</span>
             <span style={styles.statLabel}>Students</span>
           </div>
           <div style={styles.statPill}>
             <span style={styles.statNum}>
               {
-                students.filter((s) => {
+                filtered.filter((s) => {
                   const cardInfo = examCardStatus[s.studentId];
                   const type = examTypeByClass[String(s.className || "").toUpperCase()] || "final";
                   return cardInfo?.paid && cardInfo.examType === type;
@@ -241,14 +236,32 @@ export default function ExamPayments() {
         </div>
       )}
 
-      <div style={styles.searchRow}>
-        <span style={styles.searchIcon}>🔍</span>
-        <input
-          placeholder="Search Student ID / Name / Class"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={styles.search}
-        />
+      {/* Control Row: Search Input + Class Filter Dropdown */}
+      <div style={styles.controlsRow}>
+        <div style={styles.searchRow}>
+          <span style={styles.searchIcon}>🔍</span>
+          <input
+            placeholder="Search Student ID / Name / Class"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={styles.search}
+          />
+        </div>
+
+        <div style={styles.selectWrapper}>
+          <select
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+            style={styles.classSelect}
+          >
+            <option value="All">Dhammaan Fasallada Socda ({availableClasses.length})</option>
+            {availableClasses.map((cls) => (
+              <option key={cls} value={cls}>
+                {cls}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div style={styles.tableCard}>
@@ -274,10 +287,6 @@ export default function ExamPayments() {
                 <th style={styles.th}>Name</th>
                 <th style={styles.th}>Class</th>
                 <th style={styles.th}>Nuuca Imtixaanka</th>
-                {/* ✅ Column cusub: Examination Fees — kaliya tus (display)
-                    qiimihii lagu diiwaan geliyay markii ardaygu diiwaan
-                    galay (student.examinationFees); ma bedelayo xisaabta
-                    "Enter Amount" ee hoose, taasi wax kama beddelmin. */}
                 <th style={styles.th}>Examination Fees</th>
                 <th style={styles.th}>Enter Amount</th>
                 <th style={styles.th}>Card No</th>
@@ -306,8 +315,6 @@ export default function ExamPayments() {
                     <td style={styles.td}>
                       <span style={styles.examTypeChip}>{examTypeLabel(studentExamType)}</span>
                     </td>
-                    {/* ✅ Examination Fees — akhris kaliya, ka yimaada xogta
-                        diiwaan gelinta ardayga (registrationFees form-ka). */}
                     <td style={{ ...styles.td, ...styles.money }}>
                       {student.examinationFees !== undefined && student.examinationFees !== ""
                         ? `$${student.examinationFees}`
@@ -444,7 +451,14 @@ const styles = {
     fontSize: 13.5,
     marginBottom: 18,
   },
-  searchRow: { position: "relative", width: 360, marginBottom: 20 },
+  controlsRow: {
+    display: "flex",
+    gap: 16,
+    marginBottom: 20,
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  searchRow: { position: "relative", flex: 1, minWidth: 260 },
   searchIcon: {
     position: "absolute",
     left: 14,
@@ -462,6 +476,19 @@ const styles = {
     fontSize: 14,
     color: theme.colors.ink,
     outline: "none",
+    boxSizing: "border-box",
+  },
+  selectWrapper: { minWidth: 220 },
+  classSelect: {
+    width: "100%",
+    padding: "12px 16px",
+    borderRadius: theme.radius.sm,
+    border: `1px solid ${theme.colors.border}`,
+    background: theme.colors.card,
+    fontSize: 14,
+    color: theme.colors.ink,
+    outline: "none",
+    cursor: "pointer",
     boxSizing: "border-box",
   },
   tableCard: {

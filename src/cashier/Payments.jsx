@@ -1,19 +1,11 @@
-//src/cashier/Payments.jsx // rise school
-//
-// ✅ Boggan hadda waa DAAWASHO OO KALIYA AH (read-only view). Dhammaan
-// lacag-gelinta (Enter Amount, Edit, Save, Save All, Fee Category)
-// waxaa la geliyaa oo kaliya Classes.jsx, sababtoo ah kaliya Classes.jsx
-// ayaa si sax ah u qaybiya lacagta bilo-bilo (distributePayment) marka
-// arday ka bixiyo lacag ka badan hal bil. Boggan wuxuu kaliya ka soo
-// akhriyaa isla "payments" collection-ka Firestore ee Classes.jsx
-// qorto, si loo tuso xaaladda ardayda oo dhan hal miis ah.
+// src/cashier/Payments.jsx
 import { useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 
 import { db } from "../firebase/firebase";
 import { theme } from "./theme.js";
 
-const currentMonthKey = () => new Date().toISOString().slice(0, 7); // "2026-07"
+const currentMonthKey = () => new Date().toISOString().slice(0, 7);
 
 const monthLabel = (key) => {
   if (!key) return "—";
@@ -22,25 +14,18 @@ const monthLabel = (key) => {
   return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 };
 
-// ✅ Taariikhda saxda ah (maalinta + bisha + sanadka) ee lacagta la
-// bixiyay dhab ahaan la kaydiyay (createdAt) — isla format-ka
-// Classes.jsx isticmaalo.
 function formatPaidDate(createdAt) {
   if (!createdAt?.seconds) return "—";
   const d = new Date(createdAt.seconds * 1000);
   return d.toLocaleDateString("en-US", { day: "numeric", month: "long", year: "numeric" });
 }
 
-// "2026-03" + 2 -> "2026-05"
 function monthKeyAdd(key, n) {
   const [y, m] = key.split("-").map(Number);
   const d = new Date(y, m - 1 + n, 1);
   return d.toISOString().slice(0, 7);
 }
 
-// Bisha ardaygu ku bilaabmay (createdAt) — waa bisha ugu horeysa ee uu
-// lacag ku leeyahay. Haddii createdAt maqan yahay, bisha hadda waa la
-// isticmaalaa (safety fallback).
 function registrationMonthKey(student) {
   const ts = student.createdAt;
   if (ts?.seconds) {
@@ -49,8 +34,6 @@ function registrationMonthKey(student) {
   return currentMonthKey();
 }
 
-// Ka soo mar bilaha, laga bilaabo `startKey`, ilaa la helo mid aan
-// gabi ahaanba la bixin (ma jirin `fullyPaid` set-ka).
 function findNextUnpaidMonth(fullyPaidSet, startKey, safetyCap = 120) {
   let key = startKey;
   for (let i = 0; i < safetyCap; i++) {
@@ -62,7 +45,7 @@ function findNextUnpaidMonth(fullyPaidSet, startKey, safetyCap = 120) {
 
 export default function Payments() {
   const [students, setStudents] = useState([]);
-  const [paymentsByStudent, setPaymentsByStudent] = useState({}); // studentId -> record[] (sorted by monthKey)
+  const [paymentsByStudent, setPaymentsByStudent] = useState({});
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -112,14 +95,13 @@ export default function Payments() {
     return (
       (s.studentId || "").toLowerCase().includes(text) ||
       (s.fullName || "").toLowerCase().includes(text) ||
-      (s.className || "").toLowerCase().includes(text)
+      (s.className || "").toLowerCase().includes(text) ||
+      (s.feeCategory || "").toLowerCase().includes(text)
     );
   });
 
   const isFreeStudent = (student) => student.feeType === "Free";
 
-  // ---- Xaaladda "this month" ee arday gaar ah, laga soo qaatay
-  // diiwaannada dhammaan bilaha ee ardaygan (isla habka Classes.jsx). ----
   function getStudentMonthState(studentId) {
     const records = paymentsByStudent[studentId] || [];
     const fullyPaidSet = new Set();
@@ -144,8 +126,7 @@ export default function Payments() {
         <div>
           <h1 style={styles.title}>Student Payments</h1>
           <p style={styles.subtitle}>
-            Diiwaan geli oo la soco lacagaha bilaha ee ardayda (daawasho oo
-            kaliya — lacag-gelintu waxay ka dhacdaa bogga Classes)
+            Diiwaan geli oo la soco lacagaha bilaha ee ardayda (daawasho oo kaliya)
           </p>
         </div>
         <div style={styles.headerStats}>
@@ -167,7 +148,7 @@ export default function Payments() {
       <div style={{ ...styles.searchRow, width: "auto" }}>
         <span style={styles.searchIcon}>🔍</span>
         <input
-          placeholder="Search Student ID / Name / Class"
+          placeholder="Search ID / Name / Class / Category"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ ...styles.search, width: 360 }}
@@ -198,8 +179,8 @@ export default function Payments() {
                 <th style={styles.th}>ID</th>
                 <th style={styles.th}>Name</th>
                 <th style={styles.th}>Class</th>
-                <th style={styles.th}>Student Phone</th>
-                <th style={styles.th}>Parent Phone</th>
+                <th style={styles.th}>Fee Type</th>
+                <th style={styles.th}>Fee Category</th>
                 <th style={styles.th}>Monthly Fee</th>
                 <th style={styles.th}>Paid</th>
                 <th style={styles.th}>Remaining</th>
@@ -219,10 +200,6 @@ export default function Payments() {
                   (r) => r.monthKey === currentMonthKey()
                 );
 
-                // ✅ Remaining — wadarta guud ee lacagta loo baahan
-                // yahay ilaa iyo bisha xigta ee aan la bixin (isla
-                // xisaabinta Classes.jsx isticmaalo), ma ahan kaliya
-                // inta ka hadhay bishan.
                 const nextUnpaid = findNextUnpaidMonth(
                   fullyPaidSet,
                   registrationMonthKey(student)
@@ -254,8 +231,23 @@ export default function Payments() {
                       {student.fullName}
                     </td>
                     <td style={styles.td}>{student.className || "—"}</td>
-                    <td style={styles.td}>{student.studentPhone || "—"}</td>
-                    <td style={styles.td}>{student.parentPhone || "—"}</td>
+                    <td style={styles.td}>
+                      <span
+                        style={{
+                          fontWeight: 600,
+                          color: free
+                            ? theme.colors.brand
+                            : isPaidStatus
+                            ? theme.colors.mintDark
+                            : theme.colors.danger,
+                        }}
+                      >
+                        {status}
+                      </span>
+                    </td>
+                    <td style={styles.td}>
+                      {student.feeCategory || "Standard Fee"}
+                    </td>
                     <td style={{ ...styles.td, ...styles.money }}>
                       {free ? "—" : `$${fee}`}
                     </td>

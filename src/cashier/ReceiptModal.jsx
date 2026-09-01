@@ -1,4 +1,4 @@
-//src/cashier/ReceiptModal.jsx
+// src/cashier/ReceiptModal.jsx
 import { useEffect, useState } from "react";
 import {
   doc,
@@ -17,17 +17,69 @@ const SCHOOL_LOCATION = "Mogadishu - Somalia";
 const SCHOOL_PHONES = "858516 / 0615860629 / 0617636461 / 0617536461";
 const SCHOOL_EMAIL = "israpp@hotmail.com";
 
-// 1 USD = 28 So Sh (Somali Shilling) — isticmaalka xisaabinta "Amount of So Sh."
+// 1 USD = 28 So Sh (Somali Shilling)
 const USD_TO_SOS_RATE = 28;
 
-// Sanad-dugsiyeedka: bisha 1-8 waxay ka tirsan yihiin sanadkii hore
-// (Jan-Aug), bisha 9-12 waxay ka tirsan yihiin sanadka cusub (Sep-Dec).
 const academicYearLabel = (dateObj) => {
   const y = dateObj.getFullYear();
-  const m = dateObj.getMonth() + 1; // 1-12
+  const m = dateObj.getMonth() + 1;
   if (m >= 9) return `${y}/${y + 1}`;
   return `${y - 1}/${y}`;
 };
+
+function calculateMonthRange(receipt) {
+  const startMonthStr = receipt.monthLabel || "";
+  const totalAmount =
+    (Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0) ||
+    Number(receipt.totalPaid) ||
+    Number(receipt.paidAmount) ||
+    0;
+  const monthlyFee = Number(receipt.monthlyFee) || 19;
+
+  const monthCount = Math.max(1, Math.round(totalAmount / monthlyFee));
+
+  if (!startMonthStr && !receipt.paidAt && !receipt.createdAt) {
+    return "Monthly Fee";
+  }
+
+  let startDate = new Date();
+  if (receipt.paidAt?.seconds) {
+    startDate = new Date(receipt.paidAt.seconds * 1000);
+  } else if (receipt.createdAt?.seconds) {
+    startDate = new Date(receipt.createdAt.seconds * 1000);
+  }
+
+  if (startMonthStr) {
+    const parsedDate = new Date(Date.parse(startMonthStr));
+    if (!isNaN(parsedDate.getTime())) {
+      startDate = parsedDate;
+    }
+  }
+
+  if (monthCount <= 1) {
+    return `Monthly Fee — ${
+      startMonthStr ||
+      startDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })
+    }`;
+  }
+
+  const endDate = new Date(
+    startDate.getFullYear(),
+    startDate.getMonth() + monthCount - 1,
+    1
+  );
+
+  const startFormatted = startDate.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const endFormatted = endDate.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+
+  return `Monthly Fee — ${startFormatted} to ${endFormatted} (${monthCount} Months)`;
+}
 
 // ---- Amount -> Words (English) ----
 const ONES = [
@@ -69,8 +121,6 @@ function integerToWords(num) {
   return parts.join(" ").trim();
 }
 
-// Waxay ku beddeshaa qiimaha lacagta (tusaale 17 ama 17.50) ereyo Ingiriisi
-// ah, tusaale ahaan "Seventeen Dollars" ama "Seventeen Dollars and Fifty Cents"
 function amountToWords(amount) {
   const num = Number(amount) || 0;
   const dollars = Math.floor(num);
@@ -83,8 +133,6 @@ function amountToWords(amount) {
   return words;
 }
 
-// Waxay si atomic ah u kordhisaa Firestore counter-ka rasiidka
-// (counters/receiptCounter) oo soo celisaa lambarka cusub.
 const getNextReceiptNumber = async () => {
   const counterRef = doc(db, "counters", "receiptCounter");
 
@@ -99,10 +147,6 @@ const getNextReceiptNumber = async () => {
   return String(nextNumber).padStart(3, "0");
 };
 
-// Waxay ku kaydisaa rasiidka collection-ka "receipts" si maamulku ugu
-// daawan karo dhammaan rasiidhada laga sameeyay dashboard-ka.
-// NOTE: "receivedBy" (saxiixa) laguma kaydiyo Firestore — waa gacan-qoraal
-// oo lagu buuxiyo warqadda daabacan kadib, marna lama soo aqrin database-ka.
 const saveReceiptRecord = async (receiptNo, payment, paidDate) => {
   try {
     const receiptRef = doc(collection(db, "receipts"), receiptNo);
@@ -156,12 +200,6 @@ export default function ReceiptModal({ payment, onClose }) {
     };
   }, []);
 
-  // ✅ Auto-print-ka waa la joojiyay — wuxuu keenayay dialog-yo OS-ka
-  // ah oo la xiriira printer-ka default-ka ah ee kombiyuutarka (tusaale
-  // "HP Programmable Key is not installed"), oo aan la xiriirin
-  // koodhka boggan. Hadda cashier-ku wuxuu isticmaalaa button-ka
-  // "🖨️ Print" gacanta si uu u doorto printer-ka rabo marka uu
-  // dhab ahaan diyaar u yahay inuu daabaco.
   if (!payment) return null;
 
   const paidDate = payment.createdAt?.seconds
@@ -174,9 +212,15 @@ export default function ReceiptModal({ payment, onClose }) {
     year: "numeric",
   });
 
-  const usdAmount = Number(payment.paidAmount) || 0;
-  const sosAmount = Math.round(usdAmount * USD_TO_SOS_RATE);
-  const amountWords = amountToWords(usdAmount);
+  const totalPaidAmount =
+    (Number(payment.paidAmount) || 0) + (Number(payment.creditAmount) || 0) ||
+    Number(payment.totalPaid) ||
+    Number(payment.paidAmount) ||
+    0;
+
+  const sosAmount = Math.round(totalPaidAmount * USD_TO_SOS_RATE);
+  const amountWords = amountToWords(totalPaidAmount);
+  const monthDescription = calculateMonthRange(payment);
   const isEvc = true;
 
   return (
@@ -242,7 +286,7 @@ export default function ReceiptModal({ payment, onClose }) {
                       <span className="rc-label">Received from:</span>
                       <span className="rc-value rc-value-strong">{payment.studentName}</span>
                     </div>
-                    <div className="rc-field-caption">(Laga quaday)</div>
+                    <div className="rc-field-caption">(Laga qaday)</div>
                   </div>
 
                   <div className="rc-amount-block">
@@ -251,7 +295,7 @@ export default function ReceiptModal({ payment, onClose }) {
                       <span className="rc-amount-box-sos">{sosAmount.toLocaleString()}</span>
                       <span className="rc-usd-group">
                         <span className="rc-usd-tag">US$</span>
-                        <span className="rc-amount-box-usd">{usdAmount}</span>
+                        <span className="rc-amount-box-usd">{totalPaidAmount}</span>
                       </span>
                     </div>
                     <div className="rc-field-caption">(Lacag dhan)</div>
@@ -269,7 +313,7 @@ export default function ReceiptModal({ payment, onClose }) {
                       <span className="rc-label">
                         Being of: <em>(Taasoo ah)</em>:
                       </span>
-                      <span className="rc-value">Monthly Fee — {payment.monthLabel}</span>
+                      <span className="rc-value">{monthDescription}</span>
                     </div>
                     <div className="rc-side-fields">
                       <div className="rc-field-inline">
@@ -343,12 +387,12 @@ export default function ReceiptModal({ payment, onClose }) {
 
         .receipt-close-btn {
           background: #ffffff;
-          color: ${theme.colors.inkMuted};
-          border: 1px solid ${theme.colors.border};
+          color: ${theme.colors.inkMuted || "#6B7280"};
+          border: 1px solid ${theme.colors.border || "#E5E7EB"};
         }
 
         .receipt-print-btn {
-          background: ${theme.colors.mint};
+          background: ${theme.colors.mint || "#16a34a"};
           color: #ffffff;
         }
 
@@ -362,7 +406,6 @@ export default function ReceiptModal({ payment, onClose }) {
           box-shadow: 0 10px 30px rgba(0,0,0,0.25);
         }
 
-        /* ---- Single continuous double-border frame, matching receipt.png ---- */
         .rc-frame {
           border: 2px solid #0b1f4d;
           padding: 6px;

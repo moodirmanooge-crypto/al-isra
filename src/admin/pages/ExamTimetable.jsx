@@ -25,21 +25,28 @@ import {
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 
-// Fixed class order: 1 -> 8 (primary), then F1 -> F4 (secondary/form)
-const CLASS_ORDER = ["Fasalka 1aad", "Fasalka 2aad", "Fasalka 3aad", "PP", "PI", "G8 A", "G8 B", "F1", "F2", "F3", "F4"];
-function classRank(className) {
-  const idx = CLASS_ORDER.indexOf(String(className || "").toUpperCase());
-  return idx === -1 ? 999 : idx;
-}
+// Dhammaan fasallada ku jira "Add Student" iyo kuwa ku jira Timetable-ka oo dhammaystiran
+const MASTER_CLASS_LIST = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G 8",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+  "F1 A",
+  "8"
+];
 
-// ---- Sameyso qoraal gaaban oo lagu muujiyo gooryaanka orange-ka ah
-// (badge-ka). Fasallada "Fasalka Naad" waxaa laga soo saarayaa lambarka
-// kaliya (1, 2, 3...), kuwa kale (PP, PI, G8 A, F1...) sida ay yihiin
-// ayaa loo isticmaalayaa iyagoo aan la beddelin. ----
 function classBadge(className) {
   const match = String(className || "").match(/^Fasalka (\d+)aad$/i);
-  if (match) return match[1]; // "Fasalka 1aad" -> "1"
-  return String(className || "").replace(/\s+/g, ""); // "G8 A" -> "G8A"
+  if (match) return match[1];
+  return String(className || "").replace(/\s+/g, "");
 }
 
 const DAYS = [
@@ -50,15 +57,13 @@ const DAYS = [
   { key: "Wednesday", label: "ARBACO" },
 ];
 
-// ---- Nuuca imtixaanka ee maamulku ka dooran karo fasalka. Sameyska
-// (key) halkan waa isla midka ExamCards.jsx iyo ExamPayments.jsx
-// isticmaalaan, si dhammaan bogagga isku mid ay noqdaan. ----
 const EXAM_TYPES = [
   { key: "Monthly Exam Test 1", label: "Monthly Exam Test1" },
   { key: "Midterm Exam", label: "Midterm Exam" },
   { key: "Monthly Test 2", label: "Monthly Test 2" },
   { key: "final", label: "Final Exam" },
 ];
+
 function examTypeLabel(key) {
   return EXAM_TYPES.find((t) => t.key === key)?.label || "Final";
 }
@@ -73,9 +78,6 @@ function emptyExamSlot() {
   };
 }
 
-// ---- Kala saar imtixaannada marka la eego wakhtiga bilowga, oo ku dar
-// examNumber (Imtixaan #1, #2, ...) si midka kore uu had iyo jeer
-// noqdo ta 1aad ----
 function withExamNumbers(slots) {
   const sorted = [...slots].sort((a, b) =>
     (a.startTime || "").localeCompare(b.startTime || "")
@@ -229,9 +231,10 @@ function TeacherSelect({ value, options, onChange }) {
 export default function ExamTimetable() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [teachers, setTeachers] = useState({}); // id -> { fullName, subject, classes }
-  const [examDocs, setExamDocs] = useState({}); // `${className}__${day}` -> { slots: [] }
-  const [examWeekDates, setExamWeekDates] = useState({}); // className -> { startDate, endDate, examType }
+  const [teachers, setTeachers] = useState({});
+  const [examDocs, setExamDocs] = useState({});
+  const [examWeekDates, setExamWeekDates] = useState({});
+  const [dbClasses, setDbClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState(null);
   const [activeDay, setActiveDay] = useState(DAYS[0].key);
   const [draftSlots, setDraftSlots] = useState([]);
@@ -240,7 +243,7 @@ export default function ExamTimetable() {
   const [draftEndDate, setDraftEndDate] = useState("");
   const [draftExamType, setDraftExamType] = useState("final");
   const [savingDates, setSavingDates] = useState(false);
-  const [deletingDay, setDeletingDay] = useState(null); // day key currently being deleted, for the summary table
+  const [deletingDay, setDeletingDay] = useState(null);
 
   useEffect(() => {
     load();
@@ -249,10 +252,11 @@ export default function ExamTimetable() {
   async function load() {
     try {
       setLoading(true);
-      const [teachersSnap, examSnap, examWeekSnap] = await Promise.all([
+      const [teachersSnap, examSnap, examWeekSnap, classesSnap] = await Promise.all([
         getDocs(collection(db, "teachers")),
         getDocs(collection(db, "examTimetable")),
         getDocs(collection(db, "examWeek")),
+        getDocs(collection(db, "classes")).catch(() => ({ docs: [] })),
       ]);
 
       const teacherMap = {};
@@ -277,6 +281,15 @@ export default function ExamTimetable() {
         weekMap[d.id] = d.data();
       });
       setExamWeekDates(weekMap);
+
+      const fetchedClasses = new Set();
+      classesSnap.docs?.forEach((d) => {
+        const data = d.data();
+        const name = data?.name || data?.className || data?.title || d.id;
+        if (name) fetchedClasses.add(String(name).trim());
+      });
+
+      setDbClasses(Array.from(fetchedClasses));
     } catch (err) {
       console.log(err);
       alert("Khalad ayaa dhacay marka xogta la soo qaadanayay: " + err.message);
@@ -285,9 +298,11 @@ export default function ExamTimetable() {
     }
   }
 
+  // Wuxuu isku darka MASTER_CLASS_LIST iyo wixii fasal DB-ga ka soo baxa oo dhan
   const classes = useMemo(() => {
-    return [...CLASS_ORDER].sort((a, b) => classRank(a) - classRank(b));
-  }, []);
+    const combined = new Set([...MASTER_CLASS_LIST, ...dbClasses]);
+    return Array.from(combined);
+  }, [dbClasses]);
 
   const teachersForSelectedClass = useMemo(() => {
     if (!selectedClass) return {};
@@ -328,16 +343,11 @@ export default function ExamTimetable() {
     setActiveDay(DAYS[0].key);
   }
 
-  // Jump into the editor for a specific day (used by the "Edit" button in
-  // the read-only summary table below the slot editor).
   function editDay(dayKey) {
     setActiveDay(dayKey);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  // Fully delete a day's exam slots for the selected class — removes the
-  // examTimetable/{className}__{day} doc and clears that day out of every
-  // enrolled student's synced examTimetable field.
   async function deleteDay(dayKey) {
     if (!selectedClass) return;
     const dayLabel = DAYS.find((d) => d.key === dayKey)?.label || dayKey;
@@ -368,11 +378,6 @@ export default function ExamTimetable() {
     }
   }
 
-  // ---- Kaydiyo taariikhda bilowga iyo dhamaadka usbuuca imtixaanka
-  // fasalkan, nuuca imtixaanka (Monthly 1 / Mid Term / Monthly 2 / Final),
-  // kuna qor ardayda fasalkaas si Student/Parent Dashboard-ku si toos ah
-  // uga soo aqriyo. Nuuca imtixaanka halkan lagu doortay ayaa isla markaana
-  // ExamPayments.jsx isticmaali doona marka Exam Card la sameenayo. ----
   async function saveExamWeekDates() {
     if (!selectedClass) return;
     if (!draftStartDate || !draftEndDate) {
@@ -437,11 +442,6 @@ export default function ExamTimetable() {
     setDirty(true);
   }
 
-  // ---- Marka jadwalka imtixaanka maalintaas la kaydiyo, si toos ah
-  // ugu qor dhammaan ardayda fasalkaas ku jira (students collection)
-  // field "examTimetable" oo ay ku jirto jadwalka toddobaadka
-  // imtixaannada fasalkooda, si Student/Parent Dashboard-ku si toos ah
-  // uga soo aqriyo. ----
   async function syncStudentsExamTimetable(className, updatedExamDocs) {
     try {
       const studentsSnap = await getDocs(
@@ -483,7 +483,6 @@ export default function ExamTimetable() {
     setSaving(true);
     const key = `${selectedClass}__${activeDay}`;
 
-    // Skip rows with no subject entered to avoid saving blank slots.
     const cleanSlots = withExamNumbers(
       draftSlots.filter((s) => s.subject && s.subject.trim() !== "")
     );

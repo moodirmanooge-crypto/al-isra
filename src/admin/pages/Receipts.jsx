@@ -1,4 +1,3 @@
-// src/admin/pages/Receipts.jsx
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../../firebase/firebase";
@@ -13,9 +12,6 @@ const SCHOOL_LOCATION = "Mogadishu - Somalia";
 const SCHOOL_PHONES = "858516 / 0615860629 / 0617636461 / 0617536461";
 const SCHOOL_EMAIL = "israpp@hotmail.com";
 
-// 1 USD = 28 So Sh — isla xisaabinta ReceiptModal.jsx
-const USD_TO_SOS_RATE = 28;
-
 function formatDate(value) {
   if (!value) return "—";
   const d = value?.seconds ? new Date(value.seconds * 1000) : new Date(value);
@@ -27,7 +23,43 @@ function formatDate(value) {
   });
 }
 
-// ---- Amount -> Words (English) ----
+function calculateMonthRange(receipt) {
+  const startMonthStr = receipt.monthLabel || "";
+  const totalAmount = (Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0) || Number(receipt.totalPaid) || Number(receipt.paidAmount) || 0;
+  const monthlyFee = Number(receipt.monthlyFee) || 19;
+  
+  const monthCount = Math.max(1, Math.round(totalAmount / monthlyFee));
+
+  if (!startMonthStr && !receipt.paidAt && !receipt.createdAt) {
+    return "Monthly Fee";
+  }
+
+  let startDate = new Date();
+  if (receipt.paidAt?.seconds) {
+    startDate = new Date(receipt.paidAt.seconds * 1000);
+  } else if (receipt.createdAt?.seconds) {
+    startDate = new Date(receipt.createdAt.seconds * 1000);
+  }
+
+  if (startMonthStr) {
+    const parsedDate = new Date(Date.parse(startMonthStr));
+    if (!isNaN(parsedDate.getTime())) {
+      startDate = parsedDate;
+    }
+  }
+
+  if (monthCount <= 1) {
+    return `Monthly Fee — ${startMonthStr || startDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
+  }
+
+  const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + monthCount - 1, 1);
+  
+  const startFormatted = startDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const endFormatted = endDate.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  return `Monthly Fee — ${startFormatted} to ${endFormatted} (${monthCount} Months)`;
+}
+
 const ONES = [
   "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine",
   "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen",
@@ -92,7 +124,7 @@ export default function Receipts() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const [confirmTarget, setConfirmTarget] = useState(null); // { type: "one"|"all", receipt? }
+  const [confirmTarget, setConfirmTarget] = useState(null);
   const [deletingAll, setDeletingAll] = useState(false);
   const [printAllOpen, setPrintAllOpen] = useState(false);
 
@@ -134,7 +166,7 @@ export default function Receipts() {
   }, [receipts, query]);
 
   const totalCollected = useMemo(
-    () => filtered.reduce((sum, r) => sum + (Number(r.paidAmount) || 0), 0),
+    () => filtered.reduce((sum, r) => sum + (Number(r.paidAmount) || 0) + (Number(r.creditAmount) || 0), 0),
     [filtered]
   );
 
@@ -198,7 +230,6 @@ export default function Receipts() {
         </div>
 
         <div style={{ padding: "26px 30px" }}>
-          {/* Header */}
           <div
             style={{
               display: "flex",
@@ -258,7 +289,6 @@ export default function Receipts() {
             </div>
           </div>
 
-          {/* Search */}
           <div
             style={{
               ...cardStyle,
@@ -356,7 +386,6 @@ export default function Receipts() {
             )}
           </div>
 
-          {/* Table */}
           <div style={{ ...cardStyle, padding: "20px 22px", overflowX: "auto" }}>
             {loading && (
               <p style={{ fontSize: 13, color: "#9CA3AF", padding: "20px 0", textAlign: "center" }}>
@@ -386,59 +415,62 @@ export default function Receipts() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((r) => (
-                    <tr key={r.id} style={{ borderTop: "1px solid #F3F4F6" }}>
-                      <td style={{ padding: "10px 0", fontWeight: 700, color: "#111827" }}>
-                        {r.receiptNo}
-                      </td>
-                      <td style={{ color: "#6B7280" }}>{r.studentId || "—"}</td>
-                      <td style={{ color: "#111827", fontWeight: 600 }}>{r.studentName || "—"}</td>
-                      <td style={{ color: "#6B7280" }}>{r.className || "—"}</td>
-                      <td style={{ color: "#6B7280" }}>{r.monthLabel || "—"}</td>
-                      <td style={{ color: "#6B7280" }}>{formatDate(r.paidAt || r.createdAt)}</td>
-                      <td style={{ color: "#16a34a", fontWeight: 700 }}>
-                        ${Number(r.paidAmount || 0).toLocaleString()}
-                      </td>
-                      <td>
-                        <button
-                          onClick={() => setSelected(r)}
-                          style={{
-                            border: "none",
-                            background: "#E6F5EC",
-                            color: "#16a34a",
-                            fontWeight: 700,
-                            fontSize: 12,
-                            padding: "6px 12px",
-                            borderRadius: 8,
-                            cursor: "pointer",
-                          }}
-                        >
-                          View
-                        </button>
-                      </td>
-                      <td>
-                        <button
-                          onClick={() => askDeleteOne(r)}
-                          disabled={deletingId === r.id}
-                          style={{
-                            border: "none",
-                            background: "#FEF2F2",
-                            color: "#DC2626",
-                            fontWeight: 700,
-                            fontSize: 12,
-                            padding: "6px 10px",
-                            borderRadius: 8,
-                            cursor: deletingId === r.id ? "not-allowed" : "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 5,
-                          }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtered.map((r) => {
+                    const totalPaidAmount = (Number(r.paidAmount) || 0) + (Number(r.creditAmount) || 0);
+                    return (
+                      <tr key={r.id} style={{ borderTop: "1px solid #F3F4F6" }}>
+                        <td style={{ padding: "10px 0", fontWeight: 700, color: "#111827" }}>
+                          {r.receiptNo}
+                        </td>
+                        <td style={{ color: "#6B7280" }}>{r.studentId || "—"}</td>
+                        <td style={{ color: "#111827", fontWeight: 600 }}>{r.studentName || "—"}</td>
+                        <td style={{ color: "#6B7280" }}>{r.className || "—"}</td>
+                        <td style={{ color: "#6B7280" }}>{r.monthLabel || "—"}</td>
+                        <td style={{ color: "#6B7280" }}>{formatDate(r.paidAt || r.createdAt)}</td>
+                        <td style={{ color: "#16a34a", fontWeight: 700 }}>
+                          ${totalPaidAmount.toLocaleString()}
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => setSelected(r)}
+                            style={{
+                              border: "none",
+                              background: "#E6F5EC",
+                              color: "#16a34a",
+                              fontWeight: 700,
+                              fontSize: 12,
+                              padding: "6px 12px",
+                              borderRadius: 8,
+                              cursor: "pointer",
+                            }}
+                          >
+                            View
+                          </button>
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => askDeleteOne(r)}
+                            disabled={deletingId === r.id}
+                            style={{
+                              border: "none",
+                              background: "#FEF2F2",
+                              color: "#DC2626",
+                              fontWeight: 700,
+                              fontSize: 12,
+                              padding: "6px 10px",
+                              borderRadius: 8,
+                              cursor: deletingId === r.id ? "not-allowed" : "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                            }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -544,8 +576,7 @@ export default function Receipts() {
   );
 }
 
-// ---- Shaqada guud ee ku dhawaajinaysa lambar -> ereyo, isla midka
-// ReceiptModal.jsx, si Amount-ka la muujiyo "Seventeen Dollars Only" iwm. ----
+// ---- Receipt Voucher Component ----
 function ReceiptVoucherBody({ receipt, prefix }) {
   const paidDate = receipt.paidAt?.seconds
     ? new Date(receipt.paidAt.seconds * 1000)
@@ -553,9 +584,9 @@ function ReceiptVoucherBody({ receipt, prefix }) {
     ? new Date(receipt.createdAt.seconds * 1000)
     : new Date();
 
-  const usdAmount = Number(receipt.paidAmount) || 0;
-  const sosAmount = Math.round(usdAmount * USD_TO_SOS_RATE);
+  const usdAmount = (Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0) || Number(receipt.totalPaid) || Number(receipt.paidAmount) || 0;
   const amountWords = amountToWords(usdAmount);
+  const monthRangeText = calculateMonthRange(receipt);
   const isEvc = true;
   const p = prefix;
 
@@ -605,13 +636,13 @@ function ReceiptVoucherBody({ receipt, prefix }) {
               <span className={`${p}-label`}>Received from:</span>
               <span className={`${p}-value ${p}-value-strong`}>{receipt.studentName || "—"}</span>
             </div>
-            <div className={`${p}-field-caption`}>(Laga quaday)</div>
+            <div className={`${p}-field-caption`}>(Laga qaday)</div>
           </div>
 
           <div className={`${p}-amount-block`}>
             <div className={`${p}-amount-top`}>
               <span className={`${p}-label`}>Amount of So Sh.</span>
-              <span className={`${p}-amount-box-sos`}>{sosAmount.toLocaleString()}</span>
+              <span className={`${p}-amount-box-sos`}>{usdAmount.toLocaleString()}</span>
               <span className={`${p}-usd-group`}>
                 <span className={`${p}-usd-tag`}>US$</span>
                 <span className={`${p}-amount-box-usd`}>{usdAmount}</span>
@@ -632,7 +663,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
               <span className={`${p}-label`}>
                 Being of: <em>(Taasoo ah)</em>:
               </span>
-              <span className={`${p}-value`}>Monthly Fee — {receipt.monthLabel || "—"}</span>
+              <span className={`${p}-value`}>{monthRangeText}</span>
             </div>
             <div className={`${p}-side-fields`}>
               <div className={`${p}-field-inline`}>
@@ -671,355 +702,522 @@ function ReceiptVoucherBody({ receipt, prefix }) {
   );
 }
 
-// Isticmaalka style-ka guud ee sanduuqa rasiidka — isku mid u ah dhammaan
-// class prefix-yada (rv- daawasho, mc- daabac-dhammaan) sida qiimaha loo
-// gaarsiiyay via `prefix`. Waxaan ku daray hal template si loo yareeyo
-// isku celcelin — style-ka waxaa lagu qoraa CSS custom properties.
-function receiptVoucherCss(p, { fontScale = 1, compact = false } = {}) {
-  const f = (px) => `${(px * fontScale).toFixed(2)}px`;
+function receiptVoucherCss(p) {
   return `
     .${p}-frame {
-      border: ${compact ? 1.2 : 2}px solid #0b1f4d;
-      padding: ${compact ? 3 : 6}px;
+      border: 2px solid #0b1f4d;
+      padding: 4px;
       height: 100%;
       box-sizing: border-box;
+      background: #fff;
     }
     .${p}-outer {
-      border: ${compact ? 1.8 : 3}px solid #0b1f4d;
-      padding: ${compact ? "10px 12px" : "16px 18px"};
+      border: 2px solid #0b1f4d;
+      padding: 10px 14px;
       height: 100%;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
     }
-    .${p}-top { display: flex; align-items: flex-start; gap: ${compact ? 8 : 14}px; }
-    .${p}-logo { width: ${f(62)}; height: ${f(62)}; object-fit: contain; flex-shrink: 0; }
+    .${p}-top { display: flex; align-items: flex-start; gap: 12px; }
+    .${p}-logo { width: 52px; height: 52px; object-fit: contain; flex-shrink: 0; }
     .${p}-school-block { flex: 1; text-align: center; }
     .${p}-school-line1, .${p}-school-line2 {
-      font-weight: 800; font-size: ${f(16)}; letter-spacing: 0.4px;
-      color: #0b1f4d; text-transform: uppercase; line-height: 1.25;
+      font-weight: 800; font-size: 13.5px; letter-spacing: 0.3px;
+      color: #0b1f4d; text-transform: uppercase; line-height: 1.2;
     }
-    .${p}-school-emph { font-size: ${f(22)}; font-weight: 900; }
-    .${p}-school-location { font-style: italic; font-size: ${f(11)}; color: #1e3a8a; margin-top: 2px; }
-    .${p}-contact { font-size: ${f(9)}; color: #0b1f4d; margin-top: 4px; }
+    .${p}-school-emph { font-size: 18px; font-weight: 900; }
+    .${p}-school-location { font-style: italic; font-size: 10.5px; color: #1e3a8a; margin-top: 1px; }
+    .${p}-contact { font-size: 9px; color: #0b1f4d; margin-top: 2px; }
     .${p}-id-box {
-      width: ${f(118)}; border: 1.5px solid #0b1f4d; border-radius: 8px;
+      width: 110px; border: 1.5px solid #0b1f4d; border-radius: 6px;
       overflow: hidden; flex-shrink: 0;
     }
     .${p}-id-label {
-      background: #0b1f4d; color: #fff; font-size: ${f(9)}; font-weight: 800;
-      text-align: center; padding: 4px 0; letter-spacing: 0.4px;
+      background: #0b1f4d; color: #fff; font-size: 8.5px; font-weight: 800;
+      text-align: center; padding: 2px 0; letter-spacing: 0.3px;
     }
     .${p}-id-value {
-      text-align: center; font-size: ${f(11)}; font-weight: 700; padding: ${compact ? "6px 4px" : "10px 4px"};
-      min-height: 14px; border-bottom: 1px dotted #0b1f4d; margin: 0 8px;
+      text-align: center; font-size: 11px; font-weight: 700; padding: 4px 2px;
+      min-height: 14px; border-bottom: 1px dotted #0b1f4d; margin: 0 4px;
     }
-    .${p}-divider { border-top: 1.5px solid #0b1f4d; margin: ${compact ? 6 : 12}px 0; }
-    .${p}-body { display: flex; flex-direction: column; gap: ${compact ? 5 : 10}px; flex: 1; }
-    .${p}-voucher-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .${p}-divider { border-top: 1.5px solid #0b1f4d; margin: 5px 0; }
+    .${p}-body { display: flex; flex-direction: column; gap: 5px; flex: 1; justify-content: space-around; }
+    .${p}-voucher-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2px; }
     .${p}-voucher-title {
-      font-weight: 900; font-size: ${f(19)}; letter-spacing: 0.6px; color: #0b1f4d;
+      font-weight: 900; font-size: 16px; letter-spacing: 0.4px; color: #0b1f4d;
       text-align: center; flex: 1;
     }
-    .${p}-slashes { color: #93a5d1; font-style: normal; margin-right: 6px; }
-    .${p}-voucher-sub { font-size: ${f(10)}; font-style: italic; font-weight: 500; color: #1e3a8a; margin-top: 2px; }
-    .${p}-no { font-size: ${f(13)}; font-weight: 700; color: #0b1f4d; white-space: nowrap; }
-    .${p}-no-value { color: #dc2626; font-weight: 900; font-size: ${f(17)}; }
-    .${p}-field { display: flex; align-items: baseline; gap: 8px; font-size: ${f(12)}; }
-    .${p}-field em { font-size: ${f(10)}; font-style: italic; color: #475569; font-weight: 400; }
+    .${p}-slashes { color: #93a5d1; font-style: normal; margin-right: 4px; }
+    .${p}-voucher-sub { font-size: 9.5px; font-style: italic; font-weight: 500; color: #1e3a8a; margin-top: 1px; }
+    .${p}-no { font-size: 11.5px; font-weight: 700; color: #0b1f4d; white-space: nowrap; }
+    .${p}-no-value { color: #dc2626; font-weight: 900; font-size: 15px; }
+    .${p}-field { display: flex; align-items: baseline; gap: 6px; font-size: 11px; }
+    .${p}-field em { font-size: 9px; font-style: italic; color: #475569; font-weight: 400; }
     .${p}-label { font-weight: 700; white-space: nowrap; color: #0b1f4d; }
     .${p}-value {
-      flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 2px; font-weight: 600; min-height: 12px;
+      flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 1px; font-weight: 600; min-height: 12px;
     }
-    .${p}-value-strong { font-weight: 800; font-size: ${f(13)}; }
+    .${p}-value-strong { font-weight: 800; font-size: 12px; }
     .${p}-field-block, .${p}-amount-block { display: flex; flex-direction: column; gap: 1px; }
-    .${p}-field-top { display: flex; align-items: baseline; gap: 8px; font-size: ${f(12)}; }
-    .${p}-field-caption { font-style: italic; font-size: ${f(9.5)}; color: #475569; margin-top: 1px; }
-    .${p}-amount-top { display: flex; align-items: stretch; gap: 10px; }
+    .${p}-field-top { display: flex; align-items: baseline; gap: 6px; font-size: 11px; }
+    .${p}-field-caption { font-style: italic; font-size: 8.5px; color: #475569; margin-top: 1px; }
+    .${p}-amount-top { display: flex; align-items: stretch; gap: 8px; }
     .${p}-amount-top .${p}-label { align-self: center; }
     .${p}-amount-box-sos {
-      flex: 1; border: 1.5px solid #0b1f4d; border-radius: 8px; padding: ${compact ? "3px 8px" : "6px 12px"};
-      font-weight: 800; font-size: ${f(13)}; text-align: right;
+      flex: 1; border: 1.5px solid #0b1f4d; border-radius: 6px; padding: 2px 8px;
+      font-weight: 800; font-size: 11.5px; text-align: right;
       display: flex; align-items: center; justify-content: flex-end;
     }
     .${p}-usd-group {
-      display: flex; align-items: stretch; border: 1.5px solid #0b1f4d; border-radius: 8px;
+      display: flex; align-items: stretch; border: 1.5px solid #0b1f4d; border-radius: 6px;
       overflow: hidden; flex-shrink: 0;
     }
     .${p}-usd-tag {
-      background: #0b1f4d; color: #fff; font-weight: 800; font-size: ${f(12)};
-      padding: ${compact ? "3px 8px" : "6px 10px"}; display: flex; align-items: center;
+      background: #0b1f4d; color: #fff; font-weight: 800; font-size: 10px;
+      padding: 2px 6px; display: flex; align-items: center;
     }
     .${p}-amount-box-usd {
-      padding: ${compact ? "3px 8px" : "6px 12px"}; font-weight: 800; font-size: ${f(13)};
-      min-width: ${f(44)}; text-align: right; display: flex; align-items: center; justify-content: flex-end;
+      padding: 2px 8px; font-weight: 800; font-size: 11.5px;
+      min-width: 40px; text-align: right; display: flex; align-items: center; justify-content: flex-end;
     }
-    .${p}-being-row { display: flex; gap: 14px; }
-    .${p}-being-of { flex: 1; display: flex; align-items: baseline; gap: 8px; font-size: ${f(12)}; }
-    .${p}-side-fields { display: flex; flex-direction: column; gap: 4px; min-width: ${compact ? 100 : 150}px; }
-    .${p}-field-inline { display: flex; align-items: baseline; gap: 6px; font-size: ${f(11.5)}; }
-    .${p}-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
-    .${p}-payment-method { display: flex; align-items: center; gap: 8px; }
+    .${p}-being-row { display: flex; gap: 12px; }
+    .${p}-being-of { flex: 1; display: flex; align-items: baseline; gap: 6px; font-size: 11px; }
+    .${p}-side-fields { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
+    .${p}-field-inline { display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; }
+    .${p}-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+    .${p}-payment-method { display: flex; align-items: center; gap: 6px; }
     .${p}-method-tag {
-      background: #0b1f4d; color: #fff; font-size: ${f(10.5)}; font-weight: 800;
-      padding: 6px 10px; border-radius: 6px; white-space: nowrap;
+      background: #0b1f4d; color: #fff; font-size: 9px; font-weight: 800;
+      padding: 4px 6px; border-radius: 4px; white-space: nowrap;
     }
-    .${p}-evc-label { font-weight: 700; font-size: ${f(12)}; color: #0b1f4d; }
+    .${p}-evc-label { font-weight: 700; font-size: 10.5px; color: #0b1f4d; }
     .${p}-evc-box {
-      width: ${f(22)}; height: ${f(22)}; border: 1.5px solid #0b1f4d; border-radius: 4px;
+      width: 18px; height: 18px; border: 1.5px solid #0b1f4d; border-radius: 3px;
       display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 900; font-size: ${f(14)}; color: #16a34a;
+      font-weight: 900; font-size: 11px; color: #16a34a;
     }
-    .${p}-stamp { width: ${f(66)}; height: ${f(66)}; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
-    .${p}-signature { text-align: center; min-width: ${compact ? 90 : 140}px; }
-    .${p}-sig-title { font-size: ${f(10)}; font-weight: 800; color: #0b1f4d; letter-spacing: 0.3px; }
-    .${p}-sig-img { height: ${compact ? 20 : 34}px; object-fit: contain; margin-top: 2px; }
-    .${p}-sig-line { border-bottom: 1px solid #64748b; height: ${compact ? 5 : 8}px; margin-top: 2px; }
+    .${p}-stamp { width: 52px; height: 52px; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
+    .${p}-signature { text-align: center; min-width: 120px; }
+    .${p}-sig-title { font-size: 8.5px; font-weight: 800; color: #0b1f4d; letter-spacing: 0.2px; }
+    .${p}-sig-img { height: 24px; object-fit: contain; margin-top: 1px; }
+    .${p}-sig-line { border-bottom: 1.5px solid #0b1f4d; margin-top: 1px; }
     .${p}-footer-note {
-      display: flex; align-items: center; gap: 8px; background: #0b1f4d; color: #fff;
-      font-size: ${f(11)}; font-style: italic; font-weight: 600;
-      padding: ${compact ? "5px 12px" : "7px 16px"};
-      margin: ${compact ? 8 : 14}px ${compact ? -12 : -18}px ${compact ? -10 : -16}px;
+      background: #0b1f4d; color: #fff; font-size: 8.5px; font-weight: 800;
+      padding: 3px 8px; border-radius: 4px; display: flex; align-items: center;
+      gap: 5px; margin-top: 4px;
     }
     .${p}-footer-icon {
-      width: 15px; height: 15px; border-radius: 50%; background: #fff; color: #0b1f4d;
-      display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 10px;
+      width: 11px; height: 11px; background: #fff; color: #0b1f4d;
+      border-radius: 50%; display: inline-flex; align-items: center;
+      justify-content: center; font-weight: 900; font-size: 8px;
     }
   `;
 }
 
-// Modal-ka daawashada rasiidka — waa isla design-ka warqadda cusub
-// (ReceiptModal.jsx), laakiin ka soo akhriya xog rasiid oo hore loo
-// kaydiyay (halkii uu ka kordhin lahaa lambar cusub).
+// ---- Modal: Single Receipt ----
 function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
-  return (
-    <>
-      <div className="rv-overlay">
-        <div className="rv-actions no-print">
-          <button onClick={onClose} className="rv-close-btn">
-            Xir
-          </button>
-          <button onClick={onDelete} disabled={deleting} className="rv-delete-btn">
-            <Trash2 size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
-            {deleting ? "Tirtiraya..." : "Tirtir"}
-          </button>
-          <button onClick={() => window.print()} className="rv-print-btn">
-            <Printer size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
-            Print
-          </button>
-        </div>
+  function handlePrint() {
+    const printWin = window.open("", "_blank");
+    if (!printWin) return alert("Fadlan u ogolaaw browser-ka inuu furo pop-up.");
 
-        <div className="rv-paper">
-          <ReceiptVoucherBody receipt={receipt} prefix="rv" />
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Receipt_${receipt.receiptNo}</title>
+          <style>
+            @page {
+              size: A5 landscape;
+              margin: 0;
+            }
+            html, body {
+              width: 210mm;
+              height: 148mm;
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              padding: 6mm;
+              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+              -webkit-print-color-adjust: exact;
+            }
+            #print-root {
+              width: 100%;
+              height: 100%;
+            }
+            ${receiptVoucherCss("rvp")}
+          </style>
+        </head>
+        <body>
+          <div id="print-root"></div>
+        </body>
+      </html>
+    `);
+
+    printWin.document.close();
+
+    const container = printWin.document.getElementById("print-root");
+    container.innerHTML = `
+      <div class="rvp-frame">
+        <div class="rvp-outer">
+          <div class="rvp-top">
+            <img src="${schoolLogo}" alt="Logo" class="rvp-logo" />
+            <div class="rvp-school-block">
+              <div class="rvp-school-line1">${SCHOOL_NAME_LINE1}</div>
+              <div class="rvp-school-line2">SARE EE <span class="rvp-school-emph">AL-ISRA</span></div>
+              <div class="rvp-school-location">— ${SCHOOL_LOCATION} —</div>
+              <div class="rvp-contact">☎ ${SCHOOL_PHONES} &nbsp;|&nbsp; ✉ ${SCHOOL_EMAIL}</div>
+            </div>
+            <div class="rvp-id-box">
+              <div class="rvp-id-label">STUDENT ID</div>
+              <div class="rvp-id-value">${receipt.studentId || ""}</div>
+            </div>
+          </div>
+          <div class="rvp-divider"></div>
+          <div class="rvp-body">
+            <div class="rvp-voucher-row">
+              <div class="rvp-voucher-title"><span class="rvp-slashes">///</span> RECEIPT VOUCHER <div class="rvp-voucher-sub">(Warqadda Lacag Qaabashada)</div></div>
+              <div class="rvp-no">No: <span class="rvp-no-value">${receipt.receiptNo}</span></div>
+            </div>
+            <div class="rvp-field"><span class="rvp-label">Date:</span><span class="rvp-value">${formatDate(receipt.paidAt || receipt.createdAt)}</span></div>
+            <div class="rvp-field-block">
+              <div class="rvp-field-top"><span class="rvp-label">Received from:</span><span class="rvp-value rvp-value-strong">${receipt.studentName || "—"}</span></div>
+              <div class="rvp-field-caption">(Laga qaday)</div>
+            </div>
+            <div class="rvp-amount-block">
+              <div class="rvp-amount-top">
+                <span class="rvp-label">Amount of So Sh.</span>
+                <span class="rvp-amount-box-sos">${((Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0)).toLocaleString()}</span>
+                <span class="rvp-usd-group"><span class="rvp-usd-tag">US$</span><span class="rvp-amount-box-usd">${(Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0)}</span></span>
+              </div>
+              <div class="rvp-field-caption">(Lacag dhan)</div>
+            </div>
+            <div class="rvp-field"><span class="rvp-label">In words <em>(Eray ahaan)</em>:</span><span class="rvp-value">${amountToWords((Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0))} Only</span></div>
+            <div class="rvp-being-row">
+              <div class="rvp-being-of"><span class="rvp-label">Being of: <em>(Taasoo ah)</em>:</span><span class="rvp-value">${calculateMonthRange(receipt)}</span></div>
+              <div class="rvp-side-fields">
+                <div class="rvp-field-inline"><span class="rvp-label">Class:</span><span class="rvp-value">${receipt.className || "—"}</span></div>
+                <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.studentPhone || "—"}</span></div>
+              </div>
+            </div>
+            <div class="rvp-bottom-row">
+              <div class="rvp-payment-method"><span class="rvp-method-tag">PAYMENT METHOD</span><span class="rvp-evc-label">EVC</span><span class="rvp-evc-box">✓</span></div>
+              <img src="${schoolLogo}" alt="Stamp" class="rvp-stamp" />
+              <div class="rvp-signature">
+                <div class="rvp-sig-title">PRINCIPAL SIGNATURE</div>
+                <img src="${principalSignature}" alt="Signature" class="rvp-sig-img" />
+                <div class="rvp-sig-line"></div>
+              </div>
+            </div>
+          </div>
+          <div class="rvp-footer-note"><span class="rvp-footer-icon">!</span> N.B. Not refundable.</div>
         </div>
       </div>
+    `;
 
-      <style>{`
-        .rv-overlay {
-          position: fixed;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.55);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          z-index: 2000;
-          gap: 14px;
-        }
-        .rv-actions { display: flex; gap: 10px; }
-        .rv-close-btn, .rv-print-btn, .rv-delete-btn {
-          border: none;
-          border-radius: 10px;
-          padding: 10px 18px;
-          font-weight: 700;
-          font-size: 13px;
-          cursor: pointer;
-        }
-        .rv-close-btn {
-          background: #ffffff;
-          color: #6B7280;
-          border: 1px solid #E5E7EB;
-        }
-        .rv-delete-btn {
-          background: #DC2626;
-          color: #ffffff;
-        }
-        .rv-print-btn {
-          background: #16a34a;
-          color: #ffffff;
-        }
-        .rv-paper {
-          width: 640px;
-          max-width: 94vw;
-          background: #ffffff;
-          font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
-          color: #0b1f4d;
-          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-        }
+    setTimeout(() => {
+      printWin.focus();
+      printWin.print();
+    }, 500);
+  }
 
-        ${receiptVoucherCss("rv")}
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+      }}
+    >
+      <style>{receiptVoucherCss("rvm")}</style>
 
-        @media print {
-          body * { visibility: hidden; }
-          .rv-paper, .rv-paper * { visibility: visible; }
-          .rv-paper {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: none;
-            width: 190mm;
-            max-height: 138mm;
-          }
-          .no-print { display: none !important; }
-          @page { size: A5 landscape; margin: 4mm; }
-        }
-      `}</style>
-    </>
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          width: 780,
+          maxWidth: "100%",
+          maxHeight: "90vh",
+          overflowY: "auto",
+          boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        <div
+          style={{
+            padding: "16px 22px",
+            borderBottom: "1px solid #F3F4F6",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#111827" }}>
+            Receipt #{receipt.receiptNo}
+          </h2>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={handlePrint}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: "#16a34a",
+                color: "#fff",
+                border: "none",
+                fontWeight: 700,
+                fontSize: 12.5,
+                padding: "8px 16px",
+                borderRadius: 10,
+                cursor: "pointer",
+              }}
+            >
+              <Printer size={15} /> Daabac Rasiidka
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                background: "#FEF2F2",
+                color: "#DC2626",
+                border: "1px solid #FCA5A5",
+                fontWeight: 700,
+                fontSize: 12.5,
+                padding: "8px 14px",
+                borderRadius: 10,
+                cursor: deleting ? "not-allowed" : "pointer",
+                opacity: deleting ? 0.7 : 1,
+              }}
+            >
+              <Trash2 size={14} /> Tirtir
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                background: "#F3F4F6",
+                color: "#374151",
+                border: "none",
+                fontWeight: 700,
+                fontSize: 12.5,
+                padding: "8px 14px",
+                borderRadius: 10,
+                cursor: "pointer",
+              }}
+            >
+              Xir
+            </button>
+          </div>
+        </div>
+
+        <div style={{ padding: 24, flex: 1, height: "148mm" }}>
+          <ReceiptVoucherBody receipt={receipt} prefix="rvm" />
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ---- Daabacaadda dhammaan rasiidhada — 4 rasiid (2x2) A4 warqad
-// kasta, si maamulku ugu daabaco kaydka rasiidhada dhammaantiis hal
-// mar, halkii uu mid mid u daabici lahaa. ----
+// ---- Modal: Print All Receipts ----
 function PrintAllModal({ receipts, onClose }) {
-  if (!receipts || receipts.length === 0) return null;
+  function handlePrintAll() {
+    const printWin = window.open("", "_blank");
+    if (!printWin) return alert("Fadlan u ogolaaw browser-ka inuu furo pop-up.");
 
-  return (
-    <>
-      {/* On-screen preview — a fixed overlay purely for reviewing before printing. */}
-      <div className="pa-overlay no-print">
-        <div className="pa-actions no-print">
-          <button onClick={onClose} className="pa-close-btn">
-            Xir
-          </button>
-          <button onClick={() => window.print()} className="pa-print-btn">
-            <Printer size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
-            Print Dhammaan ({receipts.length})
-          </button>
-        </div>
-
-        <div className="pa-scroll">
-          <div className="pa-grid">
-            {receipts.map((r) => (
-              <div className="pa-card" key={r.id}>
-                <ReceiptVoucherBody receipt={r} prefix="mc" />
+    const itemsHtml = receipts
+      .map((receipt) => {
+        const usdAmount = (Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0) || Number(receipt.totalPaid) || Number(receipt.paidAmount) || 0;
+        return `
+        <div class="page-break">
+          <div class="rvp-frame">
+            <div class="rvp-outer">
+              <div class="rvp-top">
+                <img src="${schoolLogo}" alt="Logo" class="rvp-logo" />
+                <div class="rvp-school-block">
+                  <div class="rvp-school-line1">${SCHOOL_NAME_LINE1}</div>
+                  <div class="rvp-school-line2">SARE EE <span class="rvp-school-emph">AL-ISRA</span></div>
+                  <div class="rvp-school-location">— ${SCHOOL_LOCATION} —</div>
+                  <div class="rvp-contact">☎ ${SCHOOL_PHONES} &nbsp;|&nbsp; ✉ ${SCHOOL_EMAIL}</div>
+                </div>
+                <div class="rvp-id-box">
+                  <div class="rvp-id-label">STUDENT ID</div>
+                  <div class="rvp-id-value">${receipt.studentId || ""}</div>
+                </div>
               </div>
-            ))}
+              <div class="rvp-divider"></div>
+              <div class="rvp-body">
+                <div class="rvp-voucher-row">
+                  <div class="rvp-voucher-title"><span class="rvp-slashes">///</span> RECEIPT VOUCHER <div class="rvp-voucher-sub">(Warqadda Lacag Qaabashada)</div></div>
+                  <div class="rvp-no">No: <span class="rvp-no-value">${receipt.receiptNo}</span></div>
+                </div>
+                <div class="rvp-field"><span class="rvp-label">Date:</span><span class="rvp-value">${formatDate(receipt.paidAt || receipt.createdAt)}</span></div>
+                <div class="rvp-field-block">
+                  <div class="rvp-field-top"><span class="rvp-label">Received from:</span><span class="rvp-value rvp-value-strong">${receipt.studentName || "—"}</span></div>
+                  <div class="rvp-field-caption">(Laga qaday)</div>
+                </div>
+                <div class="rvp-amount-block">
+                  <div class="rvp-amount-top">
+                    <span class="rvp-label">Amount of So Sh.</span>
+                    <span class="rvp-amount-box-sos">${usdAmount.toLocaleString()}</span>
+                    <span class="rvp-usd-group"><span class="rvp-usd-tag">US$</span><span class="rvp-amount-box-usd">${usdAmount}</span></span>
+                  </div>
+                  <div class="rvp-field-caption">(Lacag dhan)</div>
+                </div>
+                <div class="rvp-field"><span class="rvp-label">In words <em>(Eray ahaan)</em>:</span><span class="rvp-value">${amountToWords(usdAmount)} Only</span></div>
+                <div class="rvp-being-row">
+                  <div class="rvp-being-of"><span class="rvp-label">Being of: <em>(Taasoo ah)</em>:</span><span class="rvp-value">${calculateMonthRange(receipt)}</span></div>
+                  <div class="rvp-side-fields">
+                    <div class="rvp-field-inline"><span class="rvp-label">Class:</span><span class="rvp-value">${receipt.className || "—"}</span></div>
+                    <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.studentPhone || "—"}</span></div>
+                  </div>
+                </div>
+                <div class="rvp-bottom-row">
+                  <div class="rvp-payment-method"><span class="rvp-method-tag">PAYMENT METHOD</span><span class="rvp-evc-label">EVC</span><span class="rvp-evc-box">✓</span></div>
+                  <img src="${schoolLogo}" alt="Stamp" class="rvp-stamp" />
+                  <div class="rvp-signature">
+                    <div class="rvp-sig-title">PRINCIPAL SIGNATURE</div>
+                    <img src="${principalSignature}" alt="Signature" class="rvp-sig-img" />
+                    <div class="rvp-sig-line"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="rvp-footer-note"><span class="rvp-footer-icon">!</span> N.B. Not refundable.</div>
+            </div>
           </div>
         </div>
-      </div>
+      `;
+      })
+      .join("");
 
-      {/* Print-only target — intentionally rendered OUTSIDE the fixed overlay
-          above. Chrome's print engine forces every "avoid-break" block
-          inside a position:fixed ancestor onto its own page, which is why
-          the grid was printing one receipt per A4 sheet instead of 4.
-          This copy lives in normal document flow (no fixed/absolute
-          ancestor), so the 2x2 / 4-per-page pagination works correctly. */}
-      <div className="pa-print-only">
-        <div className="pa-grid">
-          {receipts.map((r) => (
-            <div className="pa-card" key={`print-${r.id}`}>
-              <ReceiptVoucherBody receipt={r} prefix="mc" />
-            </div>
-          ))}
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>All_Receipts</title>
+          <style>
+            @page {
+              size: A5 landscape;
+              margin: 0;
+            }
+            html, body {
+              width: 210mm;
+              height: 148mm;
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            body {
+              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+              -webkit-print-color-adjust: exact;
+            }
+            .page-break {
+              page-break-after: always;
+              height: 148mm;
+              box-sizing: border-box;
+              padding: 6mm;
+            }
+            ${receiptVoucherCss("rvp")}
+          </style>
+        </head>
+        <body>
+          ${itemsHtml}
+        </body>
+      </html>
+    `);
+
+    printWin.document.close();
+
+    setTimeout(() => {
+      printWin.focus();
+      printWin.print();
+    }, 600);
+  }
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: "rgba(0,0,0,0.55)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 2000,
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: 20,
+          width: 500,
+          maxWidth: "100%",
+          padding: 24,
+          fontFamily: "'Inter','Segoe UI',sans-serif",
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
+          Daabac Dhammaan Rasiidhada
+        </h2>
+        <p style={{ fontSize: 13.5, color: "#6B7280", marginTop: 8, lineHeight: 1.5 }}>
+          Waxaad rabtaa inaad daabacdo <strong style={{ color: "#111827" }}>{receipts.length}</strong> rasiid. 
+          Rasiid kasta wuxuu ku daabacmi doonaa bog u gaar ah oo xaashida A5 ah (Landscape).
+        </p>
+
+        <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "10px 0",
+              borderRadius: 10,
+              border: "1px solid #E5E7EB",
+              background: "#fff",
+              color: "#374151",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Jooji
+          </button>
+          <button
+            onClick={handlePrintAll}
+            style={{
+              flex: 1,
+              padding: "10px 0",
+              borderRadius: 10,
+              border: "none",
+              background: "#2563EB",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            <Printer size={16} /> Biloow Daabacaadda
+          </button>
         </div>
       </div>
-
-      <style>{`
-        .pa-overlay {
-          position: fixed;
-          top: 0; left: 0; right: 0; bottom: 0;
-          background: rgba(0,0,0,0.6);
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          z-index: 2500;
-          padding: 20px 0;
-        }
-        .pa-actions {
-          display: flex;
-          gap: 10px;
-          margin-bottom: 16px;
-        }
-        .pa-close-btn, .pa-print-btn {
-          border: none;
-          border-radius: 10px;
-          padding: 10px 18px;
-          font-weight: 700;
-          font-size: 13px;
-          cursor: pointer;
-        }
-        .pa-close-btn {
-          background: #ffffff;
-          color: #6B7280;
-          border: 1px solid #E5E7EB;
-        }
-        .pa-print-btn {
-          background: #2563EB;
-          color: #ffffff;
-        }
-        .pa-scroll {
-          width: 100%;
-          max-width: 920px;
-          max-height: 82vh;
-          overflow-y: auto;
-          background: #f1f5f9;
-          border-radius: 16px;
-          padding: 20px;
-        }
-        .pa-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 18px;
-        }
-        .pa-card {
-          background: #fff;
-          font-family: 'Poppins', 'Segoe UI', Arial, sans-serif;
-          color: #0b1f4d;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.12);
-          aspect-ratio: 4 / 2.55;
-        }
-
-        ${receiptVoucherCss("mc", { fontScale: 0.62, compact: true })}
-
-        /* Hidden on screen — only revealed during print (see below). */
-        .pa-print-only {
-          display: none;
-        }
-
-        @media print {
-          body * { visibility: hidden; }
-
-          /* Hide the on-screen preview overlay entirely during print — we
-             print from .pa-print-only instead, which has no fixed/absolute
-             ancestor and therefore paginates correctly. */
-          .pa-overlay { display: none !important; }
-
-          .pa-print-only, .pa-print-only * { visibility: visible; }
-          .pa-print-only {
-            display: block !important;
-            width: 100%;
-          }
-          .pa-print-only .pa-grid {
-            display: grid !important;
-            grid-template-columns: repeat(2, 1fr) !important;
-            gap: 6mm !important;
-          }
-          .pa-print-only .pa-card {
-            break-inside: avoid;
-            page-break-inside: avoid;
-            box-shadow: none !important;
-          }
-          .pa-print-only .pa-card:nth-child(4n) {
-            page-break-after: always;
-          }
-          @page {
-            size: A4 portrait;
-            margin: 8mm;
-          }
-        }
-      `}</style>
-    </>
+    </div>
   );
 }

@@ -23,9 +23,6 @@ export default function Parents() {
           id: doc.id,
           ...doc.data(),
         }))
-        // Ka reeb ardayda la calaamadeeyay pendingDeletion — isla markiiba
-        // ha ka baxeen liiska Parents, xitaa haddii backend-ku uusan weli
-        // si buuxda uga tirtirin Firestore.
         .filter((s) => !s.pendingDeletion);
       setParents(data);
     } catch (err) {
@@ -35,11 +32,6 @@ export default function Parents() {
     }
   }
 
-  // ---- Ka soo shubo lacagaha collection-ka "cashier" ----
-  // Sida sawirka Firebase muujinayo, xogta lacagta arday kastaa
-  // waxay ku jirtaa collection "cashier", document ID-giisu waa
-  // isla studentId-ga (tusaale: cashier/0001), oo leh field-ka
-  // "feeType" (tusaale qiimaha: "Paid").
   async function loadPayments() {
     try {
       const snap = await getDocs(collection(db, "cashier"));
@@ -53,64 +45,19 @@ export default function Parents() {
     }
   }
 
-  // ---- Xisaabi inta la bixiyay iyo inta la rabo ee arday kasta ----
-  // U shaqeeya si dabacsan: haddii cashier/{studentId} leeyahay
-  // 'entries'/'history' (taariikh lacago badan), ama 'amountPaid'/'paid'
-  // (hal lacag oo tirsan), ama 'feeType' (qoraal sida "Paid"/"Partial"),
-  // dhammaantood waa la fahmi karaa.
-  //
-  // Ardayda "Free" ah (monthlyFee === 0) marwalba waa "Full Paid" —
-  // wax lacag ah kama laha school-ka, sidaas darteed ma xiisayn karto
-  // in ay lahaadaan payments record, xitaa haddii aan mid la sameyn.
+  // Lacagaha dib ayaa loo celiyay/reset ayaa la sameeyay, markaa dhammaan ardayda waa Unpaid
   function getPaymentInfo(studentId, monthlyFee) {
-    const record = payments[studentId];
     const fee = Number(monthlyFee) || 0;
 
     if (fee === 0) {
       return { paidTotal: 0, remaining: 0, status: "Full Paid" };
     }
 
-    let paidTotal = 0;
-    let explicitStatus = null;
-
-    if (record) {
-      if (Array.isArray(record.entries)) {
-        paidTotal = record.entries.reduce(
-          (sum, e) => sum + (Number(e.amount) || 0),
-          0
-        );
-      } else if (Array.isArray(record.history)) {
-        paidTotal = record.history.reduce(
-          (sum, e) => sum + (Number(e.amount) || 0),
-          0
-        );
-      } else if (record.amountPaid !== undefined) {
-        paidTotal = Number(record.amountPaid) || 0;
-      } else if (record.paid !== undefined) {
-        paidTotal = Number(record.paid) || 0;
-      } else if (record.feeType === "Paid" || record.status === "Paid") {
-        // Xogta cashier-ku waxay isticmaashaa "feeType" halkii ay
-        // ka isticmaali lahayd 'amountPaid' — haddii la yiraahdo "Paid"
-        // waxaan u qaadanaynaa in lacagta oo dhan la bixiyay.
-        paidTotal = fee;
-      } else if (record.feeType === "Partial" || record.status === "Partial") {
-        explicitStatus = "Partial";
-        // Haddii xogtu leedahay qiime gaar ah oo lagu bixiyay
-        // isticmaal, haddii kalese ka tag 0 (waxaad ku dari kartaa
-        // field cusub sida record.amount haddii la sameeyo).
-        paidTotal = Number(record.amount) || 0;
-      }
-    }
-
-    const remaining = Math.max(fee - paidTotal, 0);
-
-    let status = explicitStatus || "Unpaid";
-    if (!explicitStatus) {
-      if (paidTotal >= fee) status = "Full Paid";
-      else if (paidTotal > 0 && paidTotal < fee) status = "Partial";
-    }
-
-    return { paidTotal, remaining, status };
+    return {
+      paidTotal: 0,
+      remaining: fee,
+      status: "Unpaid",
+    };
   }
 
   const filtered = useMemo(() => {

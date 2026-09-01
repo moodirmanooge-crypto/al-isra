@@ -382,7 +382,7 @@ export default function Academics() {
                 Natiijada Waa La Xiray — Fee Bishaan ({feeInfo.monthLabel})
               </h3>
               <p className="aca-fee-lock-text">
-                Ardaygan wali wuxuu ka leeyahay lacagta dugsiga bishan{" "}
+                Ardaygan wali waxaa  lagu leeyahay lacagta dugsiga bishan{" "}
                 <strong>${feeInfo.remaining.toFixed(2)}</strong> oo aan la
                 bixin. Natiijada ma la soo bandhigi karo ilaa lacagta oo
                 dhan la bixiyo.

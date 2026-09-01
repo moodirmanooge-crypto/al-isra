@@ -189,11 +189,26 @@ export default function ResultsByClass() {
           };
         });
 
-        rows.sort((a, b) =>
-          (a.studentId || "").toString().localeCompare((b.studentId || "").toString(), undefined, {
-            numeric: true,
-          })
-        );
+        // RANKING FIX: rows are now ranked by actual performance — highest
+        // average % first, ties broken by total marks, then by name so the
+        // order is stable. Previously this sorted by Student ID, which is
+        // just an admission/registration number and has nothing to do with
+        // marks — that's why the student with the most marks wasn't always
+        // showing at the top. This same `rows` array feeds both the on-screen
+        // color table and the Print/PDF (B&W) output, so the corrected
+        // ranking is identical and consistent in both.
+        rows.sort((a, b) => {
+          if (b.average !== a.average) return b.average - a.average;
+          if (b.totalMarks !== a.totalMarks) return b.totalMarks - a.totalMarks;
+          return (a.studentName || "").localeCompare(b.studentName || "");
+        });
+
+        // Assign a rank/position number reflecting this performance order
+        // (1 = highest marks in the class), used instead of the row index
+        // so it's explicit and doesn't depend on array position elsewhere.
+        rows.forEach((row, i) => {
+          row.rank = i + 1;
+        });
 
         return { className, subjects, subjectLabels, rows, submittedAt: earliestSubmitted };
       });
@@ -618,11 +633,15 @@ export default function ResultsByClass() {
                         </tr>
                       </thead>
                       <tbody>
-                        {group.rows.map((row, idx) => {
+                        {/* Rows arrive pre-sorted by rank (highest average
+                            first, see fetchData). "#" now shows row.rank
+                            instead of the array index, so position 1 is
+                            always the top scorer in the class. */}
+                        {group.rows.map((row) => {
                           const g = gradeFor(row.average);
                           return (
                             <tr key={row.studentKey} style={{ borderTop: "1px solid #E5E7EB" }}>
-                              <td style={tdStyle}>{idx + 1}</td>
+                              <td style={tdStyle}>{row.rank}</td>
                               <td style={tdStyle}>{row.studentId}</td>
                               <td style={{ ...tdStyle, textAlign: "left" }} className="name-cell">
                                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

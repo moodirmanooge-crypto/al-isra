@@ -434,7 +434,7 @@ export default function Dashboard() {
           >
             <p style={{ margin: "0 0 6px", fontSize: 14, opacity: 0.85 }}>Welcome back,</p>
             <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, lineHeight: 1.15 }}>
-              AL - ISRA PRIMARY & SECONDRY SCHOOL!
+              AL - ISRA PRIMARY & SECONDARY SCHOOL!
             </h1>
             <p style={{ margin: "10px 0 20px", fontSize: 14, opacity: 0.9, maxWidth: 420 }}>
               Smart Management, EDUCATION IS LIFE IT SELF.
