@@ -6,6 +6,7 @@ import { Search, Printer, X, Receipt as ReceiptIcon, Trash2, PrinterCheck } from
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import schoolLogo from "../assets/logo.png";
+import principalSignature from "../assets/signature-principal.png";
 
 const SCHOOL_NAME_LINE1 = "DUGSIGA HOOSE / DHEXE &";
 const SCHOOL_LOCATION = "Mogadishu - Somalia";
@@ -555,7 +556,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
   const usdAmount = Number(receipt.paidAmount) || 0;
   const sosAmount = Math.round(usdAmount * USD_TO_SOS_RATE);
   const amountWords = amountToWords(usdAmount);
-  const isEvc = /evc/i.test(receipt.paymentMethod || "");
+  const isEvc = true;
   const p = prefix;
 
   return (
@@ -656,6 +657,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
 
             <div className={`${p}-signature`}>
               <div className={`${p}-sig-title`}>PRINCIPAL SIGNATURE</div>
+              <img src={principalSignature} alt="Principal Signature" className={`${p}-sig-img`} />
               <div className={`${p}-sig-line`} />
             </div>
           </div>
@@ -771,7 +773,8 @@ function receiptVoucherCss(p, { fontScale = 1, compact = false } = {}) {
     .${p}-stamp { width: ${f(66)}; height: ${f(66)}; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
     .${p}-signature { text-align: center; min-width: ${compact ? 90 : 140}px; }
     .${p}-sig-title { font-size: ${f(10)}; font-weight: 800; color: #0b1f4d; letter-spacing: 0.3px; }
-    .${p}-sig-line { border-bottom: 1px solid #64748b; height: ${compact ? 16 : 26}px; margin-top: 2px; }
+    .${p}-sig-img { height: ${compact ? 20 : 34}px; object-fit: contain; margin-top: 2px; }
+    .${p}-sig-line { border-bottom: 1px solid #64748b; height: ${compact ? 5 : 8}px; margin-top: 2px; }
     .${p}-footer-note {
       display: flex; align-items: center; gap: 8px; background: #0b1f4d; color: #fff;
       font-size: ${f(11)}; font-style: italic; font-weight: 600;
@@ -879,7 +882,8 @@ function PrintAllModal({ receipts, onClose }) {
 
   return (
     <>
-      <div className="pa-overlay">
+      {/* On-screen preview — a fixed overlay purely for reviewing before printing. */}
+      <div className="pa-overlay no-print">
         <div className="pa-actions no-print">
           <button onClick={onClose} className="pa-close-btn">
             Xir
@@ -890,7 +894,7 @@ function PrintAllModal({ receipts, onClose }) {
           </button>
         </div>
 
-        <div className="pa-scroll no-print-scroll">
+        <div className="pa-scroll">
           <div className="pa-grid">
             {receipts.map((r) => (
               <div className="pa-card" key={r.id}>
@@ -898,6 +902,22 @@ function PrintAllModal({ receipts, onClose }) {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Print-only target — intentionally rendered OUTSIDE the fixed overlay
+          above. Chrome's print engine forces every "avoid-break" block
+          inside a position:fixed ancestor onto its own page, which is why
+          the grid was printing one receipt per A4 sheet instead of 4.
+          This copy lives in normal document flow (no fixed/absolute
+          ancestor), so the 2x2 / 4-per-page pagination works correctly. */}
+      <div className="pa-print-only">
+        <div className="pa-grid">
+          {receipts.map((r) => (
+            <div className="pa-card" key={`print-${r.id}`}>
+              <ReceiptVoucherBody receipt={r} prefix="mc" />
+            </div>
+          ))}
         </div>
       </div>
 
@@ -958,33 +978,37 @@ function PrintAllModal({ receipts, onClose }) {
 
         ${receiptVoucherCss("mc", { fontScale: 0.62, compact: true })}
 
+        /* Hidden on screen — only revealed during print (see below). */
+        .pa-print-only {
+          display: none;
+        }
+
         @media print {
           body * { visibility: hidden; }
-          .pa-scroll, .pa-scroll * { visibility: visible; }
-          .pa-scroll {
-            position: absolute;
-            top: 0; left: 0;
+
+          /* Hide the on-screen preview overlay entirely during print — we
+             print from .pa-print-only instead, which has no fixed/absolute
+             ancestor and therefore paginates correctly. */
+          .pa-overlay { display: none !important; }
+
+          .pa-print-only, .pa-print-only * { visibility: visible; }
+          .pa-print-only {
+            display: block !important;
             width: 100%;
-            max-height: none;
-            overflow: visible;
-            background: #fff;
-            border-radius: 0;
-            padding: 0;
           }
-          .pa-grid {
+          .pa-print-only .pa-grid {
             display: grid !important;
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 6mm !important;
           }
-          .pa-card {
+          .pa-print-only .pa-card {
             break-inside: avoid;
             page-break-inside: avoid;
             box-shadow: none !important;
           }
-          .pa-card:nth-child(4n) {
+          .pa-print-only .pa-card:nth-child(4n) {
             page-break-after: always;
           }
-          .no-print, .no-print-scroll::-webkit-scrollbar { display: none !important; }
           @page {
             size: A4 portrait;
             margin: 8mm;

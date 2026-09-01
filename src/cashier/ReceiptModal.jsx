@@ -10,6 +10,7 @@ import {
 import { db } from "../firebase/firebase";
 import { theme } from "./theme.js";
 import schoolLogo from "../assets/logo.png";
+import principalSignature from "../admin/assets/signature-principal.png";
 
 const SCHOOL_NAME_LINE1 = "DUGSIGA HOOSE / DHEXE &";
 const SCHOOL_LOCATION = "Mogadishu - Somalia";
@@ -181,7 +182,7 @@ export default function ReceiptModal({ payment, onClose }) {
   const usdAmount = Number(payment.paidAmount) || 0;
   const sosAmount = Math.round(usdAmount * USD_TO_SOS_RATE);
   const amountWords = amountToWords(usdAmount);
-  const isEvc = /evc/i.test(payment.paymentMethod || "");
+  const isEvc = true;
 
   return (
     <>
@@ -300,6 +301,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
                     <div className="rc-signature">
                       <div className="rc-sig-title">PRINCIPAL SIGNATURE</div>
+                      <img src={principalSignature} alt="Principal Signature" className="rc-sig-img" />
                       <div className="rc-sig-line" />
                     </div>
                   </div>
@@ -705,9 +707,15 @@ export default function ReceiptModal({ payment, onClose }) {
           letter-spacing: 0.3px;
         }
 
+        .rc-sig-img {
+          height: 34px;
+          object-fit: contain;
+          margin-top: 2px;
+        }
+
         .rc-sig-line {
           border-bottom: 1px solid #64748b;
-          height: 26px;
+          height: 8px;
           margin-top: 2px;
         }
 
