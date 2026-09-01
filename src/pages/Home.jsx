@@ -8,23 +8,25 @@ import { collection, getCountFromServer, doc, onSnapshot } from "firebase/firest
 import { db } from "../firebase/firebase";
 import {
   Users,
-  UserCog,
   Users2,
   DollarSign,
-  Calendar,
   BookOpen,
   Award,
-  QrCode,
-  ClipboardList,
   GraduationCap,
   ShieldCheck,
   TrendingUp,
   Trophy,
   User,
+  ArrowRight,
+  Sparkles,
+  Phone,
+  Mail,
+  MapPin,
+  CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 
-// Admin contact info — waxaa loo isticmaalaa qaybta "Contact" iyo "Need Help?"
-const SUPPORT_WHATSAPP = "252615860629"; // international format, no + or leading 0
+const SUPPORT_WHATSAPP = "252615860629";
 const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 const SUPPORT_PHONE_DISPLAY = "+252 61 5860629";
 const SUPPORT_LOCATION = "Mogadishu, Somalia";
@@ -68,14 +70,14 @@ const FEATURE_STRIP = [
   {
     icon: TrendingUp,
     label: "Modern Facilities",
-    desc: "Advanced resources for better learning",
-    color: "green",
+    desc: "Advanced resources for learning",
+    color: "blue",
   },
   {
     icon: Trophy,
     label: "Proven Results",
     desc: "Outstanding academic performance",
-    color: "blue",
+    color: "emerald",
   },
 ];
 
@@ -84,49 +86,47 @@ const PORTALS = [
     key: "student",
     icon: GraduationCap,
     title: "Student Portal",
-    desc: "Access your profile, materials, results and more.",
+    desc: "Access your profile, materials, results and exam marks anytime.",
     to: "/student-login",
     color: "green",
+    badge: "Students",
   },
   {
     key: "teacher",
     icon: Users2,
     title: "Teacher Portal",
-    desc: "Manage classes, resources and assignments.",
+    desc: "Manage classes, academic resources, exams and assignments.",
     to: "/teacher-login",
     color: "gold",
+    badge: "Faculty",
   },
   {
     key: "parent",
     icon: User,
     title: "Parent Portal",
-    desc: "Track your child's progress and activities.",
+    desc: "Track your child's progress, attendance, and school updates.",
     to: "/parent-login",
     color: "purple",
+    badge: "Parents",
   },
   {
     key: "cashier",
     icon: DollarSign,
     title: "Cashier Portal",
-    desc: "Record payments and manage school fees.",
+    desc: "Record payments, manage monthly fees and print receipts.",
     to: "/cashier-login",
     color: "orange",
+    badge: "Finance",
   },
   {
     key: "admission",
-    icon: ClipboardList,
+    icon: Sparkles,
     title: "Online Admission",
-    desc: "Apply online for admissions easily and quickly.",
+    desc: "Apply online for new student admissions easily and quickly.",
     to: "/admissions",
-    color: "purple",
+    color: "teal",
+    badge: "New Intake",
   },
-];
-
-const ABOUT_STATS = [
-  { icon: "🎓", value: "800+", label: "Students" },
-  { icon: "👥", value: "60+", label: "Teachers" },
-  { icon: "🏫", value: "25+", label: "Classrooms" },
-  { icon: "🏆", value: "100%", label: "Pass Rate" },
 ];
 
 const GALLERY_PREVIEW = [galleryPhoto, galleryPhoto, galleryPhoto, galleryPhoto, galleryPhoto];
@@ -163,7 +163,7 @@ export default function Home() {
     loadStats();
   }, []);
 
-  const [heroMedia, setHeroMedia] = useState(null); // { mediaUrl, mediaType } | null while waiting
+  const [heroMedia, setHeroMedia] = useState(null);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -187,7 +187,6 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ---- Xannib: F12, right-click, iyo shortcut-yada developer tools ----
   useEffect(() => {
     function handleContextMenu(e) {
       e.preventDefault();
@@ -196,13 +195,11 @@ export default function Home() {
     function handleKeyDown(e) {
       const key = (e.key || "").toLowerCase();
 
-      // F12
       if (key === "f12") {
         e.preventDefault();
         return;
       }
 
-      // Ctrl+Shift+I / J / C  (DevTools, Console, Inspect element)
       if (
         (e.ctrlKey || e.metaKey) &&
         e.shiftKey &&
@@ -212,7 +209,6 @@ export default function Home() {
         return;
       }
 
-      // Ctrl+U (View source) iyo Ctrl+S (Save page)
       if ((e.ctrlKey || e.metaKey) && (key === "u" || key === "s")) {
         e.preventDefault();
         return;
@@ -242,9 +238,16 @@ export default function Home() {
     {
       icon: BookOpen,
       value: statsData.classes != null ? `${statsData.classes}+` : "…",
-      label: "Subjects Offered",
+      label: "Classes Offered",
     },
     { icon: Trophy, value: "98%", label: "Pass Rate" },
+  ];
+
+  const ABOUT_STATS = [
+    { icon: "🎓", value: statsData.students != null ? `${statsData.students}+` : "800+", label: "Active Students" },
+    { icon: "👥", value: statsData.teachers != null ? `${statsData.teachers}+` : "60+", label: "Expert Staff" },
+    { icon: "🏫", value: statsData.classes != null ? `${statsData.classes}+` : "25+", label: "Modern Classrooms" },
+    { icon: "🏆", value: "100%", label: "Pass Rate" },
   ];
 
   return (
@@ -252,22 +255,28 @@ export default function Home() {
       {/* ---------- Top Nav ---------- */}
       <header className="home-nav">
         <Link to="/" className="brand">
-          <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
+          <div className="brand-logo-glow">
+            <img src={logo} className="brand-logo" alt="AL - ISRA School logo" />
+          </div>
           <div className="brand-text">
             <span className="brand-name">AL - ISRA SCHOOL</span>
-            <span className="brand-tagline">AL - ISRA PRIMARY &amp; SECONDARY SCHOOL</span>
+            <span className="brand-tagline">PRIMARY &amp; SECONDARY EDUCATION</span>
           </div>
         </Link>
 
         <nav className="home-nav-links">
           {NAV_LINKS.map((l) => (
-            <Link key={l.to} to={l.to} className="home-nav-link">
+            <Link key={l.to} to={l.to} className={`home-nav-link ${l.to === "/" ? "active" : ""}`}>
               {l.label}
             </Link>
           ))}
         </nav>
 
         <div className="header-actions">
+          <Link to="/admin-login" className="login-portal-btn">
+            <User size={16} /> Portal Access
+          </Link>
+
           <div className="menu-wrap" ref={menuRef}>
             <button
               type="button"
@@ -281,7 +290,7 @@ export default function Home() {
             {menuOpen && (
               <div className="dots-menu">
                 <Link to="/admin-login" className="dots-menu-item">
-                  👑 Admin Login
+                  👑 Admin Portal
                 </Link>
                 <a
                   href={`https://wa.me/${SUPPORT_WHATSAPP}`}
@@ -289,10 +298,10 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="dots-menu-item"
                 >
-                  💬 WhatsApp: 0{SUPPORT_WHATSAPP.slice(3)}
+                  💬 WhatsApp Contact
                 </a>
                 <a href={`mailto:${SUPPORT_EMAIL}`} className="dots-menu-item">
-                  📧 {SUPPORT_EMAIL}
+                  📧 Send Email
                 </a>
               </div>
             )}
@@ -301,58 +310,63 @@ export default function Home() {
       </header>
 
       {/* ---------- Hero Banner ---------- */}
-      <section className="hero-banner">
-        <div className="hero-banner-inner">
-          <span className="hero-badge">
-            <Award size={14} /> Excellence in Education
-          </span>
-          <h1 className="hero-title">
-            NURTURING MINDS,
-            <br />
-            <span className="hero-title-accent">BUILDING FUTURES</span>
-          </h1>
-          <p className="hero-lede">
-            Providing quality education in a safe, caring and inspiring
-            environment where every child can achieve greatness.
-          </p>
-
-          <div className="hero-cta-row">
-            <Link to="/admissions" className="hero-cta hero-cta-primary">
-              Apply for Admission <span>➜</span>
-            </Link>
-            <Link to="/about" className="hero-cta hero-cta-secondary">
-              Learn More <span>➜</span>
-            </Link>
-          </div>
-        </div>
-
-        <div className="hero-photo-box">
-          {heroMedia?.mediaUrl ? (
-            heroMedia.mediaType === "video" ? (
-              <video
-                src={heroMedia.mediaUrl}
-                className="hero-photo-box-img"
-                autoPlay
-                loop
-                muted
-                playsInline
-              />
-            ) : (
-              <img
-                src={heroMedia.mediaUrl}
-                alt="AL - ISRA School"
-                className="hero-photo-box-img"
-              />
-            )
-          ) : (
-            <div className="hero-photo-box-placeholder">
-              <span>Sawirka bogga hore ayaa la sugayaa</span>
+      <section className="hero-banner-section">
+        <div className="hero-banner">
+          <div className="hero-banner-inner">
+            <div className="hero-badge">
+              <Sparkles size={14} className="hero-badge-icon" />
+              <span>Excellence in Somali &amp; Global Education</span>
             </div>
-          )}
+            <h1 className="hero-title">
+              NURTURING MINDS,
+              <br />
+              <span className="hero-title-accent">BUILDING FUTURES</span>
+            </h1>
+            <p className="hero-lede">
+              Empowering students through academic rigor, moral integrity, and modern innovation in a safe, caring, and inspiring learning environment.
+            </p>
+
+            <div className="hero-cta-row">
+              <Link to="/admissions" className="hero-cta hero-cta-primary">
+                Apply for Admission <ArrowRight size={16} />
+              </Link>
+              <Link to="/about" className="hero-cta hero-cta-secondary">
+                Learn More <ExternalLink size={15} />
+              </Link>
+            </div>
+          </div>
+
+          <div className="hero-photo-box">
+            {heroMedia?.mediaUrl ? (
+              heroMedia.mediaType === "video" ? (
+                <video
+                  src={heroMedia.mediaUrl}
+                  className="hero-photo-box-img"
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                />
+              ) : (
+                <img
+                  src={heroMedia.mediaUrl}
+                  alt="AL - ISRA School"
+                  className="hero-photo-box-img"
+                />
+              )
+            ) : (
+              <div className="hero-photo-box-placeholder">
+                <div className="placeholder-content">
+                  <Sparkles size={32} />
+                  <span>AL - ISRA School Media Showcase</span>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* ---------- Feature strip + Stats ---------- */}
+      {/* ---------- Feature Strip + Stats ---------- */}
       <section className="feature-stats-row">
         <div className="feature-strip-card">
           {FEATURE_STRIP.map((f) => {
@@ -360,105 +374,156 @@ export default function Home() {
             return (
               <div className="feature-item" key={f.label}>
                 <span className={`feature-icon-circle feature-icon-${f.color}`}>
-                  <Icon size={20} />
+                  <Icon size={22} />
                 </span>
-                <span className="feature-item-label">{f.label}</span>
-                <span className="feature-item-desc">{f.desc}</span>
+                <div className="feature-text">
+                  <span className="feature-item-label">{f.label}</span>
+                  <span className="feature-item-desc">{f.desc}</span>
+                </div>
               </div>
             );
           })}
         </div>
 
         <div className="stats-dark-card">
-          {HERO_STATS.map((s) => {
-            const Icon = s.icon;
-            return (
-              <div className="stat-mini-box" key={s.label}>
-                <Icon size={22} />
-                <span className="stat-mini-value">{s.value}</span>
-                <span className="stat-mini-label">{s.label}</span>
-              </div>
-            );
-          })}
+          <div className="stats-header">
+            <h3>School At A Glance</h3>
+            <p>Real-time metrics &amp; academic standing</p>
+          </div>
+          <div className="stats-grid-inner">
+            {HERO_STATS.map((s) => {
+              const Icon = s.icon;
+              return (
+                <div className="stat-mini-box" key={s.label}>
+                  <div className="stat-icon-wrap">
+                    <Icon size={20} />
+                  </div>
+                  <span className="stat-mini-value">{s.value}</span>
+                  <span className="stat-mini-label">{s.label}</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
       {/* ---------- Portals ---------- */}
-      <section className="school-portals-row">
-        <div className="portals-inline-grid">
-          {PORTALS.map((p) => {
-            const Icon = p.icon;
-            return (
-              <div className={`portal-box portal-${p.color}`} key={p.key}>
-                <span className="portal-icon-circle">
-                  <Icon size={26} />
-                </span>
-                <div className="portal-title">{p.title}</div>
-                <p className="portal-desc">{p.desc}</p>
-                <Link to={p.to} className="portal-btn">
-                  {p.key === "admission" ? "Apply Now" : "Login"} <span>➜</span>
-                </Link>
-              </div>
-            );
-          })}
+      <section className="school-portals-section">
+        <div className="section-title-wrap">
+          <span className="section-subtitle">QUICK ACCESS</span>
+          <h2 className="section-main-title">School Portals &amp; Digital Services</h2>
+          <p className="section-desc">Select your portal below to log in to your custom administrative or learning dashboard.</p>
+        </div>
+
+        <div className="school-portals-row">
+          <div className="portals-inline-grid">
+            {PORTALS.map((p) => {
+              const Icon = p.icon;
+              return (
+                <div className={`portal-box portal-${p.color}`} key={p.key}>
+                  <div className="portal-top-bar">
+                    <span className="portal-icon-circle">
+                      <Icon size={26} />
+                    </span>
+                    <span className="portal-badge">{p.badge}</span>
+                  </div>
+                  <h3 className="portal-title">{p.title}</h3>
+                  <p className="portal-desc">{p.desc}</p>
+                  <Link to={p.to} className="portal-btn">
+                    <span>{p.key === "admission" ? "Apply Now" : "Access Portal"}</span>
+                    <ArrowRight size={15} />
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </section>
 
       {/* ---------- About Our School ---------- */}
       <section className="about-section-wrap">
         <div className="about-preview-card">
-          <h2 className="about-preview-title">About Our School</h2>
-          <p className="about-preview-text">
-            At AL - ISRA School, we are dedicated to nurturing young
-            minds through academic excellence, character building and
-            innovative learning. Our mission is to prepare students to
-            become responsible global citizens and future leaders.
-          </p>
+          <div className="about-content-grid">
+            <div className="about-text-column">
+              <span className="section-subtitle">WHO WE ARE</span>
+              <h2 className="about-preview-title">About AL - ISRA School</h2>
+              <p className="about-preview-text">
+                At AL - ISRA Primary &amp; Secondary School, we are dedicated to nurturing young minds through academic excellence, character building, and innovative digital learning. Our mission is to empower students with knowledge and strong values for a prosperous future.
+              </p>
+              
+              <ul className="about-highlights-list">
+                <li><CheckCircle2 size={18} /> Accredited Curriculum &amp; STEM Learning</li>
+                <li><CheckCircle2 size={18} /> Highly Qualified &amp; Dedicated Teachers</li>
+                <li><CheckCircle2 size={18} /> Modern Digital Student Tracking</li>
+              </ul>
 
-          <div className="about-stats-grid">
-            {ABOUT_STATS.map((s) => (
-              <div className="about-stat-box" key={s.label}>
-                <span className="about-stat-icon">{s.icon}</span>
-                <span className="about-stat-value">{s.value}</span>
-                <span className="about-stat-label">{s.label}</span>
+              <Link to="/about" className="view-more-btn">
+                Discover More About Us <ArrowRight size={16} />
+              </Link>
+            </div>
+
+            <div className="about-stats-column">
+              <div className="about-stats-grid">
+                {ABOUT_STATS.map((s) => (
+                  <div className="about-stat-box" key={s.label}>
+                    <span className="about-stat-icon">{s.icon}</span>
+                    <span className="about-stat-value">{s.value}</span>
+                    <span className="about-stat-label">{s.label}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
 
-          <h3 className="gallery-preview-title">Gallery</h3>
-          <div className="gallery-preview-grid">
-            {GALLERY_PREVIEW.map((img, i) => (
-              <img key={i} src={img} alt="" className="gallery-preview-img" />
-            ))}
+          <div className="gallery-section-divider">
+            <h3 className="gallery-preview-title">Life At AL - ISRA</h3>
+            <div className="gallery-preview-grid">
+              {GALLERY_PREVIEW.map((img, i) => (
+                <div key={i} className="gallery-img-wrapper">
+                  <img src={img} alt="School Activity" className="gallery-preview-img" />
+                </div>
+              ))}
+            </div>
+            <div className="gallery-footer-action">
+              <Link to="/gallery" className="gallery-link-btn">
+                View Photo Gallery <ArrowRight size={15} />
+              </Link>
+            </div>
           </div>
-          <Link to="/gallery" className="view-more-btn">
-            View More Photos <span>➜</span>
-          </Link>
         </div>
       </section>
 
       {/* ---------- Footer ---------- */}
       <footer className="home-footer">
-        <div className="home-footer-left">
-          <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
-          <div>
-            <div className="footer-school-name">AL - ISRA SCHOOL</div>
-            <div className="footer-school-tagline">
-              AL - ISRA PRIMARY &amp; SECONDARY SCHOOL
+        <div className="footer-container">
+          <div className="home-footer-left">
+            <img src={logo} className="footer-logo" alt="AL - ISRA School logo" />
+            <div className="footer-brand-text">
+              <div className="footer-school-name">AL - ISRA SCHOOL</div>
+              <div className="footer-school-tagline">
+                PRIMARY &amp; SECONDARY EDUCATION
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="home-footer-contact">
-          <a href={`tel:${SUPPORT_PHONE_DISPLAY.replace(/\s/g, "")}`}>
-            📞 {SUPPORT_PHONE_DISPLAY}
-          </a>
-          <a href={`mailto:${SUPPORT_EMAIL}`}>✉️ {SUPPORT_EMAIL}</a>
-          <span>📍 {SUPPORT_LOCATION}</span>
-        </div>
+          <div className="home-footer-contact">
+            <a href={`tel:${SUPPORT_PHONE_DISPLAY.replace(/\s/g, "")}`}>
+              <Phone size={15} /> {SUPPORT_PHONE_DISPLAY}
+            </a>
+            <a href={`mailto:${SUPPORT_EMAIL}`}>
+              <Mail size={15} /> {SUPPORT_EMAIL}
+            </a>
+            <span>
+              <MapPin size={15} /> {SUPPORT_LOCATION}
+            </span>
+          </div>
 
-        <div className="home-footer-quote">
-          “Excellence in Education, Bright Future for Every Child.”
+          <div className="home-footer-quote">
+            “Excellence in Education, Bright Future for Every Child.”
+          </div>
+        </div>
+        <div className="footer-bottom-bar">
+          <p>&copy; {new Date().getFullYear()} AL - ISRA School. All Rights Reserved.</p>
         </div>
       </footer>
     </div>

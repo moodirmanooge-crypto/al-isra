@@ -2,13 +2,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
-  getDocs,
   doc,
   updateDoc,
   writeBatch,
   serverTimestamp,
   query,
   where,
+  onSnapshot,
+  getDocs,
 } from "firebase/firestore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -141,46 +142,83 @@ export default function Classes() {
     return () => clearInterval(timer);
   }, []);
 
+  // Real-time Firestore Listeners - Hubin & Ka soo qaadasho "students" collection-ka className-kiisa
   useEffect(() => {
-    loadData();
+    setLoading(true);
+
+    let mainStudentsMap = {};
+
+    const unsubMainStudents = onSnapshot(
+      collection(db, "students"),
+      (snap) => {
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          const sId = data.studentId || d.id;
+          mainStudentsMap[sId] = data.className || "Unknown";
+        });
+      },
+      (err) => console.error("Error fetching students collection:", err)
+    );
+
+    const unsubCashier = onSnapshot(
+      collection(db, "cashier"),
+      (studentsSnap) => {
+        const studentData = studentsSnap.docs
+          .map((d) => {
+            const data = d.data();
+            const sid = data.studentId || d.id;
+            const actualClass = data.className || mainStudentsMap[sid] || "Unknown";
+
+            return {
+              id: d.id,
+              fullName: data.studentName || data.fullName,
+              ...data,
+              className: actualClass,
+            };
+          })
+          .filter(
+            (s) =>
+              !s.pendingDeletion &&
+              s.studentId &&
+              String(s.studentId).trim() !== ""
+          );
+
+        setStudents(studentData);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Error fetching cashier collection:", err);
+        setLoading(false);
+      }
+    );
+
+    const unsubPayments = onSnapshot(
+      collection(db, "payments"),
+      (paymentsSnap) => {
+        const byStudent = {};
+        paymentsSnap.docs.forEach((d) => {
+          const data = d.data();
+          const sid = data.studentId;
+          if (!sid) return;
+          if (!byStudent[sid]) byStudent[sid] = [];
+          byStudent[sid].push(data);
+        });
+        Object.keys(byStudent).forEach((sid) => {
+          byStudent[sid].sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
+        });
+        setPaymentsByStudent(byStudent);
+      },
+      (err) => {
+        console.error("Error fetching payments:", err);
+      }
+    );
+
+    return () => {
+      unsubMainStudents();
+      unsubCashier();
+      unsubPayments();
+    };
   }, []);
-
-  async function loadData() {
-    try {
-      setLoading(true);
-
-      const studentsSnap = await getDocs(collection(db, "students"));
-      const studentData = studentsSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter(
-          (s) =>
-            !s.pendingDeletion &&
-            s.studentId &&
-            String(s.studentId).trim() !== "" &&
-            s.fullName &&
-            String(s.fullName).trim() !== ""
-        );
-      setStudents(studentData);
-
-      const paymentsSnap = await getDocs(collection(db, "payments"));
-      const byStudent = {};
-      paymentsSnap.docs.forEach((d) => {
-        const data = d.data();
-        const sid = data.studentId;
-        if (!sid) return;
-        if (!byStudent[sid]) byStudent[sid] = [];
-        byStudent[sid].push(data);
-      });
-      Object.keys(byStudent).forEach((sid) => {
-        byStudent[sid].sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
-      });
-      setPaymentsByStudent(byStudent);
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const classGroups = useMemo(() => {
     const groups = {};
@@ -237,19 +275,11 @@ export default function Classes() {
 
     try {
       setSpecialSavingId(student.id);
-      await updateDoc(doc(db, "students", student.id), {
+      await updateDoc(doc(db, "cashier", student.id), {
         specialFeeAmount: entered,
         specialFeeSaved: true,
         specialFeeSavedAt: serverTimestamp(),
       });
-
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === student.id
-            ? { ...s, specialFeeAmount: entered, specialFeeSaved: true }
-            : s
-        )
-      );
     } catch (err) {
       console.log(err);
       alert(err.message);
@@ -274,7 +304,7 @@ export default function Classes() {
     const paidThisMonthCount = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
-      return fullyPaidSet.has(currentMonthKey());
+      return fullyPaidSet.has(currentMonthKey()) || s.feeType === "Paid";
     }).length;
     return { total: currentClassStudents.length, paidThisMonthCount };
   }, [currentClassStudents, paymentsByStudent]);
@@ -283,7 +313,7 @@ export default function Classes() {
     const fee = Number(student.monthlyFee || 0);
     const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
     const thisMonthKey = currentMonthKey();
-    const paidThisMonth = fullyPaidSet.has(thisMonthKey);
+    const paidThisMonth = fullyPaidSet.has(thisMonthKey) || student.feeType === "Paid";
     const partialThisMonth = partialMap[thisMonthKey] || 0;
     const prefill = paidThisMonth ? fee : partialThisMonth;
 
@@ -299,7 +329,7 @@ export default function Classes() {
     const targets = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
-      return fullyPaidSet.has(thisMonthKey);
+      return fullyPaidSet.has(thisMonthKey) || s.feeType === "Paid";
     });
 
     if (targets.length === 0) {
@@ -331,50 +361,28 @@ export default function Classes() {
       setResettingAll(true);
       const batch = writeBatch(db);
 
-      const targetStudentIds = currentClassStudents.map((s) => s.studentId);
       const studentDocIds = currentClassStudents.map((s) => s.id);
 
       studentDocIds.forEach((id) => {
-        batch.update(doc(db, "students", id), {
+        batch.update(doc(db, "cashier", id), {
           creditBalance: 0,
           specialFeeSaved: false,
           specialFeeAmount: 0,
+          feeType: "Unpaid",
         });
       });
 
       const paymentsSnap = await getDocs(
         query(collection(db, "payments"), where("className", "==", selectedClass))
       );
-
-      paymentsSnap.docs.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
+      paymentsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
 
       const receiptCashierSnap = await getDocs(
         query(collection(db, "receiptCashier"), where("className", "==", selectedClass))
       );
-
-      receiptCashierSnap.docs.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
+      receiptCashierSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
 
       await batch.commit();
-
-      setPaymentsByStudent((prev) => {
-        const next = { ...prev };
-        targetStudentIds.forEach((sid) => {
-          delete next[sid];
-        });
-        return next;
-      });
-
-      setStudents((prev) =>
-        prev.map((s) =>
-          studentDocIds.includes(s.id)
-            ? { ...s, creditBalance: 0, specialFeeSaved: false, specialFeeAmount: 0 }
-            : s
-        )
-      );
 
       setAmounts({});
       setMonthsSelected({});
@@ -382,10 +390,10 @@ export default function Classes() {
       setReceiptQueue([]);
       setReceiptPayment(null);
 
-      alert(`Dhamaan xogta fasalka ${selectedClass} waa  lawada Reset-gareeyay.`);
+      alert(`Dhamaan xogta fasalka ${selectedClass} waa la Reset-gareeyay.`);
     } catch (err) {
       console.error(err);
-      alert("Khalad ayaa dhacay marka xogta la tiri yay.");
+      alert("Khalad ayaa dhacay marka xogta la tirayay.");
     } finally {
       setResettingAll(false);
     }
@@ -496,6 +504,13 @@ export default function Classes() {
       setSavingId(student.id);
 
       const batch = writeBatch(db);
+
+      batch.update(doc(db, "cashier", student.id), {
+        feeType: "Paid",
+        creditBalance: newCreditBalance,
+        className: student.className, // Wuxuu kaydinayaa className-ka saxda ah
+      });
+
       updates.forEach((u) => {
         const paymentDocId = `${student.studentId}_${u.monthKey}`;
         batch.set(doc(db, "payments", paymentDocId), {
@@ -515,12 +530,6 @@ export default function Classes() {
         });
       });
 
-      if (newCreditBalance !== existingCredit) {
-        batch.update(doc(db, "students", student.id), {
-          creditBalance: newCreditBalance,
-        });
-      }
-
       const receiptCashierRef = doc(collection(db, "receiptCashier"));
       batch.set(receiptCashierRef, {
         studentId: student.studentId,
@@ -537,37 +546,6 @@ export default function Classes() {
       });
 
       await batch.commit();
-
-      setPaymentsByStudent((prev) => {
-        const next = { ...prev };
-        const existing = [...(next[student.studentId] || [])];
-        updates.forEach((u) => {
-          const idx = existing.findIndex((r) => r.monthKey === u.monthKey);
-          const record = {
-            studentId: student.studentId,
-            studentName: student.fullName,
-            className: student.className || "",
-            monthlyFee,
-            paidAmount: u.paidAmount,
-            remaining: u.remaining,
-            status: u.status,
-            monthKey: u.monthKey,
-            monthLabel: monthLabel(u.monthKey),
-            createdAt: { seconds: Math.floor(Date.now() / 1000) },
-          };
-          if (idx >= 0) existing[idx] = record;
-          else existing.push(record);
-        });
-        existing.sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
-        next[student.studentId] = existing;
-        return next;
-      });
-
-      setStudents((prev) =>
-        prev.map((s) =>
-          s.id === student.id ? { ...s, creditBalance: newCreditBalance } : s
-        )
-      );
 
       setAmounts((prev) => ({ ...prev, [student.id]: "" }));
       setMonthsSelected((prev) => ({ ...prev, [student.id]: "" }));
@@ -618,7 +596,7 @@ export default function Classes() {
     const targets = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
-      const paidThisMonth = fullyPaidSet.has(currentMonthKey());
+      const paidThisMonth = fullyPaidSet.has(currentMonthKey()) || s.feeType === "Paid";
       return !paidThisMonth || editingIds[s.id];
     });
 
@@ -631,9 +609,7 @@ export default function Classes() {
       setSavingAll(true);
 
       const batch = writeBatch(db);
-      const nextPaymentsByStudent = { ...paymentsByStudent };
       const newReceipts = [];
-      const creditUpdatesByStudentDocId = {};
       const reportPaidList = [];
 
       targets.forEach((student) => {
@@ -685,7 +661,12 @@ export default function Classes() {
         }, 0);
         const newCreditBalance = Math.max(cashToDistribute - totalApplied, 0);
 
-        const existing = [...(nextPaymentsByStudent[student.studentId] || [])];
+        batch.update(doc(db, "cashier", student.id), {
+          feeType: "Paid",
+          creditBalance: newCreditBalance,
+          className: student.className, // Wuxuu kaydinayaa className-ka saxda ah
+        });
+
         updates.forEach((u) => {
           const paymentDocId = `${student.studentId}_${u.monthKey}`;
           batch.set(doc(db, "payments", paymentDocId), {
@@ -711,32 +692,7 @@ export default function Classes() {
             paidAmount: u.paidAmount,
             status: u.status,
           });
-
-          const idx = existing.findIndex((r) => r.monthKey === u.monthKey);
-          const record = {
-            studentId: student.studentId,
-            studentName: student.fullName,
-            className: student.className || "",
-            monthlyFee,
-            paidAmount: u.paidAmount,
-            remaining: u.remaining,
-            status: u.status,
-            monthKey: u.monthKey,
-            monthLabel: monthLabel(u.monthKey),
-            createdAt: { seconds: Math.floor(Date.now() / 1000) },
-          };
-          if (idx >= 0) existing[idx] = record;
-          else existing.push(record);
         });
-        existing.sort((a, b) => (a.monthKey || "").localeCompare(b.monthKey || ""));
-        nextPaymentsByStudent[student.studentId] = existing;
-
-        if (newCreditBalance !== existingCredit) {
-          batch.update(doc(db, "students", student.id), {
-            creditBalance: newCreditBalance,
-          });
-          creditUpdatesByStudentDocId[student.id] = newCreditBalance;
-        }
 
         const receiptMonthLabel = (() => {
           if (updates.length === 0) return monthLabel(startKey);
@@ -786,14 +742,6 @@ export default function Classes() {
 
       await batch.commit();
 
-      setPaymentsByStudent(nextPaymentsByStudent);
-      setStudents((prev) =>
-        prev.map((s) =>
-          creditUpdatesByStudentDocId[s.id] !== undefined
-            ? { ...s, creditBalance: creditUpdatesByStudentDocId[s.id] }
-            : s
-        )
-      );
       setAmounts({});
       setMonthsSelected({});
       setEditingIds((prev) => {
@@ -958,10 +906,8 @@ export default function Classes() {
                     const fee = Number(student.monthlyFee || 0);
                     const { fullyPaidSet, partialMap, records } = getStudentMonthState(student.studentId);
                     
-                    // Hubinta bisha bixinta (Checking Next Unpaid Month)
                     const targetMonth = findNextUnpaidMonth(fullyPaidSet, registrationMonthKey(student));
-                    const isTargetMonthPaid = fullyPaidSet.has(targetMonth);
-                    const isCurrentMonthPaid = fullyPaidSet.has(currentMonthKey());
+                    const isCurrentMonthPaid = fullyPaidSet.has(currentMonthKey()) || student.feeType === "Paid";
 
                     const isEditing = !!editingIds[student.id];
                     const locked = isCurrentMonthPaid && !isEditing;
@@ -1262,7 +1208,7 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
   const creditBalance = Number(student.creditBalance || 0);
 
   const thisMonthKey = currentMonthKey();
-  const paidThisMonth = fullyPaidSet.has(thisMonthKey);
+  const paidThisMonth = fullyPaidSet.has(thisMonthKey) || student.feeType === "Paid";
   const partialThisMonth = partialMap[thisMonthKey] || 0;
   const thisMonthPaid = paidThisMonth ? fee : partialThisMonth;
   const thisMonthRemaining = Math.max(fee - thisMonthPaid, 0);
@@ -1942,7 +1888,7 @@ const profileStyles = {
     color: theme.colors.brand,
     marginBottom: 10,
   },
-  periodRow: { display: "flex", justifyConent: "space-between", alignItems: "center" },
+  periodRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
   periodLabel: { fontSize: 11.5, color: theme.colors.inkMuted },
   periodValue: {
     fontFamily: theme.font.display,

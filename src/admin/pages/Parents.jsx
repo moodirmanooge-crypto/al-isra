@@ -1,63 +1,117 @@
+// src/pages/Parents.jsx
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "../../firebase/firebase";
 import { Search, Users, User } from "lucide-react";
 
+const currentMonthKey = () => new Date().toISOString().slice(0, 7);
+
 export default function Parents() {
   const [parents, setParents] = useState([]);
-  const [payments, setPayments] = useState({});
+  const [cashierMap, setCashierMap] = useState({});
+  const [paymentsMap, setPaymentsMap] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    loadParents();
-    loadPayments();
+    setLoading(true);
+
+    // 1. Live Listener: Collection-ka "students"
+    const unsubStudents = onSnapshot(
+      collection(db, "students"),
+      (snap) => {
+        const data = snap.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          .filter((s) => !s.pendingDeletion);
+        setParents(data);
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Students Fetch Error:", err);
+        setLoading(false);
+      }
+    );
+
+    // 2. Live Listener: Collection-ka "cashier" (Fee Type, Credit, etc.)
+    const unsubCashier = onSnapshot(
+      collection(db, "cashier"),
+      (snap) => {
+        const cMap = {};
+        snap.docs.forEach((doc) => {
+          const data = doc.data();
+          const sId = data.studentId || doc.id;
+          cMap[sId] = data;
+        });
+        setCashierMap(cMap);
+      },
+      (err) => console.error("Cashier Fetch Error:", err)
+    );
+
+    // 3. Live Listener: Collection-ka "payments" (Monthly Payments Record)
+    const unsubPayments = onSnapshot(
+      collection(db, "payments"),
+      (snap) => {
+        const pMap = {};
+        snap.docs.forEach((doc) => {
+          const data = doc.data();
+          const sId = data.studentId;
+          if (!sId) return;
+          if (!pMap[sId]) pMap[sId] = [];
+          pMap[sId].push(data);
+        });
+        setPaymentsMap(pMap);
+      },
+      (err) => console.error("Payments Fetch Error:", err)
+    );
+
+    return () => {
+      unsubStudents();
+      unsubCashier();
+      unsubPayments();
+    };
   }, []);
 
-  async function loadParents() {
-    try {
-      setLoading(true);
-      const snap = await getDocs(collection(db, "students"));
-      const data = snap.docs
-        .map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
-        .filter((s) => !s.pendingDeletion);
-      setParents(data);
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Xisaabinta Status-ka iyo Lacagaha bisha marka la eego Cashier & Payments
+  function getPaymentInfo(student) {
+    const sId = student.studentId || student.id;
+    const monthlyFee = Number(student.monthlyFee) || 0;
+    const cashierData = cashierMap[sId] || {};
+    const studentPayments = paymentsMap[sId] || [];
 
-  async function loadPayments() {
-    try {
-      const snap = await getDocs(collection(db, "cashier"));
-      const map = {};
-      snap.docs.forEach((doc) => {
-        map[doc.id] = doc.data();
-      });
-      setPayments(map);
-    } catch (err) {
-      console.log(err);
-    }
-  }
-
-  // Lacagaha dib ayaa loo celiyay/reset ayaa la sameeyay, markaa dhammaan ardayda waa Unpaid
-  function getPaymentInfo(studentId, monthlyFee) {
-    const fee = Number(monthlyFee) || 0;
-
-    if (fee === 0) {
-      return { paidTotal: 0, remaining: 0, status: "Full Paid" };
+    // 1. Arday Free ah
+    if (student.feeType === "Free" || cashierData.feeType === "Free") {
+      return { paidTotal: 0, remaining: 0, status: "Free" };
     }
 
-    return {
-      paidTotal: 0,
-      remaining: fee,
-      status: "Unpaid",
-    };
+    // 2. Eeg lacagaha bishan (Current Month Key)
+    const thisMonthKey = currentMonthKey();
+    const thisMonthPayment = studentPayments.find((p) => p.monthKey === thisMonthKey);
+
+    let paidTotal = 0;
+    let remaining = monthlyFee;
+
+    if (thisMonthPayment) {
+      paidTotal = Number(thisMonthPayment.paidAmount) || 0;
+      remaining = Number(thisMonthPayment.remaining) ?? Math.max(monthlyFee - paidTotal, 0);
+    }
+
+    // Status-ka laga soo akhrinayo Cashier ama la xisaabiyay
+    let status = cashierData.feeType || "Unpaid";
+
+    if (thisMonthPayment?.status === "Paid" || status === "Paid") {
+      status = "Paid";
+      paidTotal = monthlyFee;
+      remaining = 0;
+    } else if (paidTotal > 0 && remaining > 0) {
+      status = "Partial";
+    } else {
+      status = "Unpaid";
+    }
+
+    return { paidTotal, remaining, status };
   }
 
   const filtered = useMemo(() => {
@@ -73,8 +127,10 @@ export default function Parents() {
   }, [parents, search]);
 
   const statusStyle = (status) => {
-    if (status === "Full Paid")
+    if (status === "Paid" || status === "Full Paid")
       return { color: "#4ade80", background: "rgba(34,197,94,0.1)", border: "rgba(34,197,94,0.35)" };
+    if (status === "Free")
+      return { color: "#60a5fa", background: "rgba(96,165,250,0.1)", border: "rgba(96,165,250,0.35)" };
     if (status === "Partial")
       return { color: "#f59e0b", background: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.35)" };
     return { color: "#f87171", background: "rgba(239,68,68,0.1)", border: "rgba(239,68,68,0.35)" };
@@ -130,10 +186,7 @@ export default function Parents() {
               </tr>
             ) : (
               filtered.map((item) => {
-                const { paidTotal, remaining, status } = getPaymentInfo(
-                  item.studentId,
-                  item.monthlyFee
-                );
+                const { paidTotal, remaining, status } = getPaymentInfo(item);
                 const st = statusStyle(status);
 
                 return (
@@ -170,11 +223,11 @@ export default function Parents() {
                     </td>
                     <td style={td}>{item.studentId}</td>
                     <td style={{ ...td, color: "#fff", fontWeight: 600 }}>{item.fullName}</td>
-                    <td style={td}>{item.className}</td>
+                    <td style={td}>{item.className || "—"}</td>
                     <td style={td}>${item.monthlyFee || 0}</td>
-                    <td style={td}>{item.parentPhone}</td>
-                    <td style={td}>{item.studentPhone}</td>
-                    <td style={td}>{item.parentPassword}</td>
+                    <td style={td}>{item.parentPhone || "—"}</td>
+                    <td style={td}>{item.studentPhone || "—"}</td>
+                    <td style={td}>{item.parentPassword || "—"}</td>
                     <td style={{ ...td, color: "#4ade80" }}>${paidTotal}</td>
                     <td style={{ ...td, color: remaining > 0 ? "#f87171" : "#8b87ad" }}>
                       ${remaining}
