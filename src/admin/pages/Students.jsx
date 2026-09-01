@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { db, storage } from "../../firebase/firebase";
 import {
@@ -9,6 +9,8 @@ import {
   deleteDoc,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import jsPDF from "jspdf";
+import * as XLSX from "xlsx";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import {
@@ -32,9 +34,23 @@ import {
   Lock,
   Camera,
   Hash,
+  Receipt,
+  IdCard,
+  Download,
+  FileSpreadsheet,
 } from "lucide-react";
 
 const classOptions = ["Fasalka 1aad", "Fasalka 2aad", "Fasalka 3aad",  "PP", "PI", "G8 A", "G8 B", "F1", "F2", "F3", "F4"];
+
+// ✅ Doorashada nooca fee-ga gaarka ah — isla mid AddStudent.jsx
+// isticmaalo (Registration / Roll Number / Examination), si edit-ka
+// halkan uu isla wada aqriyo/kaydiyo qaab-dhismeedka fee-ga oo dhan.
+const feeCategoryOptions = [
+  { value: "", label: "Select Fee Category" },
+  { value: "Registration Fees", label: "Registration Fees" },
+  { value: "Roll Number Fees", label: "Roll Number Fees" },
+  { value: "Examination Fees", label: "Examination Fees" },
+];
 
 // Different registration flows over time have saved the photo URL under
 // slightly different field names (studentPhoto is current, but photoUrl
@@ -47,6 +63,144 @@ function getStudentPhotoUrl(student) {
   return typeof raw === "string" ? raw.trim() : "";
 }
 
+// ✅ Ka soo qaad qiimaha Fee Category-ga gaarka ah ee ardaygan (kaliya
+// mid ka mid ah saddexda ayaa mar walba wax ku jira — labada kale waa
+// "0"), si loo helo Fee Category + qiimihiisa isla habka AddStudent.jsx.
+function getFeeCategoryAmount(student) {
+  if (student.feeCategory === "Registration Fees") return student.registrationFees || "";
+  if (student.feeCategory === "Roll Number Fees") return student.rollNumberFees || "";
+  if (student.feeCategory === "Examination Fees") return student.examinationFees || "";
+  return "";
+}
+
+// ✅ Firestore Timestamp (seconds) ama Date ama string — dhammaantood
+// si isku mid ah loo tuso taariikh akhriyi karta bini'aadam.
+function formatCreatedAt(createdAt) {
+  if (!createdAt) return "—";
+  let d;
+  if (typeof createdAt?.toDate === "function") d = createdAt.toDate();
+  else if (createdAt?.seconds) d = new Date(createdAt.seconds * 1000);
+  else d = new Date(createdAt);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
+// ✅ Soo deji sawirka sida data URL (base64) si loogu daro PDF-ka —
+// haddii uu ku guuldareysto (CORS, sawir maqan, iwm) waxaan iska
+// dhaafnaa oo PDF-ka waxaan ku dhisnaa xogta qoraalka ah oo kaliya.
+async function fetchImageAsDataUrl(url) {
+  const response = await fetch(url);
+  const blob = await response.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// ✅ "Download PDF" — samee hal warqad PDF ah oo ka kooban dhammaan
+// xogta ardaygan sida uu ku diiwaan gashan yahay (Full Name, Mother
+// Name, Class, Fee Type, Fee Category + qiimihiisa, taleefanada,
+// degmada, iwm), kadibna si toos ah u soo deji faylka.
+async function exportStudentPdf(student) {
+  try {
+    const pdf = new jsPDF();
+
+    pdf.setFontSize(18);
+    pdf.setFont(undefined, "bold");
+    pdf.text("Student Registration Record", 105, 18, { align: "center" });
+    pdf.setFont(undefined, "normal");
+    pdf.setDrawColor(150, 150, 150);
+    pdf.line(14, 24, 196, 24);
+
+    let photoBottomY = 24;
+    const photoUrl = getStudentPhotoUrl(student);
+    if (photoUrl) {
+      try {
+        const imgData = await fetchImageAsDataUrl(photoUrl);
+        pdf.addImage(imgData, "JPEG", 152, 30, 40, 40);
+        photoBottomY = 74;
+      } catch (imgErr) {
+        console.log("Sawirka lama soo gelin PDF-ka:", imgErr);
+      }
+    }
+
+    const feeCategoryAmount = getFeeCategoryAmount(student);
+
+    const rows = [
+      ["Student ID", student.studentId || "—"],
+      ["Full Name", student.fullName || "—"],
+      ["Mother Name", student.motherName || "—"],
+      ["Class", student.className || "—"],
+      ["Shift", student.shift || "—"],
+      ["Fee Type", student.feeType || "—"],
+      ["Monthly Fee", `$${student.monthlyFee || "0"}`],
+      ["Fee Category", student.feeCategory || "—"],
+      [
+        "Fee Category Amount",
+        feeCategoryAmount ? `$${feeCategoryAmount}` : "—",
+      ],
+      ["Parent Phone", student.parentPhone || "—"],
+      ["Student Phone", student.studentPhone || "—"],
+      ["District", student.district || "—"],
+      ["Previous School", student.previousSchool || "—"],
+      ["Orphan Status", student.orphanStatus || "No"],
+      ["Parent Password", student.parentPassword || "—"],
+      ["Registered On", formatCreatedAt(student.createdAt)],
+    ];
+
+    let y = Math.max(36, photoBottomY - 12);
+    pdf.setFontSize(11);
+    rows.forEach(([label, value]) => {
+      if (y > 280) {
+        pdf.addPage();
+        y = 20;
+      }
+      pdf.setFont(undefined, "bold");
+      pdf.text(`${label}:`, 14, y);
+      pdf.setFont(undefined, "normal");
+      pdf.text(String(value), 70, y);
+      y += 9;
+    });
+
+    const fileSafeName = (student.fullName || "student").trim().replace(/\s+/g, "_");
+    pdf.save(`${fileSafeName}_${student.studentId || ""}.pdf`);
+  } catch (err) {
+    console.log(err);
+    alert("Waa la xumaaday soo saarista PDF-ka. Fadlan isku day mar kale.");
+  }
+}
+
+// ✅ "Export Excel" — samee hal file Excel (.xlsx) ah oo saf u ah arday
+// kasta ee la siiyay (dhammaan ama hal Class), oo ka kooban isla xogta
+// PDF-ka arday-gaarka ah isticmaalo, kadibna si toos ah u soo deji.
+function exportStudentsToExcel(studentsList, fileName) {
+  const rows = studentsList.map((s) => ({
+    "Student ID": s.studentId || "",
+    "Full Name": s.fullName || "",
+    "Mother Name": s.motherName || "",
+    "Class": s.className || "",
+    "Shift": s.shift || "",
+    "Fee Type": s.feeType || "",
+    "Monthly Fee": s.monthlyFee || "0",
+    "Fee Category": s.feeCategory || "",
+    "Fee Category Amount": getFeeCategoryAmount(s) || "",
+    "Parent Phone": s.parentPhone || "",
+    "Student Phone": s.studentPhone || "",
+    "District": s.district || "",
+    "Previous School": s.previousSchool || "",
+    "Orphan Status": s.orphanStatus || "No",
+    "Parent Password": s.parentPassword || "",
+    "Registered On": formatCreatedAt(s.createdAt),
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(rows);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+  XLSX.writeFile(workbook, fileName);
+}
+
 export default function Students() {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +211,11 @@ export default function Students() {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [exportingId, setExportingId] = useState(null);
+  // ✅ "Export Excel" — dooro Class-ka la rabo in xogtiisa la dejiyo
+  // (ama "All Classes" si dhammaan ardayda loo dejiyo hal mar).
+  const [exportClassFilter, setExportClassFilter] = useState("All");
+  const [exportingExcel, setExportingExcel] = useState(false);
 
   useEffect(() => {
     fetchStudents();
@@ -89,13 +248,33 @@ export default function Students() {
     );
   });
 
+  // ✅ Liiska Class-yada dhab ahaan ku jira xogta ardayda (rasmi ah ama
+  // custom), loo isticmaalo dropdown-ka "Export Excel" — si Class kasta
+  // oo ay ardayda leeyihiin uu ka mid noqdo doorashada, xitaa haddii
+  // uusan ka mid ahayn classOptions-ka static-ka ah.
+  const availableClasses = useMemo(() => {
+    const names = new Set(
+      students
+        .filter((s) => !s.pendingDeletion)
+        .map((s) => s.className)
+        .filter(Boolean)
+    );
+    return Array.from(names).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [students]);
+
   // ---- Fur modal-ka wax-ka-bedelka ardayga ----
   function openEdit(student) {
     setSelectedStudent(student);
     setEditData({
       fullName: student.fullName || "",
       className: student.className || "",
+      feeType: student.feeType || "Free",
       monthlyFee: student.monthlyFee || "",
+      // ✅ Fee Category + qiimihiisa — soo aqriso xogtii AddStudent.jsx
+      // kaydiyay (registrationFees/rollNumberFees/examinationFees),
+      // si edit-kan uu u tuso oo la bedeli karo isla habka AddStudent.
+      feeCategory: student.feeCategory || "",
+      feeCategoryAmount: getFeeCategoryAmount(student),
       parentPhone: student.parentPhone || "",
       studentPhone: student.studentPhone || "",
       district: student.district || "",
@@ -119,6 +298,26 @@ export default function Students() {
     setEditData({ ...editData, [field]: value });
   }
 
+  // ✅ Marka Fee Type la bedelo (Free/Paid) — isla habka AddStudent.jsx:
+  // haddii "Free" la doorto, Monthly Fee waa la nadiifiyaa una noqdaa "0".
+  function handleEditFeeTypeChange(value) {
+    setEditData({
+      ...editData,
+      feeType: value,
+      monthlyFee: value === "Free" ? "0" : editData.monthlyFee,
+    });
+  }
+
+  // ✅ Marka Fee Category la bedelo — qiimihii hore ee la geliyay waa la
+  // nadiifiyaa si loo bilaabo mid cusub, isla habka AddStudent.jsx.
+  function handleEditFeeCategoryChange(value) {
+    setEditData({
+      ...editData,
+      feeCategory: value,
+      feeCategoryAmount: "",
+    });
+  }
+
   // ---- Sawirka cusub: kaydi file-ka gudaha state-ka si aan u soo
   // shubno Firebase Storage marka la kaydinayo (saveEdit), preview-ga
   // oo kaliya ayaa local ah ilaa saveEdit la riixo. ----
@@ -138,6 +337,16 @@ export default function Students() {
       alert("Fadlan dooro Class");
       return;
     }
+    if (editData.feeType === "Paid" && !String(editData.monthlyFee).trim()) {
+      alert("Fadlan geli Qiimaha Fee-ga bishii (Paid)");
+      return;
+    }
+    // ✅ Hadii Fee Category la doortay, qiimihiisa waa waajib — isla
+    // hubinta AddStudent.jsx.
+    if (editData.feeCategory && !String(editData.feeCategoryAmount).trim()) {
+      alert(`Fadlan geli qiimaha ${editData.feeCategory}`);
+      return;
+    }
 
     try {
       setSaving(true);
@@ -155,10 +364,27 @@ export default function Students() {
         photoUrl = (await getDownloadURL(photoRef)).trim();
       }
 
+      const finalMonthlyFee = editData.feeType === "Free" ? "0" : editData.monthlyFee;
+
+      // ✅ Xogta saddexda fee ee gaarka ah — waxaa la kaydiyaa keliya
+      // nooca la doortay iyo qiimihiisa (labada kale waa "0"), isla
+      // habka AddStudent.jsx.
+      const registrationFees =
+        editData.feeCategory === "Registration Fees" ? editData.feeCategoryAmount : "0";
+      const rollNumberFees =
+        editData.feeCategory === "Roll Number Fees" ? editData.feeCategoryAmount : "0";
+      const examinationFees =
+        editData.feeCategory === "Examination Fees" ? editData.feeCategoryAmount : "0";
+
       const updatedFields = {
         fullName: editData.fullName,
         className: editData.className,
-        monthlyFee: editData.monthlyFee,
+        feeType: editData.feeType,
+        monthlyFee: finalMonthlyFee,
+        feeCategory: editData.feeCategory,
+        registrationFees,
+        rollNumberFees,
+        examinationFees,
         parentPhone: editData.parentPhone,
         studentPhone: editData.studentPhone,
         district: editData.district,
@@ -214,6 +440,45 @@ export default function Students() {
     }
   }
 
+  // ---- "Download PDF" — samee warqad PDF ah oo ka kooban dhammaan
+  // xogta ardaygan, kadibna si toos ah u soo deji. ----
+  async function handleExportPdf(student) {
+    try {
+      setExportingId(student.id);
+      await exportStudentPdf(student);
+    } finally {
+      setExportingId(null);
+    }
+  }
+
+  // ---- "Export Excel" — samee hal file Excel ah oo ka kooban dhammaan
+  // ardayda (haddii "All Classes" la doortay) ama kaliya ardayda Class-ka
+  // la doortay, kadibna si toos ah u soo deji. ----
+  function handleExportExcel() {
+    const activeStudents = students.filter((s) => !s.pendingDeletion);
+    const targets =
+      exportClassFilter === "All"
+        ? activeStudents
+        : activeStudents.filter((s) => s.className === exportClassFilter);
+
+    if (targets.length === 0) {
+      alert("Ma jiraan arday xog ah oo la dejin karo doorashadan.");
+      return;
+    }
+
+    try {
+      setExportingExcel(true);
+      const fileLabel =
+        exportClassFilter === "All" ? "All_Students" : exportClassFilter.trim().replace(/\s+/g, "_");
+      exportStudentsToExcel(targets, `${fileLabel}.xlsx`);
+    } catch (err) {
+      console.log(err);
+      alert("Waa la xumaaday soo saarista Excel-ka. Fadlan isku day mar kale.");
+    } finally {
+      setExportingExcel(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "#0b0a1c" }}>
       <Sidebar />
@@ -252,6 +517,38 @@ export default function Students() {
                 style={searchInput}
               />
             </div>
+
+            {/* ✅ "Export Excel" — dooro Class (ama "All Classes"),
+                kadibna soo deji xogtooda hal file Excel ah. */}
+            <select
+              value={exportClassFilter}
+              onChange={(e) => setExportClassFilter(e.target.value)}
+              style={exportClassSelect}
+            >
+              <option value="All">All Classes</option>
+              {availableClasses.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={handleExportExcel}
+              disabled={exportingExcel}
+              style={{
+                ...excelBtn,
+                opacity: exportingExcel ? 0.7 : 1,
+                cursor: exportingExcel ? "not-allowed" : "pointer",
+              }}
+            >
+              {exportingExcel ? (
+                <Loader2 size={17} style={{ animation: "spin 1s linear infinite" }} />
+              ) : (
+                <FileSpreadsheet size={17} />
+              )}
+              {exportingExcel ? "Kaydinaya..." : "Export Excel"}
+            </button>
           </div>
 
           <div style={listCard}>
@@ -270,6 +567,7 @@ export default function Students() {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {filteredStudents.map((student) => {
                   const photoUrl = getStudentPhotoUrl(student);
+                  const isExporting = exportingId === student.id;
                   return (
                     <div key={student.id} style={studentRow}>
                       {photoUrl ? (
@@ -326,6 +624,22 @@ export default function Students() {
                       <span style={tag}>${student.monthlyFee || "0"}/bishii</span>
 
                       <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => handleExportPdf(student)}
+                          disabled={isExporting}
+                          title="Download Record (PDF)"
+                          style={{
+                            ...iconBtnExport,
+                            opacity: isExporting ? 0.6 : 1,
+                            cursor: isExporting ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {isExporting ? (
+                            <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} />
+                          ) : (
+                            <Download size={15} />
+                          )}
+                        </button>
                         <button onClick={() => openEdit(student)} style={iconBtnEdit}>
                           <Pencil size={15} />
                         </button>
@@ -425,14 +739,56 @@ export default function Students() {
                   </select>
                 </Field>
 
-                <Field icon={Wallet} label="Monthly Fee ($)">
-                  <input
+                <Field icon={Wallet} label="Fee Type">
+                  <select
                     style={input}
-                    type="number"
-                    value={editData.monthlyFee}
-                    onChange={(e) => handleEditChange("monthlyFee", e.target.value)}
-                  />
+                    value={editData.feeType}
+                    onChange={(e) => handleEditFeeTypeChange(e.target.value)}
+                  >
+                    <option value="Free">🆓 Free</option>
+                    <option value="Paid">💵 Paid</option>
+                  </select>
                 </Field>
+
+                {editData.feeType === "Paid" && (
+                  <Field icon={Wallet} label="Monthly Fee ($)">
+                    <input
+                      style={input}
+                      type="number"
+                      value={editData.monthlyFee}
+                      onChange={(e) => handleEditChange("monthlyFee", e.target.value)}
+                    />
+                  </Field>
+                )}
+
+                {/* ✅ Fee Category — isla saddexda doorasho AddStudent.jsx
+                    isticmaalo (Registration / Roll Number / Examination) */}
+                <Field icon={Receipt} label="Fee Category">
+                  <select
+                    style={input}
+                    value={editData.feeCategory}
+                    onChange={(e) => handleEditFeeCategoryChange(e.target.value)}
+                  >
+                    {feeCategoryOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                {editData.feeCategory && (
+                  <Field icon={IdCard} label={`${editData.feeCategory} ($)`}>
+                    <input
+                      style={input}
+                      type="number"
+                      value={editData.feeCategoryAmount}
+                      onChange={(e) =>
+                        handleEditChange("feeCategoryAmount", e.target.value)
+                      }
+                    />
+                  </Field>
+                )}
 
                 <Field icon={Phone} label="Parent Phone">
                   <input
@@ -566,6 +922,34 @@ const ghostBtn = {
   fontSize: 14,
 };
 
+// ✅ Dropdown-ka Class-ka loo doorto "Export Excel"
+const exportClassSelect = {
+  padding: "0 14px",
+  height: 46,
+  borderRadius: 10,
+  border: "1.5px solid rgba(139,108,245,0.3)",
+  background: "rgba(255,255,255,0.02)",
+  color: "#e5e3f7",
+  fontSize: 13.5,
+  outline: "none",
+  minWidth: 170,
+};
+
+// ✅ Button-ka "Export Excel"
+const excelBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  background: "linear-gradient(90deg,#16a34a,#22c55e)",
+  color: "#fff",
+  border: "none",
+  padding: "12px 20px",
+  borderRadius: 10,
+  fontWeight: 700,
+  fontSize: 14,
+  boxShadow: "0 8px 20px rgba(34,197,94,0.3)",
+};
+
 const searchWrap = {
   display: "flex",
   alignItems: "center",
@@ -640,6 +1024,19 @@ const iconBtnDelete = {
   alignItems: "center",
   justifyContent: "center",
   cursor: "pointer",
+};
+
+// ✅ Button-ka "Download PDF" — ku xigta Edit/Delete goobta safka ardayga
+const iconBtnExport = {
+  background: "rgba(74,222,128,0.12)",
+  border: "1px solid rgba(74,222,128,0.3)",
+  color: "#4ade80",
+  width: 32,
+  height: 32,
+  borderRadius: 8,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
 };
 
 const overlay = {

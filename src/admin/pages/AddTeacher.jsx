@@ -1,10 +1,10 @@
 // src/admin/pages/AddTeacher.jsx
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { db, storage } from "../../firebase/firebase";
 
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   GraduationCap,
@@ -29,7 +29,11 @@ const weekDays = [
   "Wednesday",
 ];
 
+// ✅ Liiska fasalada rasmiga ah (permanent) — isla midka AddStudent.jsx,
+// Classes.jsx iyo BulkRegistration.jsx isticmaalaan.
 const classOptions = ["Faslka 1aad", "Fasalka 2aad", "Fasalka 3aad", "PP", "PI", "G8 A", "G8 B", "F1", "F2", "F3", "F4"];
+
+const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 // Xiisad (session) shaqo maalinlaha ah -- waqtiga bilowga iyo dhamaadka
 const emptySession = () => ({
@@ -66,6 +70,83 @@ export default function AddTeacher() {
 
   const [classBlocks, setClassBlocks] = useState([emptyClassBlock()]);
   const [saving, setSaving] = useState(false);
+
+  // ✅ Fasalada admin-ku (ama macalinku halkan) "Create Class" ku daray —
+  // waxay ku kaydsan yihiin Firestore collection "customClasses" — isla
+  // collection-ka AddStudent.jsx isticmaalo — si dhammaan boggagga
+  // (AddStudent, AddTeacher, Classes, BulkRegistration) ay isla wada
+  // aragaan fasalada cusub, xitaa marka la dib-u-furo app-ka.
+  const [customClasses, setCustomClasses] = useState([]);
+  const [creatingClass, setCreatingClass] = useState(false);
+
+  useEffect(() => {
+    fetchCustomClasses();
+  }, []);
+
+  const fetchCustomClasses = async () => {
+    try {
+      const snap = await getDocs(collection(db, "customClasses"));
+      setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  // ✅ Liiska dhamaystiran ee dropdown-ka Class: fasalada rasmiga ah oo
+  // hore u jiray, kadibna fasalada cusub ee la sameeyay — kuwaas oo si
+  // natural/numeric ah loo kala saaray (tusaale: "F1 A" wuxuu ku
+  // dhacayaa "F1" hoostiisa, ka hor "F2"), si isla habka AddStudent.jsx
+  // isticmaalo loo helo halkanna.
+  const allClassOptions = useMemo(() => {
+    const customNames = customClasses
+      .map((c) => c.name)
+      .filter((name) => !classOptions.some((c) => normalizeClassName(c) === normalizeClassName(name)))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...classOptions, ...customNames];
+  }, [customClasses]);
+
+  // ✅ Marka "+ Create Class" la taabto: weydii magaca fasalka cusub,
+  // hubi in uusan horey u jirin (rasmi ah ama mid horey loo abuuray),
+  // kaydi Firestore (customClasses — isla collection-ka AddStudent.jsx
+  // isticmaalo), kadibna si toos ah ugu dar dropdown-ka block-kan oo
+  // dooro — isla habka AddStudent.jsx.
+  const handleCreateClass = async (blockIndex) => {
+    const raw = window.prompt("Fadlan geli magaca Class-ka cusub:");
+    if (raw === null) return; // wuu iska daayay
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      alert("Fadlan geli magac sax ah oo Class-ka cusub ah");
+      return;
+    }
+
+    const target = normalizeClassName(trimmed);
+    const alreadyExists = allClassOptions.some(
+      (c) => normalizeClassName(c) === target
+    );
+    if (alreadyExists) {
+      alert(`Class-ka "${trimmed}" horeyba u jiray. Waxaa lagu doortay.`);
+      updateClassBlock(blockIndex, "className", trimmed);
+      return;
+    }
+
+    try {
+      setCreatingClass(true);
+      const newDocRef = doc(collection(db, "customClasses"));
+      await setDoc(newDocRef, {
+        name: trimmed,
+        createdAt: new Date(),
+      });
+
+      setCustomClasses((prev) => [...prev, { id: newDocRef.id, name: trimmed }]);
+      // ✅ Isla marka la abuuro, class-ka cusub si toos ah ayaa loo doortaa
+      updateClassBlock(blockIndex, "className", trimmed);
+    } catch (err) {
+      console.log(err);
+      alert(err.message);
+    } finally {
+      setCreatingClass(false);
+    }
+  };
 
   const handlePhotoChange = (e) => {
     const file = e.target.files?.[0];
@@ -448,18 +529,37 @@ export default function AddTeacher() {
 
               <div style={twoColGrid}>
                 <Field icon={School} label="Class">
-                  <select
-                    style={input}
-                    value={block.className}
-                    onChange={(e) =>
-                      updateClassBlock(index, "className", e.target.value)
-                    }
-                  >
-                    <option value="">-- Dooro --</option>
-                    {classOptions.map((c) => (
-                      <option key={c}>{c}</option>
-                    ))}
-                  </select>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <select
+                      style={{ ...input, flex: 1 }}
+                      value={block.className}
+                      onChange={(e) =>
+                        updateClassBlock(index, "className", e.target.value)
+                      }
+                    >
+                      <option value="">-- Dooro --</option>
+                      {allClassOptions.map((c) => (
+                        <option key={c}>{c}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateClass(index)}
+                      disabled={creatingClass}
+                      title="Create Class"
+                      style={{
+                        ...createClassBtn,
+                        opacity: creatingClass ? 0.7 : 1,
+                        cursor: creatingClass ? "not-allowed" : "pointer",
+                      }}
+                    >
+                      {creatingClass ? (
+                        <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+                      ) : (
+                        <Plus size={18} />
+                      )}
+                    </button>
+                  </div>
                 </Field>
 
                 <Field icon={BookOpen} label="Maadada">
@@ -901,4 +1001,18 @@ const removePhotoBtn = {
   borderRadius: 8,
   padding: "6px 10px",
   width: "fit-content",
+};
+
+// ✅ Badhanka "+ Create Class" — ku yaal agagaarka dropdown-ka Class,
+// isla qaabka AddStudent.jsx isticmaalo.
+const createClassBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 48,
+  background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
+  color: "#fff",
+  border: "none",
+  borderRadius: 12,
+  boxShadow: "0 8px 18px rgba(109,93,240,0.3)",
 };

@@ -75,7 +75,10 @@ export default function BulkRegistration() {
   // ✅ Fasalada admin-ku "Create Class" ka daray AddStudent.jsx — waxaa
   // lagu kaydiyay Firestore collection "customClasses". Halkan ayaan ka
   // soo aqrinaynaa si dropdown-ka Class Name ee Bulk Registration uu
-  // isla wada aragaan fasalada cusub, isla habka AddStudent.jsx.
+  // isla wada aragaan fasalada cusub, isla habka AddStudent.jsx. Bogga
+  // Bulk Registration KALIYA wuu akhriyaa fasalada — ma leh gudihiisa
+  // button "Create Class" oo gaar ah (create-ku wuxuu ka dhacaa
+  // AddStudent.jsx oo kaliya).
   const [customClasses, setCustomClasses] = useState([]);
 
   useEffect(() => {
@@ -93,7 +96,7 @@ export default function BulkRegistration() {
 
   // ✅ Liiska dhamaystiran ee dropdown-ka Class Name: fasalada rasmiga
   // ah oo hore u jiray, kadibna fasalada cusub ee la sameeyay — kuwaas
-  // oo si alphabetical ah loo kala saaray, isla habka AddStudent.jsx.
+  // oo si alphabetical/numeric ah loo kala saaray, isla habka AddStudent.jsx.
   const allClassOptions = useMemo(() => {
     const customNames = customClasses
       .map((c) => c.name)
