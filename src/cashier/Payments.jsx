@@ -4,7 +4,6 @@ import {
   collection,
   getDocs,
   doc,
-  getDoc,
   setDoc,
   writeBatch,
   serverTimestamp,
@@ -33,10 +32,13 @@ export default function Payments() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState(null);
   const [receiptPayment, setReceiptPayment] = useState(null);
-  // ✅ "Save All" — kaydi lacagta dhammaan ardayda hal mar, kadibna
-  // xidh (lock) bishan si aan mid la bedeli karin ilaa 1-da bisha xigta.
+  // ✅ "Save All" — kaydi lacagta dhammaan ardayda hal mar. Bishan lama
+  // xidho (lock) — cashier-ku mar kale wuu soo noqon karaa oo Save (ama
+  // Save All) mar kale ku dhihi karaa ardayda aan weli la bixin, adigoo
+  // aaminsan in ardayda horeyba "Paid" u ah bishan (per-student check,
+  // hoos ka eeg `paidThisMonth`) ay sii xannibnaan doonaan wax-ka-bedelka
+  // — sidaas lacagtoodii horey loo kaydiyay lagama taaban doono.
   const [savingAll, setSavingAll] = useState(false);
-  const [monthLocked, setMonthLocked] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -90,13 +92,6 @@ export default function Payments() {
         }
       });
       setPayments(paymentMap);
-
-      // ✅ Hubi in bishan (currentMonthKey) la xidhay — haddii "Save All"
-      // horeyba loo isticmaalay bishan (halkan ama Classes.jsx, labaduba
-      // isla `monthLocks` collection-ka isticmaalaan), wax lama bedeli
-      // karo ilaa bisha xigta.
-      const lockSnap = await getDoc(doc(db, "monthLocks", currentMonthKey()));
-      setMonthLocked(lockSnap.exists() && lockSnap.data()?.locked === true);
     } catch (err) {
       console.log(err);
     } finally {
@@ -200,8 +195,6 @@ export default function Payments() {
   // (currentMonthKey) si aan cid mar dambe u bedeli karin ilaa 1-da
   // bisha xigta.
   const saveAll = async () => {
-    if (monthLocked) return;
-
     const monthKey = currentMonthKey();
     const targets = filtered.filter(
       (s) =>
@@ -257,27 +250,15 @@ export default function Payments() {
         };
       });
 
-      // ✅ Xidh bishan — labada bogga (Payments.jsx iyo Classes.jsx)
-      // waxay isticmaalaan isla `monthLocks` doc-ga, sidaas darteed
-      // "Save All" halkan wuxuu si toos ah u xidhayaa bogga Classes
-      // isaga oo aan la taaban faylkaas.
-      batch.set(doc(db, "monthLocks", monthKey), {
-        monthKey,
-        locked: true,
-        lockedAt: serverTimestamp(),
-        lockedBy: "cashier-payments",
-      });
-
       await batch.commit();
 
       setPayments(nextPayments);
       setAmounts({});
-      setMonthLocked(true);
 
       alert(
         `${targets.length} arday ayaa lacagtoodii bishaan (${monthLabel(
           monthKey
-        )}) la kaydiyay. Bishan lama sii bedeli karo ilaa 1-da bisha xigta.`
+        )}) la kaydiyay.`
       );
     } catch (err) {
       console.log(err);
@@ -321,13 +302,6 @@ export default function Payments() {
         📅 Collecting for: <strong>{monthLabel(currentMonthKey())}</strong>
       </div>
 
-      {monthLocked && (
-        <div style={styles.lockedBanner}>
-          🔒 Bishan ({monthLabel(currentMonthKey())}) horeyba dhammaan ardayda
-          waa loo qaaday lacagta — lama sii bedeli karo ilaa 1-da bisha xigta.
-        </div>
-      )}
-
       <div style={{ ...styles.searchRow, display: "flex", alignItems: "center", gap: 14, width: "auto" }}>
         <div style={{ position: "relative", flex: "0 0 360px" }}>
           <span style={styles.searchIcon}>🔍</span>
@@ -341,16 +315,16 @@ export default function Payments() {
 
         <button
           onClick={saveAll}
-          disabled={monthLocked || savingAll}
+          disabled={savingAll}
           style={{
             ...styles.saveAllBtn,
-            background: monthLocked ? "#DDE4E2" : theme.colors.brand,
-            color: monthLocked ? theme.colors.inkMuted : "#FFFFFF",
-            cursor: monthLocked || savingAll ? "not-allowed" : "pointer",
+            background: theme.colors.brand,
+            color: "#FFFFFF",
+            cursor: savingAll ? "not-allowed" : "pointer",
             opacity: savingAll ? 0.7 : 1,
           }}
         >
-          {monthLocked ? "🔒 Locked" : savingAll ? "Saving…" : "💾 Save All"}
+          {savingAll ? "Saving…" : "💾 Save All"}
         </button>
       </div>
 
@@ -393,11 +367,13 @@ export default function Payments() {
               {filtered.map((student, i) => {
                 const free = isFreeStudent(student);
                 const paidThisMonth = !free && isPaidThisMonth(student.studentId);
-                // ✅ "locked" waa true haddii ardaygan gaarka ah horeyba
-                // loo bixiyay BISHAN, AMA haddii "Save All" horeyba loo
-                // isticmaalay bishan (monthLocked) — labaduba waa in ay
-                // xannibaan wax-ka-bedelka.
-                const locked = paidThisMonth || monthLocked;
+                // ✅ "locked" waa true kaliya haddii ardaygan gaarka ah
+                // horeyba loo bixiyay BISHAN (paidThisMonth) — si aan
+                // lacagtiisii horey loo kaydiyay dib loogu bedeli karin.
+                // Ardayda aan weli bixin way sii furan yihiin marwalba,
+                // xitaa kadib "Save All" — cashier-ku waa soo noqon
+                // karaa oo mar kale Save/Save All ku dhihi karaa.
+                const locked = paidThisMonth;
                 const record = payments[student.studentId];
 
                 const entered = Number(amounts[student.id] || 0);
@@ -527,8 +503,6 @@ export default function Payments() {
                         >
                           {paidThisMonth
                             ? "Paid"
-                            : monthLocked
-                            ? "Locked"
                             : isSaving
                             ? "Saving…"
                             : "Save"}

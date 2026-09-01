@@ -39,6 +39,51 @@ const DEFAULT_CLASS_OPTIONS = [
 const normalizeClassName = (name) =>
   String(name || "").trim().replace(/\s+/g, " ").toLowerCase();
 
+// ---- Fasal kasta oo cusub (customClasses, tusaale "F1 A") waxaa la
+// gelinayaa isla meesha ku dhow fasalkiisa waalidka ah ee liiska
+// rasmiga ah (tusaale "F1"), halkii uu ku dambayn lahaa dhamaadka
+// liiska. Waxaan raadinayaa fasalka rasmiga ah ee magaca cusub ku
+// bilaabmo (prefix match) — mid ugu dheer (specific) ayaa la doortaa
+// haddii dhowr ay isku dhici karaan — kadibna waxaan ku darsanaa
+// isla meeshaas, si fasalada isku qoyska ah (F1, F1 A, F1 B, ...) ay
+// isku wada dhow yihiin liiska oo dhan. ----
+function buildClassOrder(defaultList, customNames) {
+  const result = [...defaultList];
+  const insertPositions = {}; // normalized base name -> meesha xiga ee lagu dari doono
+  defaultList.forEach((name, idx) => {
+    insertPositions[normalizeClassName(name)] = idx + 1;
+  });
+
+  customNames.forEach((custom) => {
+    const normCustom = normalizeClassName(custom);
+    // Haddii magacan horeyba ugu jiro liiska rasmiga ah, ha la darin mar labaad
+    if (defaultList.some((d) => normalizeClassName(d) === normCustom)) return;
+
+    let bestBase = null;
+    let bestLen = -1;
+    defaultList.forEach((base) => {
+      const normBase = normalizeClassName(base);
+      if (normCustom.startsWith(normBase) && normBase.length > bestLen) {
+        bestBase = normBase;
+        bestLen = normBase.length;
+      }
+    });
+
+    if (bestBase) {
+      const insertAt = insertPositions[bestBase];
+      result.splice(insertAt, 0, custom);
+      Object.keys(insertPositions).forEach((k) => {
+        if (insertPositions[k] >= insertAt) insertPositions[k] += 1;
+      });
+      insertPositions[bestBase] = insertAt + 1;
+    } else {
+      result.push(custom);
+    }
+  });
+
+  return result;
+}
+
 function ResponsiveStyles() {
   return (
     <style>{`
@@ -132,15 +177,11 @@ export default function Attendance() {
 
   // ✅ Liiska dhamaystiran ee fasalada la ordinaayo — kuwa rasmiga ah
   // (DEFAULT_CLASS_OPTIONS) oo la raacayo, kadibna kuwa cusub ee admin-ku
-  // ku daray "Create Class" ee aan horey ugu jirin liiska rasmiga ah.
+  // ku daray "Create Class" ee aan horey ugu jirin liiska rasmiga ah —
+  // kuwaas oo la geliyo isla meesha ku dhow fasalkooda waalidka ah
+  // (tusaale "F1 A" wuxuu ku dhawaan doonaa "F1").
   const ALL_CLASS_NAMES = useMemo(() => {
-    const extra = customClasses.filter(
-      (name) =>
-        !DEFAULT_CLASS_OPTIONS.some(
-          (c) => normalizeClassName(c) === normalizeClassName(name)
-        )
-    );
-    return [...DEFAULT_CLASS_OPTIONS, ...extra];
+    return buildClassOrder(DEFAULT_CLASS_OPTIONS, customClasses);
   }, [customClasses]);
 
   function classRank(className) {
