@@ -6,8 +6,8 @@ import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import examCardBg from "../assets/examcard.png";
 
-const SCHOOL_NAME_EN = "AL - ISRA PRIMARY & SECONDARY SCHOOL";
-const SCHOOL_NAME_AR = "مدرسة ريسن استار الأساسية والثانوية";
+const SCHOOL_NAME_EN = "AL - ISRA PRIMARY AND SECONDARY SCHOOL";
+const SCHOOL_NAME_AR = "مدرسة الإسراء الأساسية والثانوية";
 
 const CLASS_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
 function classRank(c) {
@@ -15,7 +15,6 @@ function classRank(c) {
   return i === -1 ? 999 : i;
 }
 
-// ✅ Raadinta magaca daabacaadda ah ee Exam Type-ka saxda ah
 const EXAM_TYPES = [
   { key: "monthly1", label: "Monthly 1", printLabel: "Monthly Exam Test 1" },
   { key: "midterm", label: "Mid Term", printLabel: "Midterm Exam" },
@@ -34,23 +33,24 @@ function examPrintLabel(examType) {
   return found ? found.printLabel : examType;
 }
 
-function pad4(n) {
-  return String(n).padStart(4, "0");
-}
-
 function formatDate(ts) {
   if (!ts?.seconds) return new Date().toLocaleDateString("en-GB");
   return new Date(ts.seconds * 1000).toLocaleDateString("en-GB");
 }
 
-const CARD_RATIO = 1536 / 864;
-
+// Coordinate-yada cusub ee boosaska saxda ah[cite: 5]
 const PHOTO_BOX = { left: "4.75%", top: "40.3%", width: "26.0%", height: "19.7%" };
-const ID_VALUE_BOX = { left: "4.75%", top: "65.0%", width: "26.0%" };
-const DATE_LINE = { left: "71.2%", right: "7.6%", top: "45.2%" };
-const NAME_LINE = { left: "47.9%", right: "7.1%", top: "62.9%" };
-const CLASS_LINE = { left: "17.1%", right: "63.5%", top: "72.5%" };
-const AMOUNT_LINE = { left: "70.1%", right: "7.6%", top: "72.5%" };
+const ID_VALUE_BOX = { left: "4.75%", top: "66.0%", width: "26.0%" };
+
+// Date
+const DATE_LINE = { left: "71.2%", right: "7.6%", top: "46.2%" };
+
+// Name
+const NAME_LINE = { left: "49.9%", top: "63.0%", width: "45%" };
+
+// Class & Amount - Boosaskoodii xariiqda dulkeeda si sax ah ugu aaday
+const CLASS_LINE = { left: "20.5%", top: "72.9%", width: "22%" };
+const AMOUNT_LINE = { left: "73.5%", top: "72.9%", width: "22%" };
 
 const EXAM_TYPE_MASK = { left: "30.1%", top: "34.4%", width: "39.4%", height: "4.8%" };
 const MASK_COLOR = "rgb(244,239,233)";
@@ -191,8 +191,8 @@ function FitText({ text, maxFontPx, minFontPx, style }) {
     let size = maxFontPx;
     span.style.fontSize = `${size}px`;
     let guard = 0;
-    while (span.scrollWidth > box.clientWidth && size > minFontPx && guard < 60) {
-      size -= 0.4;
+    while (span.scrollWidth > box.clientWidth && size > minFontPx && guard < 100) {
+      size -= 0.2;
       span.style.fontSize = `${size}px`;
       guard += 1;
     }
@@ -200,8 +200,8 @@ function FitText({ text, maxFontPx, minFontPx, style }) {
   }, [text, maxFontPx, minFontPx]);
 
   return (
-    <div ref={boxRef} style={{ ...style, overflow: "hidden", display: "flex" }}>
-      <span ref={spanRef} style={{ whiteSpace: "nowrap", fontSize: fontPx, fontWeight: 700 }}>
+    <div ref={boxRef} style={{ ...style, overflow: "hidden", display: "flex", alignItems: "center" }}>
+      <span ref={spanRef} style={{ whiteSpace: "nowrap", fontSize: fontPx, fontWeight: 800, color: "#0f2a4a", width: "100%", textAlign: "left" }}>
         {text}
       </span>
     </div>
@@ -300,8 +300,8 @@ function ExamCard({ card, onDelete, onPrintSingle, isPrintHidden }) {
             top: DATE_LINE.top,
             transform: "translateY(-100%)",
             textAlign: "center",
-            fontWeight: 700,
-            fontSize: "clamp(9px, 2cqw, 13px)",
+            fontWeight: 800,
+            fontSize: "clamp(10px, 2.2cqw, 14px)",
             color: "#0f2a4a",
           }}
         >
@@ -311,47 +311,45 @@ function ExamCard({ card, onDelete, onPrintSingle, isPrintHidden }) {
         {/* Name */}
         <FitText
           text={card.studentName}
-          maxFontPx={16}
+          maxFontPx={15}
           minFontPx={7}
           style={{
             position: "absolute",
             left: NAME_LINE.left,
-            right: NAME_LINE.right,
             top: NAME_LINE.top,
+            width: NAME_LINE.width,
             transform: "translateY(-100%)",
-            justifyContent: "center",
-            color: "#0f2a4a",
           }}
         />
 
-        {/* Class */}
+        {/* Class - Xariiqda Fasalka dulkeeda ugu fadhiisatay */}
         <div
           style={{
             position: "absolute",
             left: CLASS_LINE.left,
-            right: CLASS_LINE.right,
+            width: CLASS_LINE.width,
             top: CLASS_LINE.top,
             transform: "translateY(-100%)",
-            textAlign: "center",
-            fontWeight: 700,
-            fontSize: "clamp(9px, 2cqw, 13px)",
+            textAlign: "left",
+            fontWeight: 800,
+            fontSize: "clamp(10px, 2.2cqw, 14px)",
             color: "#0f2a4a",
           }}
         >
-          {card.className}
+          {card.className || "—"}
         </div>
 
-        {/* Amount */}
+        {/* Amount - Xariiqda Amount-ka dulkeeda ugu fadhiisatay */}
         <div
           style={{
             position: "absolute",
             left: AMOUNT_LINE.left,
-            right: AMOUNT_LINE.right,
+            width: AMOUNT_LINE.width,
             top: AMOUNT_LINE.top,
             transform: "translateY(-100%)",
-            textAlign: "center",
-            fontWeight: 700,
-            fontSize: "clamp(9px, 2cqw, 13px)",
+            textAlign: "left",
+            fontWeight: 800,
+            fontSize: "clamp(10px, 2.2cqw, 14px)",
             color: "#0f2a4a",
           }}
         >
@@ -391,15 +389,27 @@ export default function ExamCards() {
         getDocs(collection(db, "students")),
       ]);
 
-      const photoByStudentId = {};
+      const studentMapById = {};
       studentsSnap.docs.forEach((d) => {
         const s = d.data();
-        if (s.studentId) photoByStudentId[s.studentId] = s.studentPhoto || "";
+        if (s.studentId) {
+          studentMapById[String(s.studentId).trim()] = {
+            photo: s.studentPhoto || "",
+            className: s.className || "",
+          };
+        }
       });
 
       const data = cardsSnap.docs.map((d) => {
         const card = { id: d.id, ...d.data() };
-        return { ...card, studentPhoto: photoByStudentId[card.studentId] || "" };
+        const matchedStudent = studentMapById[String(card.studentId).trim()] || {};
+        
+        return { 
+          ...card, 
+          studentPhoto: card.studentPhoto || matchedStudent.photo || "",
+          className: card.className || matchedStudent.className || "",
+          amountPaid: card.amountPaid ?? 0
+        };
       });
       setCards(data);
     } catch (err) {
@@ -517,7 +527,7 @@ export default function ExamCards() {
 
           {loading ? (
             <div style={{ color: "#8b87ad", textAlign: "center", padding: 60 }}>
-              Xogta ayaa la soo qaadayaa...
+              Xogta ayaa la soo qaadayay...
             </div>
           ) : cards.length === 0 ? (
             <div style={{ color: "#8b87ad", textAlign: "center", padding: 60 }}>

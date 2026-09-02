@@ -27,6 +27,9 @@ import {
   IdCard,
   FileEdit,
   Plus,
+  Users,
+  Cake,
+  CalendarDays,
 } from "lucide-react";
 
 // ✅ Liiska fasalada rasmiga ah (permanent) — isla midka Classes.jsx iyo
@@ -46,8 +49,9 @@ const classOptions = [
 ];
 
 // ✅ Doorashada nooca fee-ga gaarka ah (Registration / Roll Number / Examination)
+// — WAA IKHTIYAARI (optional), waa la iska dhaafi karaa.
 const feeCategoryOptions = [
-  { value: "", label: "Select Fee Category" },
+  { value: "", label: "Select Fee Category (Optional)" },
   { value: "Registration Fees", label: "Registration Fees" },
   { value: "Roll Number Fees", label: "Roll Number Fees" },
   { value: "Examination Fees", label: "Examination Fees" },
@@ -55,15 +59,36 @@ const feeCategoryOptions = [
 
 const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
+// ✅ Xisaabinta Age-ga si sax ah — laga bilaabo Date of Birth ilaa maalinta
+// hadda, iyada oo la tixgelinayo haddii bishii/maalintii dhalashadu
+// weli aysan gaarin sanadkan (si aan Age-ku u ahaan mid khalad ah).
+function calculateAge(dateOfBirth) {
+  if (!dateOfBirth) return "";
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+  return age >= 0 ? String(age) : "";
+}
+
 export default function AddStudent() {
   const [student, setStudent] = useState({
     fullName: "",
     motherName: "", // ✅ Magaca Hooyada - field cusub
+    gender: "", // ✅ Gender - Male / Female
+    placeOfBirth: "", // ✅ Meesha uu ku dhashay
+    dateOfBirth: "", // ✅ Taariikhda dhalashada — Age waxa laga xisaabiyaa tan
+    age: "", // ✅ Si toos ah ayaa loo xisaabiyaa marka dateOfBirth la geliyo
     className: "",
     shift: "",
     feeType: "Free",
     monthlyFee: "",
-    feeCategory: "", // ✅ Doorashada: Registration / Roll Number / Examination
+    feeCategory: "", // ✅ Doorashada ikhtiyaariga ah: Registration / Roll Number / Examination
     feeCategoryAmount: "", // ✅ Qiimaha la geliyo gacanta ee doorashada la doortay
     parentPhone: "",
     studentPhone: "",
@@ -115,6 +140,18 @@ export default function AddStudent() {
       ...student,
       [e.target.name]: e.target.value,
     });
+  };
+
+  // ✅ Marka Date of Birth la beddelo, Age-ga waxa si toos ah loo
+  // xisaabiyaa oo la buuxiyaa — cashier/admin-ku Age-ga gacanta uma
+  // beddeli karo, wuxuu ahaanayaa mid la xisaabiyay oo kaliya.
+  const handleDateOfBirthChange = (e) => {
+    const value = e.target.value;
+    setStudent((prev) => ({
+      ...prev,
+      dateOfBirth: value,
+      age: calculateAge(value),
+    }));
   };
 
   const handleFeeTypeChange = (e) => {
@@ -258,6 +295,12 @@ export default function AddStudent() {
         return;
       }
 
+      // ✅ Hubinta Gender - waajib
+      if (!student.gender) {
+        alert("Fadlan dooro Gender-ka Ardayga (Male/Female)");
+        return;
+      }
+
       if (!student.className) {
         alert("Fadlan dooro Class");
         return;
@@ -268,7 +311,9 @@ export default function AddStudent() {
         return;
       }
 
-      // ✅ Hadii Fee Category la doortay, qiimihiisa waa waajib
+      // ✅ Fee Category waa IKHTIYAARI — haddii la doortay uun ayaa
+      // qiimihiisu waajib noqonaya; haddii aan la doorin waa la iska
+      // dhaafi karaa dhammaanba wax dhib ah lama helo.
       if (student.feeCategory && !String(student.feeCategoryAmount).trim()) {
         alert(`Fadlan geli qiimaha ${student.feeCategory}`);
         return;
@@ -323,8 +368,9 @@ export default function AddStudent() {
 
       const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
 
-      // ✅ Xogta saddexda fee ee gaarka ah — waxaa la kaydiyaa keliya nooca
-      // la doortay iyo qiimihiisa (labada kale waa 0 / madhan).
+      // ✅ Xogta saddexda fee ee gaarka ah (ikhtiyaari) — waxaa la
+      // kaydiyaa keliya nooca la doortay iyo qiimihiisa (labada kale
+      // waa 0 / madhan haddii aan Fee Category la doorin gabi ahaanba).
       const registrationFees =
         student.feeCategory === "Registration Fees" ? student.feeCategoryAmount : "0";
       const rollNumberFees =
@@ -332,10 +378,20 @@ export default function AddStudent() {
       const examinationFees =
         student.feeCategory === "Examination Fees" ? student.feeCategoryAmount : "0";
 
+      // ✅ Age-ga saxda ah — dib loo xisaabiyaa halkan si loo hubiyo
+      // in qiimaha la kaydinayo Firestore uu ku salaysan yahay
+      // maalinta hadda (case-ka aan cashier-ku dib u beddelin form-ka
+      // ka dib inta la geliyay dateOfBirth).
+      const finalAge = calculateAge(student.dateOfBirth);
+
       await setDoc(doc(db, "students", studentId), {
         studentId,
         fullName: student.fullName,
         motherName: student.motherName, // ✅ Magaca Hooyada oo lagu kaydiyo students
+        gender: student.gender, // ✅ Male / Female
+        placeOfBirth: student.placeOfBirth, // ✅ Meesha uu ku dhashay
+        dateOfBirth: student.dateOfBirth, // ✅ Taariikhda dhalashada
+        age: finalAge, // ✅ Age-ga la xisaabiyay oo sax ah
         className: student.className,
         shift: student.shift,
         feeType: student.feeType,
@@ -378,6 +434,10 @@ export default function AddStudent() {
         studentId,
         fullName: student.fullName,
         motherName: student.motherName, // ✅ Magaca Hooyada oo lagu daro ID Card-ka
+        gender: student.gender, // ✅ Male / Female
+        placeOfBirth: student.placeOfBirth, // ✅ Meesha uu ku dhashay
+        dateOfBirth: student.dateOfBirth, // ✅ Taariikhda dhalashada
+        age: finalAge, // ✅ Age-ga la xisaabiyay
         className: student.className,
         shift: student.shift,
         studentPhoto: photoURL,
@@ -400,6 +460,10 @@ export default function AddStudent() {
       setStudent({
         fullName: "",
         motherName: "",
+        gender: "",
+        placeOfBirth: "",
+        dateOfBirth: "",
+        age: "",
         className: "",
         shift: "",
         feeType: "Free",
@@ -502,6 +566,58 @@ export default function AddStudent() {
             />
           </Field>
 
+          {/* ✅ Field cusub: Gender — Male / Female */}
+          <Field icon={Users} label="Gender">
+            <select
+              style={input}
+              name="gender"
+              value={student.gender}
+              onChange={handleChange}
+            >
+              <option value="">Select Gender</option>
+              <option value="Male">👦 Male</option>
+              <option value="Female">👧 Female</option>
+            </select>
+          </Field>
+
+          {/* ✅ Field cusub: Place of Birth */}
+          <Field icon={MapPin} label="Place of Birth">
+            <input
+              style={input}
+              name="placeOfBirth"
+              placeholder="Tusaale: Mogadishu"
+              value={student.placeOfBirth}
+              onChange={handleChange}
+            />
+          </Field>
+
+          {/* ✅ Field cusub: Date of Birth — marka la geliyo, Age-ga
+              wuxuu si toos ah u xisaabmayaa oo ku muuqda field-ka
+              xigta ee "Age" (read-only). */}
+          <Field icon={Cake} label="Date of Birth">
+            <input
+              style={input}
+              type="date"
+              name="dateOfBirth"
+              value={student.dateOfBirth}
+              onChange={handleDateOfBirthChange}
+              max={new Date().toISOString().slice(0, 10)}
+            />
+          </Field>
+
+          {/* ✅ Field cusub: Age — si toos ah ayaa looga xisaabiyaa
+              Date of Birth, mana la beddeli karo gacanta (read-only). */}
+          <Field icon={CalendarDays} label="Age">
+            <input
+              style={{ ...input, opacity: 0.85, cursor: "not-allowed" }}
+              type="text"
+              name="age"
+              placeholder="Waxa loo buuxinayaa marka Date of Birth la geliyo"
+              value={student.age ? `${student.age} sano` : ""}
+              readOnly
+            />
+          </Field>
+
           {/* ✅ Class Name + Create Class button */}
           <Field icon={School} label="Class Name">
             <div style={{ display: "flex", gap: 10 }}>
@@ -576,8 +692,9 @@ export default function AddStudent() {
             </Field>
           )}
 
-          {/* ✅ Hal doorasho oo ka mid ah saddexda fee: Registration / Roll Number / Examination */}
-          <Field icon={Receipt} label="Fee Category">
+          {/* ✅ Hal doorasho oo ka mid ah saddexda fee: Registration / Roll Number / Examination
+              — WAA IKHTIYAARI, waa la iska dhaafi karaa. */}
+          <Field icon={Receipt} label="Fee Category (Optional)">
             <select
               style={input}
               name="feeCategory"

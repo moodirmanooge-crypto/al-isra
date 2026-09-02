@@ -26,6 +26,7 @@ import ExamTimetable from "./admin/pages/ExamTimetable";
 import Reports from "./admin/pages/Reports";
 import Settings from "./admin/pages/Settings";
 import BulkRegistration from "./admin/pages/BulkRegistration";
+import ImportStudent from "./admin/pages/ImportStudent";
 import AddTeacher from "./admin/pages/AddTeacher";
 import AddCashier from "./admin/pages/AddCashier";
 import Cashiers from "./admin/pages/Cashiers";
@@ -135,6 +136,7 @@ function App() {
         <Route path="/admin/dashboard" element={<Dashboard />} />
         <Route path="/admin/add-student" element={<AddStudent />} />
         <Route path="/admin/bulk-registration" element={<BulkRegistration />} />
+        <Route path="/admin/import-student" element={<ImportStudent />} />
         <Route path="/admin/add-teacher" element={<AddTeacher />} />
         <Route path="/admin/add-cashier" element={<AddCashier />} />
         <Route path="/admin/cashiers" element={<Cashiers />} />

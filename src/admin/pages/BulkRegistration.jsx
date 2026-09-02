@@ -36,8 +36,9 @@ const classOptions = [
 ];
 
 // ✅ Doorashada nooca fee-ga gaarka ah (Registration / Roll Number / Examination)
+// — WAA IKHTIYAARI (optional), waa la iska dhaafi karaa.
 const feeCategoryOptions = [
-  { value: "", label: "Select Fee Category" },
+  { value: "", label: "Select Fee Category (Optional)" },
   { value: "Registration Fees", label: "Registration Fees" },
   { value: "Roll Number Fees", label: "Roll Number Fees" },
   { value: "Examination Fees", label: "Examination Fees" },
@@ -45,14 +46,36 @@ const feeCategoryOptions = [
 
 const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
+// ✅ Xisaabinta Age-ga si sax ah — laga bilaabo Date of Birth ilaa maalinta
+// hadda, iyada oo la tixgelinayo haddii bishii/maalintii dhalashadu weli
+// aysan gaarin sanadkan (si aan Age-ku u ahaan mid khalad ah) — isla
+// function-ka AddStudent.jsx isticmaalo.
+function calculateAge(dateOfBirth) {
+  if (!dateOfBirth) return "";
+  const dob = new Date(dateOfBirth);
+  if (Number.isNaN(dob.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+  return age >= 0 ? String(age) : "";
+}
+
 const emptyRow = () => ({
   fullName: "",
   motherName: "", // ✅ Magaca Hooyada - field cusub
+  gender: "", // ✅ Gender - Male / Female
+  placeOfBirth: "", // ✅ Meesha uu ku dhashay
+  dateOfBirth: "", // ✅ Taariikhda dhalashada — Age waxa laga xisaabiyaa tan
+  age: "", // ✅ Si toos ah ayaa loo xisaabiyaa marka dateOfBirth la geliyo
   className: "",
   shift: "",
   feeType: "Free",
   monthlyFee: "",
-  feeCategory: "", // ✅ Doorashada: Registration / Roll Number / Examination
+  feeCategory: "", // ✅ Doorashada ikhtiyaariga ah: Registration / Roll Number / Examination
   feeCategoryAmount: "", // ✅ Qiimaha la geliyo gacanta ee doorashada la doortay
   parentPhone: "",
   studentPhone: "",
@@ -139,6 +162,15 @@ export default function BulkRegistration() {
     setStudents(data);
   };
 
+  // ✅ Marka Date of Birth la beddelo, Age-ga waxa si toos ah loo
+  // xisaabiyaa oo la buuxiyaa — isla habka AddStudent.jsx.
+  const handleDateOfBirthChange = (index, value) => {
+    const data = [...students];
+    data[index].dateOfBirth = value;
+    data[index].age = calculateAge(value);
+    setStudents(data);
+  };
+
   const handleFeeTypeChange = (index, value) => {
     const data = [...students];
     data[index].feeType = value;
@@ -221,6 +253,12 @@ export default function BulkRegistration() {
         return false;
       }
 
+      // ✅ Hubinta Gender - waajib
+      if (!s.gender) {
+        alert(`${rowLabel}: Fadlan dooro Gender-ka Ardayga (Male/Female)`);
+        return false;
+      }
+
       if (!s.className) {
         alert(`${rowLabel}: Fadlan dooro Class`);
         return false;
@@ -231,7 +269,9 @@ export default function BulkRegistration() {
         return false;
       }
 
-      // ✅ Hadii Fee Category la doortay, qiimihiisa waa waajib
+      // ✅ Fee Category waa IKHTIYAARI — haddii la doortay uun ayaa
+      // qiimihiisu waajib noqonaya; haddii aan la doorin waa la iska
+      // dhaafi karaa dhammaanba wax dhib ah lama helo.
       if (s.feeCategory && !String(s.feeCategoryAmount).trim()) {
         alert(`${rowLabel}: Fadlan geli qiimaha ${s.feeCategory}`);
         return false;
@@ -294,8 +334,9 @@ export default function BulkRegistration() {
 
         const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
 
-        // ✅ Xogta saddexda fee ee gaarka ah — waxaa la kaydiyaa keliya nooca
-        // la doortay iyo qiimihiisa (labada kale waa 0).
+        // ✅ Xogta saddexda fee ee gaarka ah (ikhtiyaari) — waxaa la
+        // kaydiyaa keliya nooca la doortay iyo qiimihiisa (labada kale
+        // waa 0 haddii aan Fee Category la doorin gabi ahaanba).
         const registrationFees =
           student.feeCategory === "Registration Fees" ? student.feeCategoryAmount : "0";
         const rollNumberFees =
@@ -303,10 +344,19 @@ export default function BulkRegistration() {
         const examinationFees =
           student.feeCategory === "Examination Fees" ? student.feeCategoryAmount : "0";
 
+        // ✅ Age-ga saxda ah — dib loo xisaabiyaa halkan si loo hubiyo
+        // in qiimaha la kaydinayo Firestore uu ku salaysan yahay
+        // maalinta hadda.
+        const finalAge = calculateAge(student.dateOfBirth);
+
         await setDoc(doc(db, "students", studentId), {
           studentId,
           fullName: student.fullName,
           motherName: student.motherName, // ✅ Magaca Hooyada oo lagu kaydiyo students
+          gender: student.gender, // ✅ Male / Female
+          placeOfBirth: student.placeOfBirth, // ✅ Meesha uu ku dhashay
+          dateOfBirth: student.dateOfBirth, // ✅ Taariikhda dhalashada
+          age: finalAge, // ✅ Age-ga la xisaabiyay oo sax ah
           className: student.className,
           shift: student.shift,
           feeType: student.feeType,
@@ -347,6 +397,10 @@ export default function BulkRegistration() {
           studentId,
           fullName: student.fullName,
           motherName: student.motherName, // ✅ Magaca Hooyada oo lagu daro ID Card-ka
+          gender: student.gender, // ✅ Male / Female
+          placeOfBirth: student.placeOfBirth, // ✅ Meesha uu ku dhashay
+          dateOfBirth: student.dateOfBirth, // ✅ Taariikhda dhalashada
+          age: finalAge, // ✅ Age-ga la xisaabiyay
           className: student.className,
           shift: student.shift,
           studentPhoto: photoURL,
@@ -430,18 +484,22 @@ export default function BulkRegistration() {
             style={{
               width: "100%",
               borderCollapse: "collapse",
-              minWidth: 1900,
+              minWidth: 2400,
             }}
           >
             <thead>
               <tr style={{ textAlign: "left", background: "rgba(139,108,245,0.08)" }}>
                 <th style={th}>Full Name</th>
                 <th style={th}>Mother Name</th>
+                <th style={th}>Gender</th>
+                <th style={th}>Place of Birth</th>
+                <th style={th}>Date of Birth</th>
+                <th style={th}>Age</th>
                 <th style={th}>Class Name</th>
                 <th style={th}>Shift</th>
                 <th style={th}>Fee Type</th>
                 <th style={th}>Monthly Fee ($)</th>
-                <th style={th}>Fee Category</th>
+                <th style={th}>Fee Category (Optional)</th>
                 <th style={th}>Fee Amount ($)</th>
                 <th style={th}>Parent Phone</th>
                 <th style={th}>Student Phone</th>
@@ -482,6 +540,59 @@ export default function BulkRegistration() {
                       onChange={(e) =>
                         handleChange(index, "motherName", e.target.value)
                       }
+                    />
+                  </td>
+
+                  {/* ✅ Column cusub: Gender */}
+                  <td style={td}>
+                    <select
+                      style={input}
+                      value={student.gender}
+                      onChange={(e) =>
+                        handleChange(index, "gender", e.target.value)
+                      }
+                    >
+                      <option value="">Select</option>
+                      <option value="Male">👦 Male</option>
+                      <option value="Female">👧 Female</option>
+                    </select>
+                  </td>
+
+                  {/* ✅ Column cusub: Place of Birth */}
+                  <td style={td}>
+                    <input
+                      style={input}
+                      placeholder="Tusaale: Mogadishu"
+                      value={student.placeOfBirth}
+                      onChange={(e) =>
+                        handleChange(index, "placeOfBirth", e.target.value)
+                      }
+                    />
+                  </td>
+
+                  {/* ✅ Column cusub: Date of Birth — marka la beddelo,
+                      Age-ga si toos ah ayuu u xisaabmayaa. */}
+                  <td style={td}>
+                    <input
+                      style={input}
+                      type="date"
+                      value={student.dateOfBirth}
+                      max={new Date().toISOString().slice(0, 10)}
+                      onChange={(e) =>
+                        handleDateOfBirthChange(index, e.target.value)
+                      }
+                    />
+                  </td>
+
+                  {/* ✅ Column cusub: Age — read-only, si toos ah ayuu
+                      uga soo baxaa Date of Birth. */}
+                  <td style={td}>
+                    <input
+                      style={{ ...input, opacity: 0.85, cursor: "not-allowed" }}
+                      type="text"
+                      placeholder="—"
+                      value={student.age ? `${student.age} sano` : ""}
+                      readOnly
                     />
                   </td>
 
@@ -545,7 +656,8 @@ export default function BulkRegistration() {
                     />
                   </td>
 
-                  {/* ✅ Doorasho hal mid ah oo ka mid ah Registration / Roll Number / Examination */}
+                  {/* ✅ Doorasho ikhtiyaari ah — hal mid ka mid ah
+                      Registration / Roll Number / Examination */}
                   <td style={td}>
                     <select
                       style={input}
