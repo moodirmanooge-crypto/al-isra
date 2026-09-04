@@ -128,6 +128,7 @@ export default function Classes() {
   const [savingId, setSavingId] = useState(null);
   const [savingAll, setSavingAll] = useState(false);
   const [resettingAll, setResettingAll] = useState(false);
+  const [resettingEntireSchool, setResettingEntireSchool] = useState(false);
   const [editingIds, setEditingIds] = useState({});
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptQueue, setReceiptQueue] = useState([]);
@@ -142,7 +143,7 @@ export default function Classes() {
     return () => clearInterval(timer);
   }, []);
 
-  // Real-time Firestore Listeners - Hubin & Ka soo qaadasho "students" collection-ka className-kiisa
+  // Real-time Firestore Listeners
   useEffect(() => {
     setLoading(true);
 
@@ -350,10 +351,11 @@ export default function Classes() {
     setEditingIds(nextEditing);
   };
 
+  // 1. Reset-gareynta Hal Fasal (Adoo tirayay Receipts-ka Admin-ka)
   async function resetClassPayments() {
     if (!selectedClass) return;
     const confirmReset = window.confirm(
-      `Ma weyddiisanaysaa in dhammaan lacagaha iyo rasiidhyada ardayda fasalka "${selectedClass}" laga dhigo Unpaid (Tir dhan)?`
+      `Ma weyddiisanaysaa in dhammaan lacagaha iyo rasiidhyada (oo uu ku jiro Admin Receipts) ardayda fasalka "${selectedClass}" laga dhigo Unpaid oo la tiro?`
     );
     if (!confirmReset) return;
 
@@ -372,15 +374,23 @@ export default function Classes() {
         });
       });
 
+      // Payments delete
       const paymentsSnap = await getDocs(
         query(collection(db, "payments"), where("className", "==", selectedClass))
       );
       paymentsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
 
+      // ReceiptCashier delete
       const receiptCashierSnap = await getDocs(
         query(collection(db, "receiptCashier"), where("className", "==", selectedClass))
       );
       receiptCashierSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+
+      // Receipts (Admin Receipts) delete - Ardayda fasalkan oo dhan
+      const adminReceiptsSnap = await getDocs(
+        query(collection(db, "receipts"), where("className", "==", selectedClass))
+      );
+      adminReceiptsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
 
       await batch.commit();
 
@@ -390,12 +400,63 @@ export default function Classes() {
       setReceiptQueue([]);
       setReceiptPayment(null);
 
-      alert(`Dhamaan xogta fasalka ${selectedClass} waa la Reset-gareeyay.`);
+      alert(`Dhamaan xogta iyo rasiidhadha fasalka ${selectedClass} waa la Reset-gareeyay.`);
     } catch (err) {
       console.error(err);
       alert("Khalad ayaa dhacay marka xogta la tirayay.");
     } finally {
       setResettingAll(false);
+    }
+  }
+
+  // 2. Reset-gareynta Dhammaan Fasalada Iskuulka (All Classes Reset)
+  async function resetAllClassesPayments() {
+    const confirmReset = window.confirm(
+      "⚠️ DHIRO: Ma ziirtaa in aad DHAMMAAN FASALLADA ISKUULKA oo dhan oo dhan aad lacagahooda Unpaid ka dhigto, tirtona DHAMMAAN Rasiidhadha Admin-ka iyo Cashier-ka?"
+    );
+    if (!confirmReset) return;
+
+    try {
+      setResettingEntireSchool(true);
+      const batch = writeBatch(db);
+
+      // 1. Cashier status update
+      const cashierSnap = await getDocs(collection(db, "cashier"));
+      cashierSnap.docs.forEach((docSnap) => {
+        batch.update(docSnap.ref, {
+          creditBalance: 0,
+          specialFeeSaved: false,
+          specialFeeAmount: 0,
+          feeType: "Unpaid",
+        });
+      });
+
+      // 2. Clear payments
+      const paymentsSnap = await getDocs(collection(db, "payments"));
+      paymentsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+
+      // 3. Clear Cashier receipts
+      const receiptCashierSnap = await getDocs(collection(db, "receiptCashier"));
+      receiptCashierSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+
+      // 4. Clear Admin receipts (Dhamaan bogga receipts ee Admin-ka)
+      const adminReceiptsSnap = await getDocs(collection(db, "receipts"));
+      adminReceiptsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+
+      await batch.commit();
+
+      setAmounts({});
+      setMonthsSelected({});
+      setEditingIds({});
+      setReceiptQueue([]);
+      setReceiptPayment(null);
+
+      alert("Dhammaan fasallada iskuulka iyo rasiidhadhka Admin-ka waa la Reset-gareeyay!");
+    } catch (err) {
+      console.error(err);
+      alert("Khalad ayaa dhacay marka dhammaan fasallada la reset-gareynayay.");
+    } finally {
+      setResettingEntireSchool(false);
     }
   }
 
@@ -508,7 +569,7 @@ export default function Classes() {
       batch.update(doc(db, "cashier", student.id), {
         feeType: "Paid",
         creditBalance: newCreditBalance,
-        className: student.className, // Wuxuu kaydinayaa className-ka saxda ah
+        className: student.className,
       });
 
       updates.forEach((u) => {
@@ -530,6 +591,7 @@ export default function Classes() {
         });
       });
 
+      // Receipt Cashier
       const receiptCashierRef = doc(collection(db, "receiptCashier"));
       batch.set(receiptCashierRef, {
         studentId: student.studentId,
@@ -542,6 +604,21 @@ export default function Classes() {
         creditBalanceAfter: newCreditBalance,
         studentPhone: student.studentPhone || "",
         parentPhone: student.parentPhone || "",
+        createdAt: serverTimestamp(),
+      });
+
+      // Receipt Admin (Laguma iloobin in laga sameeyo "receipts" collection)
+      const adminReceiptRef = doc(collection(db, "receipts"));
+      batch.set(adminReceiptRef, {
+        studentId: student.studentId,
+        studentName: student.fullName,
+        className: student.className || "",
+        schoolName: SCHOOL_NAME,
+        monthlyFee,
+        paidAmount: entered,
+        monthsCovered: updates.map((u) => u.monthKey),
+        month: updates.length > 0 ? monthLabel(updates[0].monthKey) : monthLabel(startKey),
+        creditBalanceAfter: newCreditBalance,
         createdAt: serverTimestamp(),
       });
 
@@ -664,7 +741,7 @@ export default function Classes() {
         batch.update(doc(db, "cashier", student.id), {
           feeType: "Paid",
           creditBalance: newCreditBalance,
-          className: student.className, // Wuxuu kaydinayaa className-ka saxda ah
+          className: student.className,
         });
 
         updates.forEach((u) => {
@@ -724,6 +801,7 @@ export default function Classes() {
           createdAt: { seconds: Math.floor(Date.now() / 1000) },
         });
 
+        // Cashier Receipts
         const receiptCashierRef = doc(collection(db, "receiptCashier"));
         batch.set(receiptCashierRef, {
           studentId: student.studentId,
@@ -736,6 +814,21 @@ export default function Classes() {
           creditBalanceAfter: newCreditBalance,
           studentPhone: student.studentPhone || "",
           parentPhone: student.parentPhone || "",
+          createdAt: serverTimestamp(),
+        });
+
+        // Admin Receipts
+        const adminReceiptRef = doc(collection(db, "receipts"));
+        batch.set(adminReceiptRef, {
+          studentId: student.studentId,
+          studentName: student.fullName,
+          className: student.className || "",
+          schoolName: SCHOOL_NAME,
+          monthlyFee,
+          paidAmount: entered,
+          monthsCovered: updates.map((u) => u.monthKey),
+          month: updates.length > 0 ? monthLabel(updates[0].monthKey) : monthLabel(startKey),
+          creditBalanceAfter: newCreditBalance,
           createdAt: serverTimestamp(),
         });
       });
@@ -1167,6 +1260,27 @@ export default function Classes() {
             <div>
               <h1 style={styles.title}>Classes</h1>
               <p style={styles.subtitle}>Dooro fasal si aad u aragto ardayda iyo lacagahooda</p>
+            </div>
+            {/* BATANKA CUSUB EE DHAMMAAN FASALADA UNPAID KA DHIGAAYO */}
+            <div>
+              <button
+                type="button"
+                onClick={resetAllClassesPayments}
+                disabled={resettingEntireSchool}
+                style={{
+                  ...styles.resetAllBtn,
+                  background: theme.colors.danger || "#E53E3E",
+                  color: "#FFFFFF",
+                  cursor: resettingEntireSchool ? "not-allowed" : "pointer",
+                  opacity: resettingEntireSchool ? 0.7 : 1,
+                  padding: "12px 20px",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  borderRadius: theme.radius.md,
+                }}
+              >
+                {resettingEntireSchool ? "Resetting School…" : "🔄 Reset / Unpaid All Classes"}
+              </button>
             </div>
           </header>
 
@@ -1888,7 +2002,7 @@ const profileStyles = {
     color: theme.colors.brand,
     marginBottom: 10,
   },
-  periodRow: { display: "flex", justifyContent: "space-between", alignItems: "center" },
+  periodRow: { display: "flex", justifyContext: "space-between", alignItems: "center" },
   periodLabel: { fontSize: 11.5, color: theme.colors.inkMuted },
   periodValue: {
     fontFamily: theme.font.display,
