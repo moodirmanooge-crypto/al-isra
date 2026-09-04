@@ -26,15 +26,15 @@ import {
   Loader2,
 } from "lucide-react";
 
-// ✅ Isla taxanaha maalmaha ee Timetable.jsx isticmaalo (DAYS array):
-// Saturday, Sunday, Monday, Tuesday, Wednesday — Thursday iyo Friday
-// waa la saaray si labada bogga ay isku jaan u qaadaan.
+// ✅ 7-da Maalmood ee Toddobaadka oo dhan (iyadoo lagu kordhiyay Thursday & Friday)
 const weekDays = [
   "Saturday",
   "Sunday",
   "Monday",
   "Tuesday",
   "Wednesday",
+  "Thursday",
+  "Friday",
 ];
 
 // ✅ Isla liiska fasalada rasmiga ah ee AddStudent.jsx iyo Classes.jsx

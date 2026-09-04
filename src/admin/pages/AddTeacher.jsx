@@ -21,12 +21,15 @@ import {
   Camera,
 } from "lucide-react";
 
+// ✅ 7-da Maalmood ee Toddobaadka oo dhan (iyadoo lagu kordhiyay Thursday & Friday)
 const weekDays = [
   "Saturday",
   "Sunday",
   "Monday",
   "Tuesday",
   "Wednesday",
+  "Thursday",
+  "Friday",
 ];
 
 // ✅ Liiska fasalada rasmiga ah (permanent) — isla midka AddStudent.jsx,
