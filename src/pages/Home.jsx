@@ -4,7 +4,8 @@ import logo from "../assets/logo.png";
 import galleryPhoto from "../admin/assets/student.png";
 import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
-import { collection, getCountFromServer, doc, onSnapshot } from "firebase/firestore";
+import { collection, getCountFromServer, doc, onSnapshot, setDoc } from "firebase/firestore";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "../firebase/firebase";
 import {
   Users,
@@ -24,6 +25,8 @@ import {
   MapPin,
   CheckCircle2,
   ExternalLink,
+  UploadCloud,
+  Loader2,
 } from "lucide-react";
 
 const SUPPORT_WHATSAPP = "252615860629";
@@ -164,6 +167,9 @@ export default function Home() {
   }, []);
 
   const [heroMedia, setHeroMedia] = useState(null);
+  const [heroUploading, setHeroUploading] = useState(false);
+  const [heroUploadError, setHeroUploadError] = useState("");
+  const heroFileInputRef = useRef(null);
 
   useEffect(() => {
     const unsub = onSnapshot(
@@ -176,6 +182,40 @@ export default function Home() {
     );
     return () => unsub();
   }, []);
+
+  async function handleHeroCutoutUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+
+    setHeroUploadError("");
+    setHeroUploading(true);
+
+    try {
+      // Remove the background client-side so the subject appears to
+      // stand directly on top of the hero gradient/school photo,
+      // with no white box or rectangle around it.
+      const { removeBackground } = await import("@imgly/background-removal");
+      const cutoutBlob = await removeBackground(file);
+
+      const storage = getStorage();
+      const path = `homepage/hero-cutout-${Date.now()}.png`;
+      const fileRef = storageRef(storage, path);
+      await uploadBytes(fileRef, cutoutBlob, { contentType: "image/png" });
+      const url = await getDownloadURL(fileRef);
+
+      await setDoc(
+        doc(db, "settings", "homepage"),
+        { mediaUrl: url, mediaType: "image", cutout: true, updatedAt: Date.now() },
+        { merge: true }
+      );
+    } catch (err) {
+      console.error("Failed to process/upload hero cutout image:", err);
+      setHeroUploadError("Sawirka lama gelin karin. Isku day mar kale.");
+    } finally {
+      setHeroUploading(false);
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -351,7 +391,7 @@ export default function Home() {
                 <img
                   src={heroMedia.mediaUrl}
                   alt="AL - ISRA School"
-                  className="hero-photo-box-img"
+                  className={`hero-photo-box-img ${heroMedia.cutout ? "hero-photo-box-img-cutout" : ""}`}
                 />
               )
             ) : (
@@ -362,6 +402,32 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            <input
+              ref={heroFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hero-cutout-input"
+              onChange={handleHeroCutoutUpload}
+            />
+            <button
+              type="button"
+              className="hero-cutout-upload-btn"
+              onClick={() => heroFileInputRef.current?.click()}
+              disabled={heroUploading}
+              title="Soo geli sawir (background-ka waa la saarayaa)"
+            >
+              {heroUploading ? (
+                <>
+                  <Loader2 size={15} className="hero-cutout-spin" /> Waa la geliyaa...
+                </>
+              ) : (
+                <>
+                  <UploadCloud size={15} /> Beddel sawirka
+                </>
+              )}
+            </button>
+            {heroUploadError && <span className="hero-cutout-error">{heroUploadError}</span>}
           </div>
         </div>
       </section>

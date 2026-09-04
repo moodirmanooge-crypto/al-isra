@@ -371,24 +371,44 @@
 .hero-photo-box {
   position: relative;
   z-index: 2;
-  border-radius: var(--rs-radius-lg);
-  overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-  border: 4px solid rgba(255, 255, 255, 0.1);
   aspect-ratio: 4/3;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
+/* Default (non-cutout) media still fills a soft rounded frame */
 .hero-photo-box-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
+  border-radius: var(--rs-radius-lg);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  border: 4px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Background-removed cutouts float directly over the hero banner,
+   no box, no border, no background of their own. */
+.hero-photo-box-img-cutout {
+  width: auto;
+  max-width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  border-radius: 0;
+  box-shadow: none;
+  border: none;
+  background: transparent;
+  filter: drop-shadow(0 18px 24px rgba(0, 0, 0, 0.35));
 }
 
 .hero-photo-box-placeholder {
   width: 100%;
   height: 100%;
   background: rgba(255, 255, 255, 0.05);
+  border-radius: var(--rs-radius-lg);
+  border: 4px solid rgba(255, 255, 255, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -402,6 +422,64 @@
   gap: 12px;
   color: rgba(255, 255, 255, 0.4);
   font-weight: 600;
+  text-align: center;
+}
+
+.hero-cutout-input {
+  display: none;
+}
+
+.hero-cutout-upload-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(9, 51, 37, 0.72);
+  color: var(--rs-white);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  backdrop-filter: blur(6px);
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hero-cutout-upload-btn:hover:not(:disabled) {
+  background: rgba(9, 51, 37, 0.9);
+  transform: translateY(-1px);
+}
+
+.hero-cutout-upload-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.hero-cutout-spin {
+  animation: hero-cutout-spin 0.9s linear infinite;
+}
+
+@keyframes hero-cutout-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.hero-cutout-error {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  z-index: 3;
+  background: rgba(153, 27, 27, 0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
   text-align: center;
 }
 
