@@ -147,7 +147,7 @@ const getNextReceiptNumber = async () => {
     return next;
   });
 
-  return String(nextNumber).padStart(4, "0");
+  return String(nextNumber).padStart(3, "0");
 };
 
 const saveReceiptRecord = async (receiptNo, payment, paidDate) => {
@@ -173,7 +173,7 @@ const saveReceiptRecord = async (receiptNo, payment, paidDate) => {
 };
 
 export default function ReceiptModal({ payment, onClose }) {
-  const [receiptNo, setReceiptNo] = useState(null);
+  const [receiptNo, setReceiptNo] = useState("001");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -181,6 +181,12 @@ export default function ReceiptModal({ payment, onClose }) {
 
     const prepareReceipt = async () => {
       try {
+        if (payment?.receiptNo) {
+          setReceiptNo(String(payment.receiptNo).padStart(3, "0"));
+          setLoading(false);
+          return;
+        }
+
         const no = await getNextReceiptNumber();
         if (cancelled) return;
         setReceiptNo(no);
@@ -190,7 +196,8 @@ export default function ReceiptModal({ payment, onClose }) {
           : new Date();
         await saveReceiptRecord(no, payment, paidDate);
       } catch (err) {
-        console.log(err);
+        console.error("Error generating receipt number:", err);
+        setReceiptNo("001");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -201,7 +208,7 @@ export default function ReceiptModal({ payment, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [payment]);
 
   if (!payment) return null;
 
@@ -276,7 +283,7 @@ export default function ReceiptModal({ payment, onClose }) {
                       <div className="rc-voucher-sub">(Warqadda Lacag Qabashada)</div>
                     </div>
                     <div className="rc-no">
-                      Nº &nbsp;<span className="rc-no-value">{receiptNo}</span>
+                      Nº &nbsp;<span className="rc-no-value">{receiptNo || "001"}</span>
                     </div>
                   </div>
 

@@ -18,6 +18,16 @@ const ARABIC_LOCATION = "مقديشو - الصومال";
 const SCHOOL_PHONES = "858516 / 0615860629 / 0617536460 / 0617536461";
 const SCHOOL_EMAIL = "israpp@hotmail.com";
 
+function getReceiptNoFormatted(r) {
+  if (r?.receiptNo) {
+    return String(r.receiptNo).padStart(3, "0");
+  }
+  if (r?.id && !isNaN(Number(r.id))) {
+    return String(r.id).padStart(3, "0");
+  }
+  return "001";
+}
+
 function formatDate(value) {
   if (!value) return "—";
   const d = value?.seconds ? new Date(value.seconds * 1000) : new Date(value);
@@ -147,7 +157,7 @@ export default function Receipts() {
         const at = a.createdAt?.seconds || 0;
         const bt = b.createdAt?.seconds || 0;
         if (bt !== at) return bt - at;
-        return String(b.receiptNo).localeCompare(String(a.receiptNo));
+        return String(b.receiptNo || "").localeCompare(String(a.receiptNo || ""));
       });
       setReceipts(list);
     } catch (err) {
@@ -161,8 +171,9 @@ export default function Receipts() {
     const q = query.trim().toLowerCase();
     if (!q) return receipts;
     return receipts.filter((r) => {
+      const rNo = getReceiptNoFormatted(r).toLowerCase();
       return (
-        String(r.receiptNo || "").toLowerCase().includes(q) ||
+        rNo.includes(q) ||
         String(r.studentName || "").toLowerCase().includes(q) ||
         String(r.studentId || "").toLowerCase().includes(q) ||
         String(r.className || "").toLowerCase().includes(q) ||
@@ -423,10 +434,11 @@ export default function Receipts() {
                 <tbody>
                   {filtered.map((r) => {
                     const totalPaidAmount = (Number(r.paidAmount) || 0) + (Number(r.creditAmount) || 0);
+                    const formattedNo = getReceiptNoFormatted(r);
                     return (
                       <tr key={r.id} style={{ borderTop: "1px solid #F3F4F6" }}>
                         <td style={{ padding: "10px 0", fontWeight: 700, color: "#111827" }}>
-                          {r.receiptNo}
+                          {formattedNo}
                         </td>
                         <td style={{ color: "#6B7280" }}>{r.studentId || "—"}</td>
                         <td style={{ color: "#111827", fontWeight: 600 }}>{r.studentName || "—"}</td>
@@ -528,7 +540,7 @@ export default function Receipts() {
                 <>
                   Ma hubtaa inaad tirtirto rasiidka{" "}
                   <strong style={{ color: "#111827" }}>
-                    {confirmTarget.receipt.receiptNo}
+                    {getReceiptNoFormatted(confirmTarget.receipt)}
                   </strong>
                   ? Tallaabadan lama soo celin karo.
                 </>
@@ -592,6 +604,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
   const usdAmount = (Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0) || Number(receipt.totalPaid) || Number(receipt.paidAmount) || 0;
   const amountWords = amountToWords(usdAmount);
   const monthRangeText = calculateMonthRange(receipt);
+  const formattedNo = getReceiptNoFormatted(receipt);
   const isEvc = true;
   const p = prefix;
 
@@ -630,7 +643,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
               <div className={`${p}-voucher-sub`}>(Warqadda Lacag Qabashada)</div>
             </div>
             <div className={`${p}-no`}>
-              Nº &nbsp;<span className={`${p}-no-value`}>{receipt.receiptNo}</span>
+              Nº &nbsp;<span className={`${p}-no-value`}>{formattedNo}</span>
             </div>
           </div>
 
@@ -885,6 +898,8 @@ function receiptVoucherCss(p) {
 }
 
 function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
+  const formattedNo = getReceiptNoFormatted(receipt);
+
   function handlePrint() {
     const printWin = window.open("", "_blank");
     if (!printWin) return alert("Fadlan u ogolaaw browser-ka inuu furo pop-up.");
@@ -895,7 +910,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Receipt_${receipt.receiptNo}</title>
+          <title>Receipt_${formattedNo}</title>
           <style>
             @page { size: A5 landscape; margin: 0; }
             *, *::before, *::after { box-sizing: border-box; }
@@ -929,7 +944,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
                 <div class="rvp-body">
                   <div class="rvp-voucher-row">
                     <div class="rvp-voucher-title">RECEIPT VOUCHER <div class="rvp-voucher-sub">(Warqadda Lacag Qabashada)</div></div>
-                    <div class="rvp-no">Nº &nbsp;<span class="rvp-no-value">${receipt.receiptNo}</span></div>
+                    <div class="rvp-no">Nº &nbsp;<span class="rvp-no-value">${formattedNo}</span></div>
                   </div>
                   <div class="rvp-field"><span class="rvp-label">Date:</span><span class="rvp-value">${formatDate(receipt.paidAt || receipt.createdAt)}</span></div>
                   <div class="rvp-student-id-line">
@@ -1006,7 +1021,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           }}
         >
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#111827" }}>
-            Receipt #{receipt.receiptNo}
+            Receipt #{formattedNo}
           </h2>
           <div style={{ display: "flex", gap: 10 }}>
             <button
@@ -1059,6 +1074,7 @@ function PrintAllModal({ receipts, onClose }) {
     const itemsHtml = receipts
       .map((receipt) => {
         const usdAmount = (Number(receipt.paidAmount) || 0) + (Number(receipt.creditAmount) || 0) || Number(receipt.totalPaid) || Number(receipt.paidAmount) || 0;
+        const formattedNo = getReceiptNoFormatted(receipt);
         return `
         <div class="page-break">
           <div class="rvp-frame">
@@ -1083,7 +1099,7 @@ function PrintAllModal({ receipts, onClose }) {
               <div class="rvp-body">
                 <div class="rvp-voucher-row">
                   <div class="rvp-voucher-title">RECEIPT VOUCHER <div class="rvp-voucher-sub">(Warqadda Lacag Qabashada)</div></div>
-                  <div class="rvp-no">Nº &nbsp;<span class="rvp-no-value">${receipt.receiptNo}</span></div>
+                  <div class="rvp-no">Nº &nbsp;<span class="rvp-no-value">${formattedNo}</span></div>
                 </div>
                 <div class="rvp-field"><span class="rvp-label">Date:</span><span class="rvp-value">${formatDate(receipt.paidAt || receipt.createdAt)}</span></div>
                 <div class="rvp-student-id-line">
@@ -1127,26 +1143,6 @@ function PrintAllModal({ receipts, onClose }) {
       `;
       })
       .join("");
-
-    printWin.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>All_Receipts</title>
-          <style>
-            @page { size: A5 landscape; margin: 0; }
-            *, *::before, *::after { box-sizing: border-box; }
-            html, body { width: 210mm; height: 148mm; margin: 0; padding: 0; }
-            body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; -webkit-print-color-adjust: exact; }
-            .page-break { page-break-after: always; height: 148mm; width: 210mm; box-sizing: border-box; padding: 3mm; }
-            ${receiptVoucherCss("rvp")}
-          </style>
-        </head>
-        <body>
-          ${itemsHtml}
-        </body>
-      </html>
-    `);
 
     printWin.document.close();
 
