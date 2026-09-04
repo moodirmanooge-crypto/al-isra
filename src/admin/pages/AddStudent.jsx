@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 
 // ✅ Import-ka Logo-da Iskuulka
-import schoolLogo from "./assets/logo.png";
+import schoolLogo from "../assets/logo.png";
 
 const classOptions = [
   "Fasalka 1aad",
