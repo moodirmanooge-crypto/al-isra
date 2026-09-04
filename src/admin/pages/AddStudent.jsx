@@ -25,15 +25,15 @@ import {
   Clock,
   Receipt,
   IdCard,
-  FileEdit,
   Plus,
   Users,
   Cake,
   CalendarDays,
 } from "lucide-react";
 
-// ✅ Liiska fasalada rasmiga ah (permanent) — isla midka Classes.jsx iyo
-// BulkRegistration.jsx isticmaalaan.
+// ✅ Import-ka Logo-da Iskuulka
+import schoolLogo from "./assets/logo.png";
+
 const classOptions = [
   "Fasalka 1aad",
   "Fasalka 2aad",
@@ -48,8 +48,6 @@ const classOptions = [
   "F4",
 ];
 
-// ✅ Doorashada nooca fee-ga gaarka ah (Registration / Roll Number / Examination)
-// — WAA IKHTIYAARI (optional), waa la iska dhaafi karaa.
 const feeCategoryOptions = [
   { value: "", label: "Select Fee Category (Optional)" },
   { value: "Registration Fees", label: "Registration Fees" },
@@ -59,9 +57,6 @@ const feeCategoryOptions = [
 
 const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
-// ✅ Xisaabinta Age-ga si sax ah — laga bilaabo Date of Birth ilaa maalinta
-// hadda, iyada oo la tixgelinayo haddii bishii/maalintii dhalashadu
-// weli aysan gaarin sanadkan (si aan Age-ku u ahaan mid khalad ah).
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) return "";
   const dob = new Date(dateOfBirth);
@@ -79,21 +74,21 @@ function calculateAge(dateOfBirth) {
 export default function AddStudent() {
   const [student, setStudent] = useState({
     fullName: "",
-    motherName: "", // ✅ Magaca Hooyada - field cusub
-    gender: "", // ✅ Gender - Male / Female
-    placeOfBirth: "", // ✅ Meesha uu ku dhashay
-    dateOfBirth: "", // ✅ Taariikhda dhalashada — Age waxa laga xisaabiyaa tan
-    age: "", // ✅ Si toos ah ayaa loo xisaabiyaa marka dateOfBirth la geliyo
+    motherName: "",
+    gender: "",
+    placeOfBirth: "",
+    dateOfBirth: "",
+    age: "",
     className: "",
     shift: "",
     feeType: "Free",
     monthlyFee: "",
-    feeCategory: "", // ✅ Doorashada ikhtiyaariga ah: Registration / Roll Number / Examination
-    feeCategoryAmount: "", // ✅ Qiimaha la geliyo gacanta ee doorashada la doortay
+    feeCategory: "",
+    feeCategoryAmount: "",
     parentPhone: "",
     studentPhone: "",
     district: "",
-    hasPreviousSchool: "No", // ✅ Yes/No - Previous School
+    hasPreviousSchool: "No",
     previousSchool: "",
     orphanStatus: "No",
     parentPassword: "",
@@ -102,11 +97,6 @@ export default function AddStudent() {
 
   const [photoPreview, setPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
-
-  // ✅ Fasalada admin-ku "Create Class" ku daray — waxay ku kaydsan yihiin
-  // Firestore collection "customClasses" si Classes.jsx, BulkRegistration
-  // iyo AddStudent ay isla wada aragaan fasalada cusub, xitaa marka la
-  // dib-u-furo app-ka.
   const [customClasses, setCustomClasses] = useState([]);
   const [creatingClass, setCreatingClass] = useState(false);
 
@@ -123,10 +113,6 @@ export default function AddStudent() {
     }
   };
 
-  // ✅ Liiska dhamaystiran ee dropdown-ka Class Name: fasalada rasmiga
-  // ah oo hore u jiray, kadibna fasalada cusub ee la sameeyay — kuwaas
-  // oo si alphabetical/position ah loo kala saaray si aan is-qas u
-  // dhicin.
   const allClassOptions = useMemo(() => {
     const customNames = customClasses
       .map((c) => c.name)
@@ -142,9 +128,6 @@ export default function AddStudent() {
     });
   };
 
-  // ✅ Marka Date of Birth la beddelo, Age-ga waxa si toos ah loo
-  // xisaabiyaa oo la buuxiyaa — cashier/admin-ku Age-ga gacanta uma
-  // beddeli karo, wuxuu ahaanayaa mid la xisaabiyay oo kaliya.
   const handleDateOfBirthChange = (e) => {
     const value = e.target.value;
     setStudent((prev) => ({
@@ -163,8 +146,6 @@ export default function AddStudent() {
     });
   };
 
-  // ✅ Marka la beddelo doorashada Fee Category, qiimaha hore ee la geliyay waa la nadiifiyaa
-  // si loo bilaabo mid cusub oo ku habboon doorashada cusub.
   const handleFeeCategoryChange = (e) => {
     const value = e.target.value;
     setStudent({
@@ -174,7 +155,6 @@ export default function AddStudent() {
     });
   };
 
-  // ✅ Yes/No toggle ee Previous School
   const handlePreviousSchoolToggle = (value) => {
     setStudent({
       ...student,
@@ -194,7 +174,6 @@ export default function AddStudent() {
     }
   };
 
-  // ✅ Waxaan halkan ku ogolaynaa kaliya lambar (0-9) — xarfo iyo calaamado lama ogola
   const handlePhoneChange = (e) => {
     const { name, value } = e.target;
     const digitsOnly = value.replace(/[^0-9]/g, "");
@@ -204,12 +183,9 @@ export default function AddStudent() {
     });
   };
 
-  // ✅ Marka "+ Create Class" la taabto: weydii magaca fasalka cusub,
-  // hubi in uusan horey u jirin (rasmi ah ama mid horey loo abuuray),
-  // kaydi Firestore, kadibna si toos ah ugu dar dropdown-ka oo dooro.
   const handleCreateClass = async () => {
     const raw = window.prompt("Fadlan geli magaca Class-ka cusub:");
-    if (raw === null) return; // admin-ku wuu iska daayay
+    if (raw === null) return;
     const trimmed = raw.trim();
     if (!trimmed) {
       alert("Fadlan geli magac sax ah oo Class-ka cusub ah");
@@ -235,7 +211,6 @@ export default function AddStudent() {
       });
 
       setCustomClasses((prev) => [...prev, { id: newDocRef.id, name: trimmed }]);
-      // ✅ Isla marka la abuuro, class-ka cusub si toos ah ayaa loo doortaa
       setStudent((prev) => ({ ...prev, className: trimmed }));
     } catch (err) {
       console.log(err);
@@ -245,11 +220,6 @@ export default function AddStudent() {
     }
   };
 
-  // ✅ Hubi in aan horey loo isticmaalin arday isla Full Name ah. Isku
-  // dar (normalize) magaca — trim + hal space u dhexeeya erayada + lower
-  // case — si "Aamina Abdulkadir Mohamed" iyo "aamina  abdulkadir
-  // mohamed " ay isku noqdaan, kadibna isbarbardhig magacyada ardayda
-  // horey loogu diiwaan geliyay collection-ka `students`.
   const normalizeName = (name) =>
     name.trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -289,13 +259,11 @@ export default function AddStudent() {
         return;
       }
 
-      // ✅ Hubinta Magaca Hooyada - waajib
       if (!student.motherName.trim()) {
         alert("Fadlan geli Magaca Hooyada");
         return;
       }
 
-      // ✅ Hubinta Gender - waajib
       if (!student.gender) {
         alert("Fadlan dooro Gender-ka Ardayga (Male/Female)");
         return;
@@ -311,21 +279,16 @@ export default function AddStudent() {
         return;
       }
 
-      // ✅ Fee Category waa IKHTIYAARI — haddii la doortay uun ayaa
-      // qiimihiisu waajib noqonaya; haddii aan la doorin waa la iska
-      // dhaafi karaa dhammaanba wax dhib ah lama helo.
       if (student.feeCategory && !String(student.feeCategoryAmount).trim()) {
         alert(`Fadlan geli qiimaha ${student.feeCategory}`);
         return;
       }
 
-      // ✅ Hadii Previous School la sheegay "Yes", magaca dugsiga waa waajib
       if (student.hasPreviousSchool === "Yes" && !student.previousSchool.trim()) {
         alert("Fadlan geli magaca Dugsiga Hore");
         return;
       }
 
-      // ✅ Hubinta in Parent Phone iyo Student Phone ay yihiin lambar keliya
       if (student.parentPhone && !/^\d+$/.test(student.parentPhone)) {
         alert("Parent Phone waa inuu ahaadaa lambar keliya (numbers only)");
         return;
@@ -336,12 +299,8 @@ export default function AddStudent() {
         return;
       }
 
-      // Sawirka ardayga hadda waa ikhtiyaari (optional) — lama qasbo.
-
       setSaving(true);
 
-      // ✅ Hubi in Full Name-kan horey loo isticmaalin — haddii uu jiro,
-      // jooji diiwaan gelinta gabi ahaanba, wax lagama kaydiyo.
       const duplicate = await isDuplicateFullName(student.fullName);
       if (duplicate) {
         alert(
@@ -354,9 +313,8 @@ export default function AddStudent() {
       const existingSnap = await getDocs(collection(db, "students"));
       const studentId = String(existingSnap.size + 1).padStart(4, "0");
 
-      // Sawirka waa ikhtiyaari — haddii uu la doortay wuu soo shubmayaa,
-      // haddii kalese photoURL wuxuu ahaanayaa string madhan.
-      let photoURL = "";
+      // ✅ HADII SAWIR LA CHOOSE GAREYN WAAYO, TOOS LOGO-DA ISKUULKA AYAA U QAADANAYA
+      let photoURL = schoolLogo;
       if (student.studentPhoto) {
         const photoRef = ref(
           storage,
@@ -368,9 +326,6 @@ export default function AddStudent() {
 
       const finalMonthlyFee = student.feeType === "Free" ? "0" : student.monthlyFee;
 
-      // ✅ Xogta saddexda fee ee gaarka ah (ikhtiyaari) — waxaa la
-      // kaydiyaa keliya nooca la doortay iyo qiimihiisa (labada kale
-      // waa 0 / madhan haddii aan Fee Category la doorin gabi ahaanba).
       const registrationFees =
         student.feeCategory === "Registration Fees" ? student.feeCategoryAmount : "0";
       const rollNumberFees =
@@ -378,20 +333,16 @@ export default function AddStudent() {
       const examinationFees =
         student.feeCategory === "Examination Fees" ? student.feeCategoryAmount : "0";
 
-      // ✅ Age-ga saxda ah — dib loo xisaabiyaa halkan si loo hubiyo
-      // in qiimaha la kaydinayo Firestore uu ku salaysan yahay
-      // maalinta hadda (case-ka aan cashier-ku dib u beddelin form-ka
-      // ka dib inta la geliyay dateOfBirth).
       const finalAge = calculateAge(student.dateOfBirth);
 
       await setDoc(doc(db, "students", studentId), {
         studentId,
         fullName: student.fullName,
-        motherName: student.motherName, // ✅ Magaca Hooyada oo lagu kaydiyo students
-        gender: student.gender, // ✅ Male / Female
-        placeOfBirth: student.placeOfBirth, // ✅ Meesha uu ku dhashay
-        dateOfBirth: student.dateOfBirth, // ✅ Taariikhda dhalashada
-        age: finalAge, // ✅ Age-ga la xisaabiyay oo sax ah
+        motherName: student.motherName,
+        gender: student.gender,
+        placeOfBirth: student.placeOfBirth,
+        dateOfBirth: student.dateOfBirth,
+        age: finalAge,
         className: student.className,
         shift: student.shift,
         feeType: student.feeType,
@@ -428,16 +379,14 @@ export default function AddStudent() {
         examinationFees,
       });
 
-      // ✅ Isla marka ardayga la kaydiyo, si toos ah u samee ID Card-kiisa.
-      // Waxaan halkan ku kaydinaynaa xogta ID card-ka u baahan oo kaliya.
       await setDoc(doc(db, "studentIdCards", studentId), {
         studentId,
         fullName: student.fullName,
-        motherName: student.motherName, // ✅ Magaca Hooyada oo lagu daro ID Card-ka
-        gender: student.gender, // ✅ Male / Female
-        placeOfBirth: student.placeOfBirth, // ✅ Meesha uu ku dhashay
-        dateOfBirth: student.dateOfBirth, // ✅ Taariikhda dhalashada
-        age: finalAge, // ✅ Age-ga la xisaabiyay
+        motherName: student.motherName,
+        gender: student.gender,
+        placeOfBirth: student.placeOfBirth,
+        dateOfBirth: student.dateOfBirth,
+        age: finalAge,
         className: student.className,
         shift: student.shift,
         studentPhoto: photoURL,
@@ -539,7 +488,7 @@ export default function AddStudent() {
               </span>
             </div>
             <div style={{ color: "#8b87ad", fontSize: 14, marginTop: 6 }}>
-              Riix goobta si aad sawir uga soo dooratid
+              Riix goobta si aad sawir uga soo dooratid (Hadii aad ka fasho toos waxaa loo adeegsanayaa Logo-da Iskuulka)
             </div>
           </div>
         </div>
@@ -555,7 +504,6 @@ export default function AddStudent() {
             />
           </Field>
 
-          {/* ✅ Field cusub: Magaca Hooyada */}
           <Field icon={User} label="Mother Name">
             <input
               style={input}
@@ -566,7 +514,6 @@ export default function AddStudent() {
             />
           </Field>
 
-          {/* ✅ Field cusub: Gender — Male / Female */}
           <Field icon={Users} label="Gender">
             <select
               style={input}
@@ -580,7 +527,6 @@ export default function AddStudent() {
             </select>
           </Field>
 
-          {/* ✅ Field cusub: Place of Birth */}
           <Field icon={MapPin} label="Place of Birth">
             <input
               style={input}
@@ -591,9 +537,6 @@ export default function AddStudent() {
             />
           </Field>
 
-          {/* ✅ Field cusub: Date of Birth — marka la geliyo, Age-ga
-              wuxuu si toos ah u xisaabmayaa oo ku muuqda field-ka
-              xigta ee "Age" (read-only). */}
           <Field icon={Cake} label="Date of Birth">
             <input
               style={input}
@@ -605,8 +548,6 @@ export default function AddStudent() {
             />
           </Field>
 
-          {/* ✅ Field cusub: Age — si toos ah ayaa looga xisaabiyaa
-              Date of Birth, mana la beddeli karo gacanta (read-only). */}
           <Field icon={CalendarDays} label="Age">
             <input
               style={{ ...input, opacity: 0.85, cursor: "not-allowed" }}
@@ -618,7 +559,6 @@ export default function AddStudent() {
             />
           </Field>
 
-          {/* ✅ Class Name + Create Class button */}
           <Field icon={School} label="Class Name">
             <div style={{ display: "flex", gap: 10 }}>
               <select
@@ -692,8 +632,6 @@ export default function AddStudent() {
             </Field>
           )}
 
-          {/* ✅ Hal doorasho oo ka mid ah saddexda fee: Registration / Roll Number / Examination
-              — WAA IKHTIYAARI, waa la iska dhaafi karaa. */}
           <Field icon={Receipt} label="Fee Category (Optional)">
             <select
               style={input}
@@ -709,7 +647,6 @@ export default function AddStudent() {
             </select>
           </Field>
 
-          {/* ✅ Marka doorasho la sameeyo, qiimaha waa lagu qoraa gacanta */}
           {student.feeCategory && (
             <Field icon={IdCard} label={`${student.feeCategory} ($)`}>
               <input
@@ -723,7 +660,6 @@ export default function AddStudent() {
             </Field>
           )}
 
-          {/* ✅ Parent Phone — lambar keliya ayaa la ogolaanayaa */}
           <Field icon={Phone} label="Parent Phone">
             <input
               style={input}
@@ -737,7 +673,6 @@ export default function AddStudent() {
             />
           </Field>
 
-          {/* ✅ Student Phone — lambar keliya ayaa la ogolaanayaa */}
           <Field icon={Smartphone} label="Student Phone">
             <input
               style={input}
@@ -761,7 +696,6 @@ export default function AddStudent() {
             />
           </Field>
 
-          {/* ✅ Previous School — Yes/No toggle */}
           <Field icon={BookOpen} label="Previous School">
             <div style={{ display: "flex", gap: 10 }}>
               <button
@@ -785,7 +719,6 @@ export default function AddStudent() {
             </div>
           </Field>
 
-          {/* ✅ Marka "Yes" la doorto, waxa soo baxa meel magaca dugsiga lagu qoro */}
           {student.hasPreviousSchool === "Yes" && (
             <Field icon={BookOpen} label="Magaca Dugsiga Hore">
               <input
@@ -939,7 +872,6 @@ const toggleBtnActive = {
   color: "#fff",
 };
 
-// ✅ Badhanka "+ Create Class" — ku yaal agagaarka dropdown-ka Class Name
 const createClassBtn = {
   display: "inline-flex",
   alignItems: "center",

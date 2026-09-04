@@ -1,11 +1,11 @@
 // src/pages/Home.jsx
 import "../styles/home.css";
 import logo from "../assets/logo.png";
+import heroStudents from "../assets/hero-students.jpg";
 import galleryPhoto from "../admin/assets/student.png";
 import { Link } from "react-router-dom";
 import { useState, useRef, useEffect } from "react";
-import { collection, getCountFromServer, doc, onSnapshot, setDoc } from "firebase/firestore";
-import { getStorage, ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
+import { collection, getCountFromServer } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import {
   Users,
@@ -25,8 +25,9 @@ import {
   MapPin,
   CheckCircle2,
   ExternalLink,
-  UploadCloud,
-  Loader2,
+  ChevronLeft,
+  ChevronRight,
+  Quote,
 } from "lucide-react";
 
 const SUPPORT_WHATSAPP = "252615860629";
@@ -134,6 +135,15 @@ const PORTALS = [
 
 const GALLERY_PREVIEW = [galleryPhoto, galleryPhoto, galleryPhoto, galleryPhoto, galleryPhoto];
 
+const HERO_TESTIMONIALS = [
+  {
+    quote: "Education Today, A Brighter Somalia Tomorrow",
+  },
+  {
+    quote: "Nurturing Minds, Building Futures For Every Child",
+  },
+];
+
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -166,55 +176,14 @@ export default function Home() {
     loadStats();
   }, []);
 
-  const [heroMedia, setHeroMedia] = useState(null);
-  const [heroUploading, setHeroUploading] = useState(false);
-  const [heroUploadError, setHeroUploadError] = useState("");
-  const heroFileInputRef = useRef(null);
+  const [testimonialIndex, setTestimonialIndex] = useState(0);
 
-  useEffect(() => {
-    const unsub = onSnapshot(
-      doc(db, "settings", "homepage"),
-      (snap) => {
-        const data = snap.exists() ? snap.data() : null;
-        setHeroMedia(data?.mediaUrl ? data : null);
-      },
-      (err) => console.error("Failed to load homepage media:", err)
-    );
-    return () => unsub();
-  }, []);
+  function prevTestimonial() {
+    setTestimonialIndex((i) => (i - 1 + HERO_TESTIMONIALS.length) % HERO_TESTIMONIALS.length);
+  }
 
-  async function handleHeroCutoutUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = "";
-
-    setHeroUploadError("");
-    setHeroUploading(true);
-
-    try {
-      // Remove the background client-side so the subject appears to
-      // stand directly on top of the hero gradient/school photo,
-      // with no white box or rectangle around it.
-      const { removeBackground } = await import("@imgly/background-removal");
-      const cutoutBlob = await removeBackground(file);
-
-      const storage = getStorage();
-      const path = `homepage/hero-cutout-${Date.now()}.png`;
-      const fileRef = storageRef(storage, path);
-      await uploadBytes(fileRef, cutoutBlob, { contentType: "image/png" });
-      const url = await getDownloadURL(fileRef);
-
-      await setDoc(
-        doc(db, "settings", "homepage"),
-        { mediaUrl: url, mediaType: "image", cutout: true, updatedAt: Date.now() },
-        { merge: true }
-      );
-    } catch (err) {
-      console.error("Failed to process/upload hero cutout image:", err);
-      setHeroUploadError("Sawirka lama gelin karin. Isku day mar kale.");
-    } finally {
-      setHeroUploading(false);
-    }
+  function nextTestimonial() {
+    setTestimonialIndex((i) => (i + 1) % HERO_TESTIMONIALS.length);
   }
 
   useEffect(() => {
@@ -351,7 +320,12 @@ export default function Home() {
 
       {/* ---------- Hero Banner ---------- */}
       <section className="hero-banner-section">
-        <div className="hero-banner">
+        <div
+          className="hero-banner"
+          style={{ backgroundImage: `url(${heroStudents})` }}
+        >
+          <div className="hero-banner-overlay" />
+
           <div className="hero-banner-inner">
             <div className="hero-badge">
               <Sparkles size={14} className="hero-badge-icon" />
@@ -374,66 +348,46 @@ export default function Home() {
                 Learn More <ExternalLink size={15} />
               </Link>
             </div>
+
+            <div className="hero-social-proof">
+              <div className="hero-avatars">
+                <span className="hero-avatar" />
+                <span className="hero-avatar" />
+                <span className="hero-avatar" />
+                <span className="hero-avatar" />
+              </div>
+              <div className="hero-social-proof-text">
+                <span className="hero-social-proof-title">
+                  Join {statsData.students != null ? `${statsData.students}+` : "1,000+"} Happy Students
+                </span>
+                <span className="hero-social-proof-sub">Be part of a brighter tomorrow</span>
+              </div>
+            </div>
           </div>
 
-          <div className="hero-photo-box">
-            {heroMedia?.mediaUrl ? (
-              heroMedia.mediaType === "video" ? (
-                <video
-                  src={heroMedia.mediaUrl}
-                  className="hero-photo-box-img"
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                />
-              ) : (
-                <img
-                  src={heroMedia.mediaUrl}
-                  alt="AL - ISRA School"
-                  className={`hero-photo-box-img ${heroMedia.cutout ? "hero-photo-box-img-cutout" : ""}`}
-                />
-              )
-            ) : (
-              <div className="hero-photo-box-placeholder">
-                <div className="placeholder-content">
-                  <Sparkles size={32} />
-                  <span>AL - ISRA School Media Showcase</span>
-                </div>
-              </div>
-            )}
+          <span className="hero-corner-script">
+            Better
+            <br />
+            Students
+            <br />
+            Brighter Somalia
+          </span>
 
-            <input
-              ref={heroFileInputRef}
-              type="file"
-              accept="image/*"
-              className="hero-cutout-input"
-              onChange={handleHeroCutoutUpload}
-            />
-            <button
-              type="button"
-              className="hero-cutout-upload-btn"
-              onClick={() => heroFileInputRef.current?.click()}
-              disabled={heroUploading}
-              title="Soo geli sawir (background-ka waa la saarayaa)"
-            >
-              {heroUploading ? (
-                <>
-                  <Loader2 size={15} className="hero-cutout-spin" /> Waa la geliyaa...
-                </>
-              ) : (
-                <>
-                  <UploadCloud size={15} /> Beddel sawirka
-                </>
-              )}
-            </button>
-            {heroUploadError && <span className="hero-cutout-error">{heroUploadError}</span>}
+          <div className="hero-testimonial-card">
+            <Quote size={26} className="hero-testimonial-quote-icon" />
+            <p className="hero-testimonial-text">{HERO_TESTIMONIALS[testimonialIndex].quote}</p>
+            <div className="hero-testimonial-nav">
+              <button type="button" aria-label="Previous" onClick={prevTestimonial}>
+                <ChevronLeft size={16} />
+              </button>
+              <button type="button" aria-label="Next" onClick={nextTestimonial}>
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
         </div>
-      </section>
 
-      {/* ---------- Feature Strip + Stats ---------- */}
-      <section className="feature-stats-row">
+        {/* ---------- Feature Strip ---------- */}
         <div className="feature-strip-card">
           {FEATURE_STRIP.map((f) => {
             const Icon = f.icon;
@@ -446,11 +400,37 @@ export default function Home() {
                   <span className="feature-item-label">{f.label}</span>
                   <span className="feature-item-desc">{f.desc}</span>
                 </div>
+                <ChevronRight size={18} className="feature-item-chevron" />
               </div>
             );
           })}
         </div>
 
+        {/* ---------- Inline Stats Bar ---------- */}
+        <div className="hero-stats-bar">
+          {HERO_STATS.map((s) => {
+            const Icon = s.icon;
+            return (
+              <div className="hero-stats-bar-item" key={s.label}>
+                <span className="hero-stats-bar-icon">
+                  <Icon size={20} />
+                </span>
+                <div className="hero-stats-bar-text">
+                  <span className="hero-stats-bar-value">{s.value}</span>
+                  <span className="hero-stats-bar-label">{s.label}</span>
+                </div>
+              </div>
+            );
+          })}
+          <span className="hero-stats-bar-divider">A BRIGHTER FUTURE BEGINS HERE</span>
+          <Link to="/about" className="hero-stats-bar-cta">
+            Our Achievements <ArrowRight size={15} />
+          </Link>
+        </div>
+      </section>
+
+      {/* ---------- Stats (dark card, detailed) ---------- */}
+      <section className="feature-stats-row">
         <div className="stats-dark-card">
           <div className="stats-header">
             <h3>School At A Glance</h3>
