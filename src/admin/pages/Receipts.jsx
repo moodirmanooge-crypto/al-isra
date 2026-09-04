@@ -582,7 +582,6 @@ export default function Receipts() {
   );
 }
 
-// ---- Receipt Voucher Component ----
 function ReceiptVoucherBody({ receipt, prefix }) {
   const paidDate = receipt.paidAt?.seconds
     ? new Date(receipt.paidAt.seconds * 1000)
@@ -599,17 +598,14 @@ function ReceiptVoucherBody({ receipt, prefix }) {
   return (
     <div className={`${p}-frame`}>
       <div className={`${p}-outer`}>
-        {/* Header-ka sare */}
         <div className={`${p}-header-container`}>
           <div className={`${p}-header-top`}>
-            {/* Somaliga Bidixda */}
             <div className={`${p}-header-som`}>
               <div className={`${p}-som-title`}>{SCHOOL_NAME_LINE1}</div>
               <div className={`${p}-som-title`}>{SCHOOL_NAME_LINE2}</div>
               <div className={`${p}-som-sub`}>{SCHOOL_LOCATION_SOM}</div>
             </div>
 
-            {/* Carabiga Midigta */}
             <div className={`${p}-header-ara`}>
               <div className={`${p}-ara-title`}>{ARABIC_LINE1}</div>
               <div className={`${p}-ara-title`}>{ARABIC_LINE2}</div>
@@ -617,7 +613,6 @@ function ReceiptVoucherBody({ receipt, prefix }) {
             </div>
           </div>
 
-          {/* Magaca Hoose ee Dhexe & Xiriirka */}
           <div className={`${p}-header-full-name`}>
             DUGSIGA HOOSE / DHEXE & SARE EE AL-ISRA
           </div>
@@ -690,7 +685,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
               </div>
               <div className={`${p}-field-inline`}>
                 <span className={`${p}-label`}>Tel.</span>
-                <span className={`${p}-value`}>{receipt.studentPhone || "—"}</span>
+                <span className={`${p}-value`}>{receipt.parentPhone || receipt.studentPhone || "—"}</span>
               </div>
             </div>
           </div>
@@ -712,9 +707,8 @@ function ReceiptVoucherBody({ receipt, prefix }) {
           </div>
         </div>
 
-        {/* Qaybta Hoose ee N.B. Not refundable oo la weyneeyay */}
         <div className={`${p}-footer-note`}>
-          <span className={`${p}-footer-icon`}>!</span> N.B. Not refundable.
+          <span className={`${p}-footer-icon`}>!</span> N.B. NOT REFUNDABLE.
         </div>
       </div>
     </div>
@@ -741,7 +735,6 @@ function receiptVoucherCss(p) {
       justify-content: space-between;
     }
 
-    /* Qoraallada Sare */
     .${p}-header-container {
       display: flex;
       flex-direction: column;
@@ -754,14 +747,11 @@ function receiptVoucherCss(p) {
       align-items: flex-start;
       width: 100%;
     }
-    .${p}-header-som {
-      text-align: left;
-    }
+    .${p}-header-som { text-align: left; }
     .${p}-som-title {
       font-weight: 900;
       font-size: 19px;
       color: #0b1f4d;
-      letter-spacing: 0.2px;
       line-height: 1.1;
       text-transform: uppercase;
     }
@@ -771,10 +761,7 @@ function receiptVoucherCss(p) {
       color: #1e3a8a;
       margin-top: 1px;
     }
-    .${p}-header-ara {
-      text-align: right;
-      direction: rtl;
-    }
+    .${p}-header-ara { text-align: right; direction: rtl; }
     .${p}-ara-title {
       font-weight: 900;
       font-size: 22px;
@@ -793,7 +780,6 @@ function receiptVoucherCss(p) {
       font-weight: 900;
       font-size: 15.5px;
       color: #0b1f4d;
-      letter-spacing: 0.2px;
       margin-top: 2px;
       text-transform: uppercase;
     }
@@ -875,7 +861,6 @@ function receiptVoucherCss(p) {
     .${p}-sig-img { height: 22px; object-fit: contain; margin-top: 1px; }
     .${p}-sig-line { border-bottom: 1.5px solid #0b1f4d; margin-top: 1px; }
 
-    /* N.B. NOT REFUNDABLE - WAA LA WEYNEEYAY SAX AHNA WAA LOO HABAAYAY */
     .${p}-footer-note {
       background: #0b1f4d;
       color: #fff;
@@ -892,22 +877,13 @@ function receiptVoucherCss(p) {
       flex-shrink: 0;
     }
     .${p}-footer-icon {
-      width: 15px;
-      height: 15px;
-      background: #fff;
-      color: #0b1f4d;
-      border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 900;
-      font-size: 11px;
-      flex-shrink: 0;
+      width: 15px; height: 15px; background: #fff; color: #0b1f4d;
+      border-radius: 50%; display: inline-flex; align-items: center;
+      justify-content: center; font-weight: 900; font-size: 11px; flex-shrink: 0;
     }
   `;
 }
 
-// ---- Modal: Single Receipt ----
 function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
   function handlePrint() {
     const printWin = window.open("", "_blank");
@@ -921,29 +897,11 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         <head>
           <title>Receipt_${receipt.receiptNo}</title>
           <style>
-            @page {
-              size: A5 landscape;
-              margin: 0;
-            }
-            *, *::before, *::after {
-              box-sizing: border-box;
-            }
-            html, body {
-              width: 210mm;
-              height: 148mm;
-              margin: 0;
-              padding: 0;
-            }
-            body {
-              padding: 3mm;
-              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-              -webkit-print-color-adjust: exact;
-            }
-            #print-root {
-              width: 100%;
-              height: 100%;
-              box-sizing: border-box;
-            }
+            @page { size: A5 landscape; margin: 0; }
+            *, *::before, *::after { box-sizing: border-box; }
+            html, body { width: 210mm; height: 148mm; margin: 0; padding: 0; }
+            body { padding: 3mm; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; -webkit-print-color-adjust: exact; }
+            #print-root { width: 100%; height: 100%; box-sizing: border-box; }
             ${receiptVoucherCss("rvp")}
           </style>
         </head>
@@ -995,7 +953,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
                     <div class="rvp-being-of"><span class="rvp-label">Being of: <em>(Taasoo ah)</em>:</span><span class="rvp-value">${calculateMonthRange(receipt)}</span></div>
                     <div class="rvp-side-fields">
                       <div class="rvp-field-inline"><span class="rvp-label">Class:</span><span class="rvp-value">${receipt.className || "—"}</span></div>
-                      <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.studentPhone || "—"}</span></div>
+                      <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.parentPhone || receipt.studentPhone || "—"}</span></div>
                     </div>
                   </div>
                   <div class="rvp-bottom-row">
@@ -1008,7 +966,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
                     </div>
                   </div>
                 </div>
-                <div class="rvp-footer-note"><span class="rvp-footer-icon">!</span> N.B. Not refundable.</div>
+                <div class="rvp-footer-note"><span class="rvp-footer-icon">!</span> N.B. NOT REFUNDABLE.</div>
               </div>
             </div>
           </div>
@@ -1027,41 +985,24 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
   return (
     <div
       style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0,0,0,0.55)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 2000,
-        padding: 20,
+        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center",
+        justifyContent: "center", zIndex: 2000, padding: 20,
       }}
     >
       <style>{receiptVoucherCss("rvm")}</style>
 
       <div
         style={{
-          background: "#fff",
-          borderRadius: 20,
-          width: 780,
-          maxWidth: "100%",
-          maxHeight: "90vh",
-          overflowY: "auto",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
-          display: "flex",
-          flexDirection: "column",
+          background: "#fff", borderRadius: 20, width: 780, maxWidth: "100%",
+          maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
+          display: "flex", flexDirection: "column",
         }}
       >
         <div
           style={{
-            padding: "16px 22px",
-            borderBottom: "1px solid #F3F4F6",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            padding: "16px 22px", borderBottom: "1px solid #F3F4F6",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
           }}
         >
           <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#111827" }}>
@@ -1071,17 +1012,9 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
             <button
               onClick={handlePrint}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "#16a34a",
-                color: "#fff",
-                border: "none",
-                fontWeight: 700,
-                fontSize: 12.5,
-                padding: "8px 16px",
-                borderRadius: 10,
-                cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 6, background: "#16a34a",
+                color: "#fff", border: "none", fontWeight: 700, fontSize: 12.5,
+                padding: "8px 16px", borderRadius: 10, cursor: "pointer",
               }}
             >
               <Printer size={15} /> Daabac Rasiidka
@@ -1090,17 +1023,9 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
               onClick={onDelete}
               disabled={deleting}
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                background: "#FEF2F2",
-                color: "#DC2626",
-                border: "1px solid #FCA5A5",
-                fontWeight: 700,
-                fontSize: 12.5,
-                padding: "8px 14px",
-                borderRadius: 10,
-                cursor: deleting ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", gap: 6, background: "#FEF2F2",
+                color: "#DC2626", border: "1px solid #FCA5A5", fontWeight: 700, fontSize: 12.5,
+                padding: "8px 14px", borderRadius: 10, cursor: deleting ? "not-allowed" : "pointer",
                 opacity: deleting ? 0.7 : 1,
               }}
             >
@@ -1109,14 +1034,8 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
             <button
               onClick={onClose}
               style={{
-                background: "#F3F4F6",
-                color: "#374151",
-                border: "none",
-                fontWeight: 700,
-                fontSize: 12.5,
-                padding: "8px 14px",
-                borderRadius: 10,
-                cursor: "pointer",
+                background: "#F3F4F6", color: "#374151", border: "none", fontWeight: 700,
+                fontSize: 12.5, padding: "8px 14px", borderRadius: 10, cursor: "pointer",
               }}
             >
               Xir
@@ -1132,7 +1051,6 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
   );
 }
 
-// ---- Modal: Print All Receipts ----
 function PrintAllModal({ receipts, onClose }) {
   function handlePrintAll() {
     const printWin = window.open("", "_blank");
@@ -1189,7 +1107,7 @@ function PrintAllModal({ receipts, onClose }) {
                   <div class="rvp-being-of"><span class="rvp-label">Being of: <em>(Taasoo ah)</em>:</span><span class="rvp-value">${calculateMonthRange(receipt)}</span></div>
                   <div class="rvp-side-fields">
                     <div class="rvp-field-inline"><span class="rvp-label">Class:</span><span class="rvp-value">${receipt.className || "—"}</span></div>
-                    <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.studentPhone || "—"}</span></div>
+                    <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.parentPhone || receipt.studentPhone || "—"}</span></div>
                   </div>
                 </div>
                 <div class="rvp-bottom-row">
@@ -1202,7 +1120,7 @@ function PrintAllModal({ receipts, onClose }) {
                   </div>
                 </div>
               </div>
-              <div class="rvp-footer-note"><span class="rvp-footer-icon">!</span> N.B. Not refundable.</div>
+              <div class="rvp-footer-note"><span class="rvp-footer-icon">!</span> N.B. NOT REFUNDABLE.</div>
             </div>
           </div>
         </div>
@@ -1216,30 +1134,11 @@ function PrintAllModal({ receipts, onClose }) {
         <head>
           <title>All_Receipts</title>
           <style>
-            @page {
-              size: A5 landscape;
-              margin: 0;
-            }
-            *, *::before, *::after {
-              box-sizing: border-box;
-            }
-            html, body {
-              width: 210mm;
-              height: 148mm;
-              margin: 0;
-              padding: 0;
-            }
-            body {
-              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-              -webkit-print-color-adjust: exact;
-            }
-            .page-break {
-              page-break-after: always;
-              height: 148mm;
-              width: 210mm;
-              box-sizing: border-box;
-              padding: 3mm;
-            }
+            @page { size: A5 landscape; margin: 0; }
+            *, *::before, *::after { box-sizing: border-box; }
+            html, body { width: 210mm; height: 148mm; margin: 0; padding: 0; }
+            body { font-family: 'Inter', 'Segoe UI', Arial, sans-serif; -webkit-print-color-adjust: exact; }
+            .page-break { page-break-after: always; height: 148mm; width: 210mm; box-sizing: border-box; padding: 3mm; }
             ${receiptVoucherCss("rvp")}
           </style>
         </head>
@@ -1260,27 +1159,15 @@ function PrintAllModal({ receipts, onClose }) {
   return (
     <div
       style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: "rgba(0,0,0,0.55)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 2000,
-        padding: 20,
+        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center",
+        justifyContent: "center", zIndex: 2000, padding: 20,
       }}
     >
       <div
         style={{
-          background: "#fff",
-          borderRadius: 20,
-          width: 500,
-          maxWidth: "100%",
-          padding: 24,
-          fontFamily: "'Inter','Segoe UI',sans-serif",
+          background: "#fff", borderRadius: 20, width: 500, maxWidth: "100%",
+          padding: 24, fontFamily: "'Inter','Segoe UI',sans-serif",
         }}
       >
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#111827" }}>
@@ -1295,14 +1182,8 @@ function PrintAllModal({ receipts, onClose }) {
           <button
             onClick={onClose}
             style={{
-              flex: 1,
-              padding: "10px 0",
-              borderRadius: 10,
-              border: "1px solid #E5E7EB",
-              background: "#fff",
-              color: "#374151",
-              fontWeight: 700,
-              cursor: "pointer",
+              flex: 1, padding: "10px 0", borderRadius: 10, border: "1px solid #E5E7EB",
+              background: "#fff", color: "#374151", fontWeight: 700, cursor: "pointer",
             }}
           >
             Jooji
@@ -1310,18 +1191,9 @@ function PrintAllModal({ receipts, onClose }) {
           <button
             onClick={handlePrintAll}
             style={{
-              flex: 1,
-              padding: "10px 0",
-              borderRadius: 10,
-              border: "none",
-              background: "#2563EB",
-              color: "#fff",
-              fontWeight: 700,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 8,
+              flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+              background: "#2563EB", color: "#fff", fontWeight: 700, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             }}
           >
             <Printer size={16} /> Biloow Daabacaadda
