@@ -600,6 +600,28 @@ export default function Attendance() {
     return new Set(filteredRecords.map((r) => r.teacherId || "Unknown")).size;
   }, [filteredRecords]);
 
+  const reportDateLabel = useMemo(() => {
+    const uniqueDates = Array.from(
+      new Set(filteredRecords.map((r) => r.date).filter(Boolean))
+    ).sort();
+
+    if (uniqueDates.length === 0) return "—";
+
+    const fmt = (d) => {
+      const parsed = new Date(d);
+      if (isNaN(parsed.getTime())) return d;
+      return parsed.toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    };
+
+    if (uniqueDates.length === 1) return fmt(uniqueDates[0]);
+
+    return `${fmt(uniqueDates[0])} - ${fmt(uniqueDates[uniqueDates.length - 1])}`;
+  }, [filteredRecords]);
+
   const hasUnsavedChanges = Object.keys(pendingChanges).length > 0;
 
   return (
@@ -626,7 +648,7 @@ export default function Attendance() {
             <div className="print-meta-box">
               <div><strong>Fasalka:</strong> {selectedClassFilter === "ALL" ? "Dhammaan" : formatClassName(selectedClassFilter)}</div>
               <div><strong>Macallinka:</strong> {selectedTeacherFilter === "ALL" ? "Dhammaan" : teachers[selectedTeacherFilter]?.fullName || selectedTeacherFilter}</div>
-              <div><strong>Taariikhda:</strong> {new Date().toLocaleDateString()}</div>
+              <div><strong>Taariikhda:</strong> {reportDateLabel}</div>
             </div>
           </div>
 
