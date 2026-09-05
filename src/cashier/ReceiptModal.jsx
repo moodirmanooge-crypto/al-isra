@@ -233,6 +233,125 @@ export default function ReceiptModal({ payment, onClose }) {
   const monthDescription = calculateMonthRange(payment);
   const isEvc = true;
 
+  const renderSingleReceipt = (copyTag = "") => (
+    <div className="rc-frame">
+      <div className="rc-outer">
+        <div className="rc-header-container">
+          <div className="rc-header-top">
+            <div className="rc-header-som">
+              <div className="rc-som-title">{SCHOOL_NAME_LINE1}</div>
+              <div className="rc-som-title">{SCHOOL_NAME_LINE2}</div>
+              <div className="rc-som-sub">{SCHOOL_LOCATION}</div>
+            </div>
+            <div className="rc-header-ara">
+              <div className="rc-ara-title">{ARABIC_LINE1}</div>
+              <div className="rc-ara-title">{ARABIC_LINE2}</div>
+              <div className="rc-ara-sub">{ARABIC_LOCATION}</div>
+            </div>
+          </div>
+          <div className="rc-header-full-name">
+            DUGSIGA HOOSE / DHEXE & SARE EE AL-ISRA
+          </div>
+          <div className="rc-header-contact">
+            Tel. {SCHOOL_PHONES} E-mail: {SCHOOL_EMAIL}
+          </div>
+        </div>
+
+        <div className="rc-divider" />
+
+        <div className="rc-body">
+          <div className="rc-voucher-row">
+            <div className="rc-voucher-title">
+              RECEIPT VOUCHER {copyTag && <small style={{fontSize: 10, color: '#6b7280'}}>({copyTag})</small>}
+              <div className="rc-voucher-sub">(Warqadda Lacag Qabashada)</div>
+            </div>
+            <div className="rc-no">
+              Nº &nbsp;<span className="rc-no-value">{receiptNo || "001"}</span>
+            </div>
+          </div>
+
+          <div className="rc-field">
+            <span className="rc-label">Date:</span>
+            <span className="rc-value">{dateStr}</span>
+          </div>
+
+          <div className="rc-student-id-line">
+            <span className="rc-label">Student ID:</span>
+            <span className="rc-id-inline-val">{payment.studentId || "—"}</span>
+          </div>
+
+          <div className="rc-field-block">
+            <div className="rc-field-top">
+              <span className="rc-label">Received from:</span>
+              <span className="rc-value rc-value-strong">{payment.studentName}</span>
+            </div>
+            <div className="rc-field-caption">(Laga qaday)</div>
+          </div>
+
+          <div className="rc-amount-block">
+            <div className="rc-amount-top">
+              <span className="rc-label">Amount of So Sh.</span>
+              <span className="rc-amount-box-sos">{sosAmount.toLocaleString()}</span>
+              <span className="rc-usd-group">
+                <span className="rc-usd-tag">US$</span>
+                <span className="rc-amount-box-usd">{totalPaidAmount}</span>
+              </span>
+            </div>
+            <div className="rc-field-caption">(Lacag dhan)</div>
+          </div>
+
+          <div className="rc-field">
+            <span className="rc-label">
+              In words <em>(Eray ahaan)</em>:
+            </span>
+            <span className="rc-value">{amountWords} Only</span>
+          </div>
+
+          <div className="rc-being-row">
+            <div className="rc-being-of">
+              <span className="rc-label">
+                Being of: <em>(Taasoo ah)</em>:
+              </span>
+              <span className="rc-value">{monthDescription}</span>
+            </div>
+            <div className="rc-side-fields">
+              <div className="rc-field-inline">
+                <span className="rc-label">Class:</span>
+                <span className="rc-value">{payment.className || "—"}</span>
+              </div>
+              <div className="rc-field-inline">
+                <span className="rc-label">Tel.</span>
+                <span className="rc-value">{payment.parentPhone || "—"}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rc-bottom-row">
+            <div className="rc-payment-method">
+              <span className="rc-method-tag">PAYMENT METHOD</span>
+              <span className="rc-evc-label">EVC</span>
+              <span className={`rc-evc-box ${isEvc ? "rc-evc-checked" : ""}`}>
+                {isEvc ? "✓" : ""}
+              </span>
+            </div>
+
+            <img src={schoolLogo} alt="Stamp" className="rc-stamp" />
+
+            <div className="rc-signature">
+              <div className="rc-sig-title">PRINCIPAL SIGNATURE</div>
+              <img src={principalSignature} alt="Principal Signature" className="rc-sig-img" />
+              <div className="rc-sig-line" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rc-footer-note">
+          <span className="rc-footer-icon">!</span> N.B. NOT REFUNDABLE.
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <div className="receipt-overlay">
@@ -251,121 +370,9 @@ export default function ReceiptModal({ payment, onClose }) {
               Diyaarinaya rasiidka...
             </p>
           ) : (
-            <div className="rc-frame">
-              <div className="rc-outer">
-                <div className="rc-header-container">
-                  <div className="rc-header-top">
-                    <div className="rc-header-som">
-                      <div className="rc-som-title">{SCHOOL_NAME_LINE1}</div>
-                      <div className="rc-som-title">{SCHOOL_NAME_LINE2}</div>
-                      <div className="rc-som-sub">{SCHOOL_LOCATION}</div>
-                    </div>
-                    <div className="rc-header-ara">
-                      <div className="rc-ara-title">{ARABIC_LINE1}</div>
-                      <div className="rc-ara-title">{ARABIC_LINE2}</div>
-                      <div className="rc-ara-sub">{ARABIC_LOCATION}</div>
-                    </div>
-                  </div>
-                  <div className="rc-header-full-name">
-                    DUGSIGA HOOSE / DHEXE & SARE EE AL-ISRA
-                  </div>
-                  <div className="rc-header-contact">
-                    Tel. {SCHOOL_PHONES} E-mail: {SCHOOL_EMAIL}
-                  </div>
-                </div>
-
-                <div className="rc-divider" />
-
-                <div className="rc-body">
-                  <div className="rc-voucher-row">
-                    <div className="rc-voucher-title">
-                      RECEIPT VOUCHER
-                      <div className="rc-voucher-sub">(Warqadda Lacag Qabashada)</div>
-                    </div>
-                    <div className="rc-no">
-                      Nº &nbsp;<span className="rc-no-value">{receiptNo || "001"}</span>
-                    </div>
-                  </div>
-
-                  <div className="rc-field">
-                    <span className="rc-label">Date:</span>
-                    <span className="rc-value">{dateStr}</span>
-                  </div>
-
-                  <div className="rc-student-id-line">
-                    <span className="rc-label">Student ID:</span>
-                    <span className="rc-id-inline-val">{payment.studentId || "—"}</span>
-                  </div>
-
-                  <div className="rc-field-block">
-                    <div className="rc-field-top">
-                      <span className="rc-label">Received from:</span>
-                      <span className="rc-value rc-value-strong">{payment.studentName}</span>
-                    </div>
-                    <div className="rc-field-caption">(Laga qaday)</div>
-                  </div>
-
-                  <div className="rc-amount-block">
-                    <div className="rc-amount-top">
-                      <span className="rc-label">Amount of So Sh.</span>
-                      <span className="rc-amount-box-sos">{sosAmount.toLocaleString()}</span>
-                      <span className="rc-usd-group">
-                        <span className="rc-usd-tag">US$</span>
-                        <span className="rc-amount-box-usd">{totalPaidAmount}</span>
-                      </span>
-                    </div>
-                    <div className="rc-field-caption">(Lacag dhan)</div>
-                  </div>
-
-                  <div className="rc-field">
-                    <span className="rc-label">
-                      In words <em>(Eray ahaan)</em>:
-                    </span>
-                    <span className="rc-value">{amountWords} Only</span>
-                  </div>
-
-                  <div className="rc-being-row">
-                    <div className="rc-being-of">
-                      <span className="rc-label">
-                        Being of: <em>(Taasoo ah)</em>:
-                      </span>
-                      <span className="rc-value">{monthDescription}</span>
-                    </div>
-                    <div className="rc-side-fields">
-                      <div className="rc-field-inline">
-                        <span className="rc-label">Class:</span>
-                        <span className="rc-value">{payment.className || "—"}</span>
-                      </div>
-                      <div className="rc-field-inline">
-                        <span className="rc-label">Tel.</span>
-                        <span className="rc-value">{payment.parentPhone || "—"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="rc-bottom-row">
-                    <div className="rc-payment-method">
-                      <span className="rc-method-tag">PAYMENT METHOD</span>
-                      <span className="rc-evc-label">EVC</span>
-                      <span className={`rc-evc-box ${isEvc ? "rc-evc-checked" : ""}`}>
-                        {isEvc ? "✓" : ""}
-                      </span>
-                    </div>
-
-                    <img src={schoolLogo} alt="Stamp" className="rc-stamp" />
-
-                    <div className="rc-signature">
-                      <div className="rc-sig-title">PRINCIPAL SIGNATURE</div>
-                      <img src={principalSignature} alt="Principal Signature" className="rc-sig-img" />
-                      <div className="rc-sig-line" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rc-footer-note">
-                  <span className="rc-footer-icon">!</span> N.B. NOT REFUNDABLE.
-                </div>
-              </div>
+            <div className="rc-two-up-container">
+              <div className="rc-half-page">{renderSingleReceipt("School Copy")}</div>
+              <div className="rc-half-page">{renderSingleReceipt("Student Copy")}</div>
             </div>
           )}
         </div>
@@ -409,16 +416,34 @@ export default function ReceiptModal({ payment, onClose }) {
           color: #ffffff;
         }
 
+        /* Full A4 Landscape dimensions */
         .receipt-paper {
-          width: 210mm;
-          height: 148mm;
+          width: 297mm;
+          height: 210mm;
           max-width: 95vw;
+          max-height: 85vh;
+          overflow: auto;
           background: #ffffff;
-          padding: 3mm;
+          padding: 5mm;
           box-sizing: border-box;
           font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
           color: #0b1f4d;
           box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        }
+
+        .rc-two-up-container {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8mm;
+          height: 100%;
+          width: 100%;
+          box-sizing: border-box;
+        }
+
+        .rc-half-page {
+          height: 100%;
+          width: 100%;
+          box-sizing: border-box;
         }
 
         .rc-frame {
@@ -430,7 +455,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
         .rc-outer {
           border: 2px solid #0b1f4d;
-          padding: 8px 12px;
+          padding: 8px 10px;
           height: 100%;
           box-sizing: border-box;
           display: flex;
@@ -452,27 +477,27 @@ export default function ReceiptModal({ payment, onClose }) {
         .rc-header-som { text-align: left; }
         .rc-som-title {
           font-weight: 900;
-          font-size: 19px;
+          font-size: 15px;
           color: #0b1f4d;
           line-height: 1.1;
           text-transform: uppercase;
         }
         .rc-som-sub {
           font-style: italic;
-          font-size: 13px;
+          font-size: 11px;
           color: #1e3a8a;
           margin-top: 1px;
         }
         .rc-header-ara { text-align: right; direction: rtl; }
         .rc-ara-title {
           font-weight: 900;
-          font-size: 22px;
+          font-size: 17px;
           color: #0b1f4d;
           line-height: 1.1;
           font-family: 'Amiri', 'Traditional Arabic', Arial, sans-serif;
         }
         .rc-ara-sub {
-          font-size: 13px;
+          font-size: 11px;
           color: #1e3a8a;
           margin-top: 1px;
           font-family: 'Amiri', 'Traditional Arabic', Arial, sans-serif;
@@ -480,107 +505,107 @@ export default function ReceiptModal({ payment, onClose }) {
         .rc-header-full-name {
           text-align: center;
           font-weight: 900;
-          font-size: 15.5px;
+          font-size: 13px;
           color: #0b1f4d;
           margin-top: 2px;
           text-transform: uppercase;
         }
         .rc-header-contact {
           text-align: center;
-          font-size: 11.5px;
+          font-size: 9.5px;
           font-weight: 800;
           color: #0b1f4d;
           margin-top: 1px;
         }
 
         .rc-student-id-line {
-          display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 1px; margin-bottom: 1px;
+          display: flex; align-items: center; gap: 6px; font-size: 11px; margin-top: 1px; margin-bottom: 1px;
         }
         .rc-id-inline-val {
-          font-weight: 800; color: #0b1f4d; font-size: 13px; letter-spacing: 0.5px;
-          border-bottom: 1px solid #64748b; padding: 0 10px;
+          font-weight: 800; color: #0b1f4d; font-size: 11.5px; letter-spacing: 0.5px;
+          border-bottom: 1px solid #64748b; padding: 0 8px;
         }
 
         .rc-divider { border-top: 1.5px solid #0b1f4d; margin: 3px 0; }
-        .rc-body { display: flex; flex-direction: column; gap: 4px; flex: 1; justify-content: space-around; }
+        .rc-body { display: flex; flex-direction: column; gap: 3px; flex: 1; justify-content: space-around; }
         .rc-voucher-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1px; }
         .rc-voucher-title {
-          font-weight: 900; font-size: 17px; letter-spacing: 0.5px; color: #0b1f4d;
+          font-weight: 900; font-size: 14px; letter-spacing: 0.5px; color: #0b1f4d;
           text-align: center; flex: 1;
         }
-        .rc-voucher-sub { font-size: 10px; font-style: italic; font-weight: 600; color: #1e3a8a; margin-top: 1px; }
-        .rc-no { font-size: 13px; font-weight: 800; color: #0b1f4d; white-space: nowrap; }
-        .rc-no-value { color: #dc2626; font-weight: 900; font-size: 17px; }
-        .rc-field { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; }
-        .rc-field em { font-size: 9.5px; font-style: italic; color: #475569; font-weight: 400; }
+        .rc-voucher-sub { font-size: 9px; font-style: italic; font-weight: 600; color: #1e3a8a; margin-top: 1px; }
+        .rc-no { font-size: 11px; font-weight: 800; color: #0b1f4d; white-space: nowrap; }
+        .rc-no-value { color: #dc2626; font-weight: 900; font-size: 14px; }
+        .rc-field { display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; }
+        .rc-field em { font-size: 8.5px; font-style: italic; color: #475569; font-weight: 400; }
         .rc-label { font-weight: 700; white-space: nowrap; color: #0b1f4d; }
         .rc-value {
-          flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 1px; font-weight: 600; min-height: 14px;
+          flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 1px; font-weight: 600; min-height: 12px;
         }
-        .rc-value-strong { font-weight: 800; font-size: 13.5px; text-align: center; color: #0b1f4d; }
+        .rc-value-strong { font-weight: 800; font-size: 12px; text-align: center; color: #0b1f4d; }
         .rc-field-block, .rc-amount-block { display: flex; flex-direction: column; gap: 1px; }
-        .rc-field-top { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; }
-        .rc-field-caption { font-style: italic; font-size: 8.5px; color: #475569; margin-top: 1px; }
-        .rc-amount-top { display: flex; align-items: stretch; gap: 8px; }
+        .rc-field-top { display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; }
+        .rc-field-caption { font-style: italic; font-size: 8px; color: #475569; margin-top: 1px; }
+        .rc-amount-top { display: flex; align-items: stretch; gap: 6px; }
         .rc-amount-top .rc-label { align-self: center; }
         .rc-amount-box-sos {
-          flex: 1; border: 1.5px solid #0b1f4d; border-radius: 6px; padding: 2px 8px;
-          font-weight: 800; font-size: 11.5px; text-align: right;
+          flex: 1; border: 1.5px solid #0b1f4d; border-radius: 4px; padding: 2px 6px;
+          font-weight: 800; font-size: 10.5px; text-align: right;
           display: flex; align-items: center; justify-content: flex-end;
         }
         .rc-usd-group {
-          display: flex; align-items: stretch; border: 1.5px solid #0b1f4d; border-radius: 6px;
+          display: flex; align-items: stretch; border: 1.5px solid #0b1f4d; border-radius: 4px;
           overflow: hidden; flex-shrink: 0;
         }
         .rc-usd-tag {
-          background: #0b1f4d; color: #fff; font-weight: 800; font-size: 10px;
-          padding: 2px 6px; display: flex; align-items: center;
+          background: #0b1f4d; color: #fff; font-weight: 800; font-size: 9px;
+          padding: 2px 5px; display: flex; align-items: center;
         }
         .rc-amount-box-usd {
-          padding: 2px 8px; font-weight: 800; font-size: 11.5px;
-          min-width: 40px; text-align: right; display: flex; align-items: center; justify-content: flex-end;
+          padding: 2px 6px; font-weight: 800; font-size: 10.5px;
+          min-width: 35px; text-align: right; display: flex; align-items: center; justify-content: flex-end;
         }
-        .rc-being-row { display: flex; gap: 12px; }
-        .rc-being-of { flex: 1; display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; }
-        .rc-side-fields { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
-        .rc-field-inline { display: flex; align-items: baseline; gap: 4px; font-size: 11px; }
-        .rc-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-        .rc-payment-method { display: flex; align-items: center; gap: 6px; }
+        .rc-being-row { display: flex; gap: 8px; }
+        .rc-being-of { flex: 1; display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; }
+        .rc-side-fields { display: flex; flex-direction: column; gap: 2px; min-width: 100px; }
+        .rc-field-inline { display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
+        .rc-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 2px; }
+        .rc-payment-method { display: flex; align-items: center; gap: 4px; }
         .rc-method-tag {
-          background: #0b1f4d; color: #fff; font-size: 9px; font-weight: 800;
-          padding: 4px 6px; border-radius: 4px; white-space: nowrap;
+          background: #0b1f4d; color: #fff; font-size: 8px; font-weight: 800;
+          padding: 3px 5px; border-radius: 3px; white-space: nowrap;
         }
-        .rc-evc-label { font-weight: 700; font-size: 10.5px; color: #0b1f4d; }
+        .rc-evc-label { font-weight: 700; font-size: 9.5px; color: #0b1f4d; }
         .rc-evc-box {
-          width: 18px; height: 18px; border: 1.5px solid #0b1f4d; border-radius: 3px;
+          width: 15px; height: 15px; border: 1.5px solid #0b1f4d; border-radius: 3px;
           display: inline-flex; align-items: center; justify-content: center;
-          font-weight: 900; font-size: 11px; color: #16a34a;
+          font-weight: 900; font-size: 10px; color: #16a34a;
         }
-        .rc-stamp { width: 48px; height: 48px; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
-        .rc-signature { text-align: center; min-width: 120px; }
-        .rc-sig-title { font-size: 8.5px; font-weight: 800; color: #0b1f4d; letter-spacing: 0.2px; }
-        .rc-sig-img { height: 22px; object-fit: contain; margin-top: 1px; }
+        .rc-stamp { width: 40px; height: 40px; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
+        .rc-signature { text-align: center; min-width: 100px; }
+        .rc-sig-title { font-size: 7.5px; font-weight: 800; color: #0b1f4d; letter-spacing: 0.2px; }
+        .rc-sig-img { height: 18px; object-fit: contain; margin-top: 1px; }
         .rc-sig-line { border-bottom: 1.5px solid #0b1f4d; margin-top: 1px; }
 
         .rc-footer-note {
           background: #0b1f4d;
           color: #fff;
-          font-size: 11.5px;
+          font-size: 10px;
           font-weight: 900;
-          padding: 5px 12px;
-          border-radius: 4px;
+          padding: 4px 8px;
+          border-radius: 3px;
           display: flex;
           align-items: center;
-          gap: 8px;
-          margin-top: 4px;
+          gap: 6px;
+          margin-top: 3px;
           letter-spacing: 0.5px;
           text-transform: uppercase;
           flex-shrink: 0;
         }
         .rc-footer-icon {
-          width: 15px; height: 15px; background: #fff; color: #0b1f4d;
+          width: 13px; height: 13px; background: #fff; color: #0b1f4d;
           border-radius: 50%; display: inline-flex; align-items: center;
-          justify-content: center; font-weight: 900; font-size: 11px; flex-shrink: 0;
+          justify-content: center; font-weight: 900; font-size: 9px; flex-shrink: 0;
         }
 
         @media print {
@@ -589,15 +614,17 @@ export default function ReceiptModal({ payment, onClose }) {
           .receipt-paper {
             position: absolute;
             top: 0; left: 0;
-            width: 210mm;
-            height: 148mm;
+            width: 297mm;
+            height: 210mm;
             margin: 0;
-            padding: 3mm;
+            padding: 5mm;
             box-shadow: none;
+            max-width: none;
+            max-height: none;
           }
           .no-print { display: none !important; }
           @page {
-            size: A5 landscape;
+            size: A4 landscape;
             margin: 0;
           }
         }
