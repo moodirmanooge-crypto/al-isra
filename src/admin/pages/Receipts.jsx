@@ -698,7 +698,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
               </div>
               <div className={`${p}-field-inline`}>
                 <span className={`${p}-label`}>Tel.</span>
-                <span className={`${p}-value`}>{receipt.parentPhone || receipt.studentPhone || "—"}</span>
+                <span className={`${p}-value`}>{receipt.parentPhone || "—"}</span>
               </div>
             </div>
           </div>
@@ -968,7 +968,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
                     <div class="rvp-being-of"><span class="rvp-label">Being of: <em>(Taasoo ah)</em>:</span><span class="rvp-value">${calculateMonthRange(receipt)}</span></div>
                     <div class="rvp-side-fields">
                       <div class="rvp-field-inline"><span class="rvp-label">Class:</span><span class="rvp-value">${receipt.className || "—"}</span></div>
-                      <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.parentPhone || receipt.studentPhone || "—"}</span></div>
+                      <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.parentPhone || "—"}</span></div>
                     </div>
                   </div>
                   <div class="rvp-bottom-row">
@@ -1123,7 +1123,7 @@ function PrintAllModal({ receipts, onClose }) {
                   <div class="rvp-being-of"><span class="rvp-label">Being of: <em>(Taasoo ah)</em>:</span><span class="rvp-value">${calculateMonthRange(receipt)}</span></div>
                   <div class="rvp-side-fields">
                     <div class="rvp-field-inline"><span class="rvp-label">Class:</span><span class="rvp-value">${receipt.className || "—"}</span></div>
-                    <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.parentPhone || receipt.studentPhone || "—"}</span></div>
+                    <div class="rvp-field-inline"><span class="rvp-label">Tel.</span><span class="rvp-value">${receipt.parentPhone || "—"}</span></div>
                   </div>
                 </div>
                 <div class="rvp-bottom-row">

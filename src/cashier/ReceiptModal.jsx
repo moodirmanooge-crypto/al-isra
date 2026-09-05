@@ -338,7 +338,7 @@ export default function ReceiptModal({ payment, onClose }) {
                       </div>
                       <div className="rc-field-inline">
                         <span className="rc-label">Tel.</span>
-                        <span className="rc-value">{payment.parentPhone || payment.studentPhone || "—"}</span>
+                        <span className="rc-value">{payment.parentPhone || "—"}</span>
                       </div>
                     </div>
                   </div>
