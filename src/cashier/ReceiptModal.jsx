@@ -413,7 +413,7 @@ export default function ReceiptModal({ payment, onClose }) {
           color: #ffffff;
         }
 
-        /* A5 Landscape: 210mm x 148mm */
+        /* A5 Landscape: 148mm x 210mm (landscape) */
         .receipt-paper {
           width: 210mm;
           height: 148mm;
@@ -592,7 +592,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
         @media print {
           @page {
-            size: A5 landscape;
+            size: 210mm 148mm;
             margin: 0;
           }
 

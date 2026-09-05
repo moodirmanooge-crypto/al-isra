@@ -912,13 +912,13 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           <title>Receipt_${formattedNo}</title>
           <style>
             @page {
-              size: 210mm 144mm;
+              size: 210mm 148mm;
               margin: 0;
             }
             *, *::before, *::after { box-sizing: border-box; }
             html, body {
               width: 210mm;
-              height: 144mm;
+              height: 148mm;
               margin: 0;
               padding: 0;
             }
@@ -1073,7 +1073,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           </div>
         </div>
 
-        <div style={{ padding: "4mm", flex: 1, height: "144mm", boxSizing: "border-box" }}>
+        <div style={{ padding: "4mm", flex: 1, height: "148mm", boxSizing: "border-box" }}>
           <ReceiptVoucherBody receipt={receipt} prefix="rvm" />
         </div>
       </div>
@@ -1166,13 +1166,13 @@ function PrintAllModal({ receipts, onClose }) {
           <title>Print_All_Receipts</title>
           <style>
             @page {
-              size: 210mm 144mm;
+              size: 210mm 148mm;
               margin: 0;
             }
             *, *::before, *::after { box-sizing: border-box; }
             html, body {
               width: 210mm;
-              height: 144mm;
+              height: 148mm;
               margin: 0;
               padding: 0;
             }
@@ -1223,7 +1223,7 @@ function PrintAllModal({ receipts, onClose }) {
         </h2>
         <p style={{ fontSize: 13.5, color: "#6B7280", marginTop: 8, lineHeight: 1.5 }}>
           Waxaad rabtaa inaad daabacdo <strong style={{ color: "#111827" }}>{receipts.length}</strong> rasiid. 
-          Rasiid kasta wuxuu ku daabacmi doonaa bog u gaar ah oo xaashida 144x210mm ah.
+          Rasiid kasta wuxuu ku daabacmi doonaa bog u gaar ah oo xaashida 148x210mm ah.
         </p>
 
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
