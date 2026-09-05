@@ -912,11 +912,27 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         <head>
           <title>Receipt_${formattedNo}</title>
           <style>
-            @page { size: A5 landscape; margin: 0; }
+            @page {
+              size: A5 landscape;
+              margin: 0;
+            }
             *, *::before, *::after { box-sizing: border-box; }
-            html, body { width: 210mm; height: 148mm; margin: 0; padding: 0; }
-            body { padding: 3mm; font-family: 'Inter', 'Segoe UI', Arial, sans-serif; -webkit-print-color-adjust: exact; }
-            #print-root { width: 100%; height: 100%; box-sizing: border-box; }
+            html, body {
+              width: 210mm;
+              height: 148mm;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              padding: 3mm;
+              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+              -webkit-print-color-adjust: exact;
+            }
+            #print-root {
+              width: 100%;
+              height: 100%;
+              box-sizing: border-box;
+            }
             ${receiptVoucherCss("rvp")}
           </style>
         </head>
@@ -1143,6 +1159,43 @@ function PrintAllModal({ receipts, onClose }) {
       `;
       })
       .join("");
+
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print_All_Receipts</title>
+          <style>
+            @page {
+              size: A5 landscape;
+              margin: 0;
+            }
+            *, *::before, *::after { box-sizing: border-box; }
+            html, body {
+              width: 210mm;
+              height: 148mm;
+              margin: 0;
+              padding: 0;
+            }
+            body {
+              padding: 3mm;
+              font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+              -webkit-print-color-adjust: exact;
+            }
+            .page-break {
+              width: 100%;
+              height: 100%;
+              page-break-after: always;
+              box-sizing: border-box;
+            }
+            ${receiptVoucherCss("rvp")}
+          </style>
+        </head>
+        <body>
+          ${itemsHtml}
+        </body>
+      </html>
+    `);
 
     printWin.document.close();
 
