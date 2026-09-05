@@ -413,10 +413,10 @@ export default function ReceiptModal({ payment, onClose }) {
           color: #ffffff;
         }
 
-        /* 210mm x 144mm setup for preview */
+        /* A5 Landscape: 210mm x 148mm */
         .receipt-paper {
           width: 210mm;
-          height: 144mm;
+          height: 148mm;
           max-width: 95vw;
           max-height: 85vh;
           overflow: auto;
@@ -591,35 +591,85 @@ export default function ReceiptModal({ payment, onClose }) {
         }
 
         @media print {
+          @page {
+            size: A5 landscape;
+            margin: 0;
+          }
+
+          html,
+          body {
+            width: 210mm !important;
+            height: 148mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+          }
+
           body * {
             visibility: hidden !important;
           }
 
-          .receipt-paper, .receipt-paper * {
+          .receipt-paper,
+          .receipt-paper * {
             visibility: visible !important;
+          }
+
+          .receipt-overlay {
+            position: static !important;
+            display: block !important;
+            width: 210mm !important;
+            height: 148mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            overflow: hidden !important;
           }
 
           .receipt-paper {
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
+
             width: 210mm !important;
-            height: 144mm !important;
-            margin: 0 !important;
-            padding: 3mm !important;
-            box-shadow: none !important;
+            height: 148mm !important;
+
+            min-width: 210mm !important;
+            min-height: 148mm !important;
             max-width: none !important;
             max-height: none !important;
+
+            margin: 0 !important;
+            padding: 3mm !important;
+
+            box-sizing: border-box !important;
+            overflow: hidden !important;
+
             background: #ffffff !important;
+            box-shadow: none !important;
+
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+
+          .receipt-paper .rc-frame {
+            width: 100% !important;
+            height: 100% !important;
+            box-sizing: border-box !important;
+          }
+
+          .receipt-paper .rc-outer {
+            width: 100% !important;
+            height: 100% !important;
+            box-sizing: border-box !important;
           }
 
           .no-print {
             display: none !important;
           }
 
-          @page {
-            size: 210mm 144mm;
-            margin: 0;
+          * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
