@@ -233,7 +233,7 @@ export default function ReceiptModal({ payment, onClose }) {
   const monthDescription = calculateMonthRange(payment);
   const isEvc = true;
 
-  const renderSingleReceipt = (copyTag = "") => (
+  const renderSingleReceipt = () => (
     <div className="rc-frame">
       <div className="rc-outer">
         <div className="rc-header-container">
@@ -262,7 +262,7 @@ export default function ReceiptModal({ payment, onClose }) {
         <div className="rc-body">
           <div className="rc-voucher-row">
             <div className="rc-voucher-title">
-              RECEIPT VOUCHER {copyTag && <small style={{fontSize: 10, color: '#6b7280'}}>({copyTag})</small>}
+              RECEIPT VOUCHER
               <div className="rc-voucher-sub">(Warqadda Lacag Qabashada)</div>
             </div>
             <div className="rc-no">
@@ -370,10 +370,7 @@ export default function ReceiptModal({ payment, onClose }) {
               Diyaarinaya rasiidka...
             </p>
           ) : (
-            <div className="rc-two-up-container">
-              <div className="rc-half-page">{renderSingleReceipt("School Copy")}</div>
-              <div className="rc-half-page">{renderSingleReceipt("Student Copy")}</div>
-            </div>
+            renderSingleReceipt()
           )}
         </div>
       </div>
@@ -416,34 +413,19 @@ export default function ReceiptModal({ payment, onClose }) {
           color: #ffffff;
         }
 
-        /* Full A4 Landscape dimensions */
+        /* 210mm x 144mm setup for preview */
         .receipt-paper {
-          width: 297mm;
-          height: 210mm;
+          width: 210mm;
+          height: 144mm;
           max-width: 95vw;
           max-height: 85vh;
           overflow: auto;
           background: #ffffff;
-          padding: 5mm;
+          padding: 4mm;
           box-sizing: border-box;
           font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
           color: #0b1f4d;
           box-shadow: 0 10px 30px rgba(0,0,0,0.25);
-        }
-
-        .rc-two-up-container {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 8mm;
-          height: 100%;
-          width: 100%;
-          box-sizing: border-box;
-        }
-
-        .rc-half-page {
-          height: 100%;
-          width: 100%;
-          box-sizing: border-box;
         }
 
         .rc-frame {
@@ -455,7 +437,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
         .rc-outer {
           border: 2px solid #0b1f4d;
-          padding: 8px 10px;
+          padding: 6px 10px;
           height: 100%;
           box-sizing: border-box;
           display: flex;
@@ -477,27 +459,27 @@ export default function ReceiptModal({ payment, onClose }) {
         .rc-header-som { text-align: left; }
         .rc-som-title {
           font-weight: 900;
-          font-size: 15px;
+          font-size: 13px;
           color: #0b1f4d;
           line-height: 1.1;
           text-transform: uppercase;
         }
         .rc-som-sub {
           font-style: italic;
-          font-size: 11px;
+          font-size: 10px;
           color: #1e3a8a;
           margin-top: 1px;
         }
         .rc-header-ara { text-align: right; direction: rtl; }
         .rc-ara-title {
           font-weight: 900;
-          font-size: 17px;
+          font-size: 15px;
           color: #0b1f4d;
           line-height: 1.1;
           font-family: 'Amiri', 'Traditional Arabic', Arial, sans-serif;
         }
         .rc-ara-sub {
-          font-size: 11px;
+          font-size: 10px;
           color: #1e3a8a;
           margin-top: 1px;
           font-family: 'Amiri', 'Traditional Arabic', Arial, sans-serif;
@@ -505,52 +487,52 @@ export default function ReceiptModal({ payment, onClose }) {
         .rc-header-full-name {
           text-align: center;
           font-weight: 900;
-          font-size: 13px;
+          font-size: 12px;
           color: #0b1f4d;
           margin-top: 2px;
           text-transform: uppercase;
         }
         .rc-header-contact {
           text-align: center;
-          font-size: 9.5px;
+          font-size: 9px;
           font-weight: 800;
           color: #0b1f4d;
           margin-top: 1px;
         }
 
         .rc-student-id-line {
-          display: flex; align-items: center; gap: 6px; font-size: 11px; margin-top: 1px; margin-bottom: 1px;
+          display: flex; align-items: center; gap: 6px; font-size: 10.5px; margin-top: 1px; margin-bottom: 1px;
         }
         .rc-id-inline-val {
-          font-weight: 800; color: #0b1f4d; font-size: 11.5px; letter-spacing: 0.5px;
-          border-bottom: 1px solid #64748b; padding: 0 8px;
+          font-weight: 800; color: #0b1f4d; font-size: 11px; letter-spacing: 0.5px;
+          border-bottom: 1px solid #64748b; padding: 0 6px;
         }
 
         .rc-divider { border-top: 1.5px solid #0b1f4d; margin: 3px 0; }
         .rc-body { display: flex; flex-direction: column; gap: 3px; flex: 1; justify-content: space-around; }
         .rc-voucher-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1px; }
         .rc-voucher-title {
-          font-weight: 900; font-size: 14px; letter-spacing: 0.5px; color: #0b1f4d;
+          font-weight: 900; font-size: 13px; letter-spacing: 0.5px; color: #0b1f4d;
           text-align: center; flex: 1;
         }
         .rc-voucher-sub { font-size: 9px; font-style: italic; font-weight: 600; color: #1e3a8a; margin-top: 1px; }
-        .rc-no { font-size: 11px; font-weight: 800; color: #0b1f4d; white-space: nowrap; }
-        .rc-no-value { color: #dc2626; font-weight: 900; font-size: 14px; }
-        .rc-field { display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; }
+        .rc-no { font-size: 10.5px; font-weight: 800; color: #0b1f4d; white-space: nowrap; }
+        .rc-no-value { color: #dc2626; font-weight: 900; font-size: 13px; }
+        .rc-field { display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
         .rc-field em { font-size: 8.5px; font-style: italic; color: #475569; font-weight: 400; }
         .rc-label { font-weight: 700; white-space: nowrap; color: #0b1f4d; }
         .rc-value {
           flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 1px; font-weight: 600; min-height: 12px;
         }
-        .rc-value-strong { font-weight: 800; font-size: 12px; text-align: center; color: #0b1f4d; }
+        .rc-value-strong { font-weight: 800; font-size: 11.5px; text-align: center; color: #0b1f4d; }
         .rc-field-block, .rc-amount-block { display: flex; flex-direction: column; gap: 1px; }
-        .rc-field-top { display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; }
+        .rc-field-top { display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
         .rc-field-caption { font-style: italic; font-size: 8px; color: #475569; margin-top: 1px; }
         .rc-amount-top { display: flex; align-items: stretch; gap: 6px; }
         .rc-amount-top .rc-label { align-self: center; }
         .rc-amount-box-sos {
           flex: 1; border: 1.5px solid #0b1f4d; border-radius: 4px; padding: 2px 6px;
-          font-weight: 800; font-size: 10.5px; text-align: right;
+          font-weight: 800; font-size: 10px; text-align: right;
           display: flex; align-items: center; justify-content: flex-end;
         }
         .rc-usd-group {
@@ -558,73 +540,85 @@ export default function ReceiptModal({ payment, onClose }) {
           overflow: hidden; flex-shrink: 0;
         }
         .rc-usd-tag {
-          background: #0b1f4d; color: #fff; font-weight: 800; font-size: 9px;
+          background: #0b1f4d; color: #fff; font-weight: 800; font-size: 8.5px;
           padding: 2px 5px; display: flex; align-items: center;
         }
         .rc-amount-box-usd {
-          padding: 2px 6px; font-weight: 800; font-size: 10.5px;
-          min-width: 35px; text-align: right; display: flex; align-items: center; justify-content: flex-end;
+          padding: 2px 6px; font-weight: 800; font-size: 10px;
+          min-width: 32px; text-align: right; display: flex; align-items: center; justify-content: flex-end;
         }
         .rc-being-row { display: flex; gap: 8px; }
-        .rc-being-of { flex: 1; display: flex; align-items: baseline; gap: 4px; font-size: 10.5px; }
-        .rc-side-fields { display: flex; flex-direction: column; gap: 2px; min-width: 100px; }
-        .rc-field-inline { display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
+        .rc-being-of { flex: 1; display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
+        .rc-side-fields { display: flex; flex-direction: column; gap: 2px; min-width: 95px; }
+        .rc-field-inline { display: flex; align-items: baseline; gap: 4px; font-size: 9.5px; }
         .rc-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 2px; }
         .rc-payment-method { display: flex; align-items: center; gap: 4px; }
         .rc-method-tag {
           background: #0b1f4d; color: #fff; font-size: 8px; font-weight: 800;
-          padding: 3px 5px; border-radius: 3px; white-space: nowrap;
+          padding: 2px 4px; border-radius: 3px; white-space: nowrap;
         }
-        .rc-evc-label { font-weight: 700; font-size: 9.5px; color: #0b1f4d; }
+        .rc-evc-label { font-weight: 700; font-size: 9px; color: #0b1f4d; }
         .rc-evc-box {
-          width: 15px; height: 15px; border: 1.5px solid #0b1f4d; border-radius: 3px;
+          width: 14px; height: 14px; border: 1.5px solid #0b1f4d; border-radius: 3px;
           display: inline-flex; align-items: center; justify-content: center;
-          font-weight: 900; font-size: 10px; color: #16a34a;
+          font-weight: 900; font-size: 9.5px; color: #16a34a;
         }
-        .rc-stamp { width: 40px; height: 40px; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
-        .rc-signature { text-align: center; min-width: 100px; }
+        .rc-stamp { width: 38px; height: 38px; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
+        .rc-signature { text-align: center; min-width: 95px; }
         .rc-sig-title { font-size: 7.5px; font-weight: 800; color: #0b1f4d; letter-spacing: 0.2px; }
-        .rc-sig-img { height: 18px; object-fit: contain; margin-top: 1px; }
+        .rc-sig-img { height: 17px; object-fit: contain; margin-top: 1px; }
         .rc-sig-line { border-bottom: 1.5px solid #0b1f4d; margin-top: 1px; }
 
         .rc-footer-note {
           background: #0b1f4d;
           color: #fff;
-          font-size: 10px;
+          font-size: 9.5px;
           font-weight: 900;
-          padding: 4px 8px;
+          padding: 3px 6px;
           border-radius: 3px;
           display: flex;
           align-items: center;
-          gap: 6px;
-          margin-top: 3px;
+          gap: 5px;
+          margin-top: 2px;
           letter-spacing: 0.5px;
           text-transform: uppercase;
           flex-shrink: 0;
         }
         .rc-footer-icon {
-          width: 13px; height: 13px; background: #fff; color: #0b1f4d;
+          width: 12px; height: 12px; background: #fff; color: #0b1f4d;
           border-radius: 50%; display: inline-flex; align-items: center;
-          justify-content: center; font-weight: 900; font-size: 9px; flex-shrink: 0;
+          justify-content: center; font-weight: 900; font-size: 8.5px; flex-shrink: 0;
         }
 
         @media print {
-          body * { visibility: hidden; }
-          .receipt-paper, .receipt-paper * { visibility: visible; }
-          .receipt-paper {
-            position: absolute;
-            top: 0; left: 0;
-            width: 297mm;
-            height: 210mm;
-            margin: 0;
-            padding: 5mm;
-            box-shadow: none;
-            max-width: none;
-            max-height: none;
+          body * {
+            visibility: hidden !important;
           }
-          .no-print { display: none !important; }
+
+          .receipt-paper, .receipt-paper * {
+            visibility: visible !important;
+          }
+
+          .receipt-paper {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 210mm !important;
+            height: 144mm !important;
+            margin: 0 !important;
+            padding: 3mm !important;
+            box-shadow: none !important;
+            max-width: none !important;
+            max-height: none !important;
+            background: #ffffff !important;
+          }
+
+          .no-print {
+            display: none !important;
+          }
+
           @page {
-            size: A4 landscape;
+            size: 210mm 144mm;
             margin: 0;
           }
         }

@@ -668,7 +668,7 @@ function ReceiptVoucherBody({ receipt, prefix }) {
           <div className={`${p}-amount-block`}>
             <div className={`${p}-amount-top`}>
               <span className={`${p}-label`}>Amount of So Sh.</span>
-              <span className={`${p}-amount-box-sos`}>{usdAmount.toLocaleString()}</span>
+              <span className={`${p}-amount-box-sos`}>{(usdAmount * 28).toLocaleString()}</span>
               <span className={`${p}-usd-group`}>
                 <span className={`${p}-usd-tag`}>US$</span>
                 <span className={`${p}-amount-box-usd`}>{usdAmount}</span>
@@ -740,7 +740,7 @@ function receiptVoucherCss(p) {
     }
     .${p}-outer {
       border: 2px solid #0b1f4d;
-      padding: 8px 12px;
+      padding: 6px 10px;
       height: 100%;
       box-sizing: border-box;
       display: flex;
@@ -752,7 +752,6 @@ function receiptVoucherCss(p) {
       display: flex;
       flex-direction: column;
       gap: 0px;
-      margin-bottom: 2px;
     }
     .${p}-header-top {
       display: flex;
@@ -763,27 +762,27 @@ function receiptVoucherCss(p) {
     .${p}-header-som { text-align: left; }
     .${p}-som-title {
       font-weight: 900;
-      font-size: 19px;
+      font-size: 13px;
       color: #0b1f4d;
       line-height: 1.1;
       text-transform: uppercase;
     }
     .${p}-som-sub {
       font-style: italic;
-      font-size: 13px;
+      font-size: 10px;
       color: #1e3a8a;
       margin-top: 1px;
     }
     .${p}-header-ara { text-align: right; direction: rtl; }
     .${p}-ara-title {
       font-weight: 900;
-      font-size: 22px;
+      font-size: 15px;
       color: #0b1f4d;
       line-height: 1.1;
       font-family: 'Amiri', 'Traditional Arabic', Arial, sans-serif;
     }
     .${p}-ara-sub {
-      font-size: 13px;
+      font-size: 10px;
       color: #1e3a8a;
       margin-top: 1px;
       font-family: 'Amiri', 'Traditional Arabic', Arial, sans-serif;
@@ -791,108 +790,108 @@ function receiptVoucherCss(p) {
     .${p}-header-full-name {
       text-align: center;
       font-weight: 900;
-      font-size: 15.5px;
+      font-size: 12px;
       color: #0b1f4d;
       margin-top: 2px;
       text-transform: uppercase;
     }
     .${p}-header-contact {
       text-align: center;
-      font-size: 11.5px;
+      font-size: 9px;
       font-weight: 800;
       color: #0b1f4d;
       margin-top: 1px;
     }
 
     .${p}-student-id-line {
-      display: flex; align-items: center; gap: 8px; font-size: 12px; margin-top: 1px; margin-bottom: 1px;
+      display: flex; align-items: center; gap: 6px; font-size: 10.5px; margin-top: 1px; margin-bottom: 1px;
     }
     .${p}-id-inline-val {
-      font-weight: 800; color: #0b1f4d; font-size: 13px; letter-spacing: 0.5px;
-      border-bottom: 1px solid #64748b; padding: 0 10px;
+      font-weight: 800; color: #0b1f4d; font-size: 11px; letter-spacing: 0.5px;
+      border-bottom: 1px solid #64748b; padding: 0 6px;
     }
 
     .${p}-divider { border-top: 1.5px solid #0b1f4d; margin: 3px 0; }
-    .${p}-body { display: flex; flex-direction: column; gap: 4px; flex: 1; justify-content: space-around; }
+    .${p}-body { display: flex; flex-direction: column; gap: 3px; flex: 1; justify-content: space-around; }
     .${p}-voucher-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1px; }
     .${p}-voucher-title {
-      font-weight: 900; font-size: 17px; letter-spacing: 0.5px; color: #0b1f4d;
+      font-weight: 900; font-size: 13px; letter-spacing: 0.5px; color: #0b1f4d;
       text-align: center; flex: 1;
     }
-    .${p}-voucher-sub { font-size: 10px; font-style: italic; font-weight: 600; color: #1e3a8a; margin-top: 1px; }
-    .${p}-no { font-size: 13px; font-weight: 800; color: #0b1f4d; white-space: nowrap; }
-    .${p}-no-value { color: #dc2626; font-weight: 900; font-size: 17px; }
-    .${p}-field { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; }
-    .${p}-field em { font-size: 9.5px; font-style: italic; color: #475569; font-weight: 400; }
+    .${p}-voucher-sub { font-size: 9px; font-style: italic; font-weight: 600; color: #1e3a8a; margin-top: 1px; }
+    .${p}-no { font-size: 10.5px; font-weight: 800; color: #0b1f4d; white-space: nowrap; }
+    .${p}-no-value { color: #dc2626; font-weight: 900; font-size: 13px; }
+    .${p}-field { display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
+    .${p}-field em { font-size: 8.5px; font-style: italic; color: #475569; font-weight: 400; }
     .${p}-label { font-weight: 700; white-space: nowrap; color: #0b1f4d; }
     .${p}-value {
-      flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 1px; font-weight: 600; min-height: 14px;
+      flex: 1; border-bottom: 1px solid #64748b; padding-bottom: 1px; font-weight: 600; min-height: 12px;
       word-break: break-word; overflow: visible; display: inline-block;
     }
-    .${p}-value-strong { font-weight: 800; font-size: 13.5px; text-align: center; color: #0b1f4d; }
+    .${p}-value-strong { font-weight: 800; font-size: 11.5px; text-align: center; color: #0b1f4d; }
     .${p}-field-block, .${p}-amount-block { display: flex; flex-direction: column; gap: 1px; }
-    .${p}-field-top { display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; }
-    .${p}-field-caption { font-style: italic; font-size: 8.5px; color: #475569; margin-top: 1px; }
-    .${p}-amount-top { display: flex; align-items: stretch; gap: 8px; }
+    .${p}-field-top { display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
+    .${p}-field-caption { font-style: italic; font-size: 8px; color: #475569; margin-top: 1px; }
+    .${p}-amount-top { display: flex; align-items: stretch; gap: 6px; }
     .${p}-amount-top .${p}-label { align-self: center; }
     .${p}-amount-box-sos {
-      flex: 1; border: 1.5px solid #0b1f4d; border-radius: 6px; padding: 2px 8px;
-      font-weight: 800; font-size: 11.5px; text-align: right;
+      flex: 1; border: 1.5px solid #0b1f4d; border-radius: 4px; padding: 2px 6px;
+      font-weight: 800; font-size: 10px; text-align: right;
       display: flex; align-items: center; justify-content: flex-end;
     }
     .${p}-usd-group {
-      display: flex; align-items: stretch; border: 1.5px solid #0b1f4d; border-radius: 6px;
+      display: flex; align-items: stretch; border: 1.5px solid #0b1f4d; border-radius: 4px;
       overflow: hidden; flex-shrink: 0;
     }
     .${p}-usd-tag {
-      background: #0b1f4d; color: #fff; font-weight: 800; font-size: 10px;
-      padding: 2px 6px; display: flex; align-items: center;
+      background: #0b1f4d; color: #fff; font-weight: 800; font-size: 8.5px;
+      padding: 2px 5px; display: flex; align-items: center;
     }
     .${p}-amount-box-usd {
-      padding: 2px 8px; font-weight: 800; font-size: 11.5px;
-      min-width: 40px; text-align: right; display: flex; align-items: center; justify-content: flex-end;
+      padding: 2px 6px; font-weight: 800; font-size: 10px;
+      min-width: 32px; text-align: right; display: flex; align-items: center; justify-content: flex-end;
     }
-    .${p}-being-row { display: flex; gap: 12px; }
-    .${p}-being-of { flex: 1; display: flex; align-items: baseline; gap: 6px; font-size: 11.5px; }
-    .${p}-side-fields { display: flex; flex-direction: column; gap: 2px; min-width: 120px; }
-    .${p}-field-inline { display: flex; align-items: baseline; gap: 4px; font-size: 11px; }
-    .${p}-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-    .${p}-payment-method { display: flex; align-items: center; gap: 6px; }
+    .${p}-being-row { display: flex; gap: 8px; }
+    .${p}-being-of { flex: 1; display: flex; align-items: baseline; gap: 4px; font-size: 10px; }
+    .${p}-side-fields { display: flex; flex-direction: column; gap: 2px; min-width: 95px; }
+    .${p}-field-inline { display: flex; align-items: baseline; gap: 4px; font-size: 9.5px; }
+    .${p}-bottom-row { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 2px; }
+    .${p}-payment-method { display: flex; align-items: center; gap: 4px; }
     .${p}-method-tag {
-      background: #0b1f4d; color: #fff; font-size: 9px; font-weight: 800;
-      padding: 4px 6px; border-radius: 4px; white-space: nowrap;
+      background: #0b1f4d; color: #fff; font-size: 8px; font-weight: 800;
+      padding: 2px 4px; border-radius: 3px; white-space: nowrap;
     }
-    .${p}-evc-label { font-weight: 700; font-size: 10.5px; color: #0b1f4d; }
+    .${p}-evc-label { font-weight: 700; font-size: 9px; color: #0b1f4d; }
     .${p}-evc-box {
-      width: 18px; height: 18px; border: 1.5px solid #0b1f4d; border-radius: 3px;
+      width: 14px; height: 14px; border: 1.5px solid #0b1f4d; border-radius: 3px;
       display: inline-flex; align-items: center; justify-content: center;
-      font-weight: 900; font-size: 11px; color: #16a34a;
+      font-weight: 900; font-size: 9.5px; color: #16a34a;
     }
-    .${p}-stamp { width: 48px; height: 48px; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
-    .${p}-signature { text-align: center; min-width: 120px; }
-    .${p}-sig-title { font-size: 8.5px; font-weight: 800; color: #0b1f4d; letter-spacing: 0.2px; }
-    .${p}-sig-img { height: 22px; object-fit: contain; margin-top: 1px; }
+    .${p}-stamp { width: 38px; height: 38px; object-fit: contain; opacity: 0.85; flex-shrink: 0; }
+    .${p}-signature { text-align: center; min-width: 95px; }
+    .${p}-sig-title { font-size: 7.5px; font-weight: 800; color: #0b1f4d; letter-spacing: 0.2px; }
+    .${p}-sig-img { height: 17px; object-fit: contain; margin-top: 1px; }
     .${p}-sig-line { border-bottom: 1.5px solid #0b1f4d; margin-top: 1px; }
 
     .${p}-footer-note {
       background: #0b1f4d;
       color: #fff;
-      font-size: 11.5px;
+      font-size: 9.5px;
       font-weight: 900;
-      padding: 5px 12px;
-      border-radius: 4px;
+      padding: 3px 6px;
+      border-radius: 3px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-top: 4px;
+      gap: 5px;
+      margin-top: 2px;
       letter-spacing: 0.5px;
       text-transform: uppercase;
       flex-shrink: 0;
     }
     .${p}-footer-icon {
-      width: 15px; height: 15px; background: #fff; color: #0b1f4d;
+      width: 12px; height: 12px; background: #fff; color: #0b1f4d;
       border-radius: 50%; display: inline-flex; align-items: center;
-      justify-content: center; font-weight: 900; font-size: 11px; flex-shrink: 0;
+      justify-content: center; font-weight: 900; font-size: 8.5px; flex-shrink: 0;
     }
   `;
 }
@@ -913,13 +912,13 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           <title>Receipt_${formattedNo}</title>
           <style>
             @page {
-              size: A5 landscape;
+              size: 210mm 144mm;
               margin: 0;
             }
             *, *::before, *::after { box-sizing: border-box; }
             html, body {
               width: 210mm;
-              height: 148mm;
+              height: 144mm;
               margin: 0;
               padding: 0;
             }
@@ -974,7 +973,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
                   <div class="rvp-amount-block">
                     <div class="rvp-amount-top">
                       <span class="rvp-label">Amount of So Sh.</span>
-                      <span class="rvp-amount-box-sos">${usdAmount.toLocaleString()}</span>
+                      <span class="rvp-amount-box-sos">${(usdAmount * 28).toLocaleString()}</span>
                       <span class="rvp-usd-group"><span class="rvp-usd-tag">US$</span><span class="rvp-amount-box-usd">${usdAmount}</span></span>
                     </div>
                     <div class="rvp-field-caption">(Lacag dhan)</div>
@@ -1025,7 +1024,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
       <div
         style={{
-          background: "#fff", borderRadius: 20, width: 780, maxWidth: "100%",
+          background: "#fff", borderRadius: 20, width: "210mm", maxWidth: "95vw",
           maxHeight: "90vh", overflowY: "auto", boxShadow: "0 20px 50px rgba(0,0,0,0.2)",
           display: "flex", flexDirection: "column",
         }}
@@ -1074,7 +1073,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           </div>
         </div>
 
-        <div style={{ padding: 24, flex: 1, height: "148mm" }}>
+        <div style={{ padding: "4mm", flex: 1, height: "144mm", boxSizing: "border-box" }}>
           <ReceiptVoucherBody receipt={receipt} prefix="rvm" />
         </div>
       </div>
@@ -1129,7 +1128,7 @@ function PrintAllModal({ receipts, onClose }) {
                 <div class="rvp-amount-block">
                   <div class="rvp-amount-top">
                     <span class="rvp-label">Amount of So Sh.</span>
-                    <span class="rvp-amount-box-sos">${usdAmount.toLocaleString()}</span>
+                    <span class="rvp-amount-box-sos">${(usdAmount * 28).toLocaleString()}</span>
                     <span class="rvp-usd-group"><span class="rvp-usd-tag">US$</span><span class="rvp-amount-box-usd">${usdAmount}</span></span>
                   </div>
                   <div class="rvp-field-caption">(Lacag dhan)</div>
@@ -1167,13 +1166,13 @@ function PrintAllModal({ receipts, onClose }) {
           <title>Print_All_Receipts</title>
           <style>
             @page {
-              size: A5 landscape;
+              size: 210mm 144mm;
               margin: 0;
             }
             *, *::before, *::after { box-sizing: border-box; }
             html, body {
               width: 210mm;
-              height: 148mm;
+              height: 144mm;
               margin: 0;
               padding: 0;
             }
@@ -1224,7 +1223,7 @@ function PrintAllModal({ receipts, onClose }) {
         </h2>
         <p style={{ fontSize: 13.5, color: "#6B7280", marginTop: 8, lineHeight: 1.5 }}>
           Waxaad rabtaa inaad daabacdo <strong style={{ color: "#111827" }}>{receipts.length}</strong> rasiid. 
-          Rasiid kasta wuxuu ku daabacmi doonaa bog u gaar ah oo xaashida A5 ah (Landscape).
+          Rasiid kasta wuxuu ku daabacmi doonaa bog u gaar ah oo xaashida 144x210mm ah.
         </p>
 
         <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
