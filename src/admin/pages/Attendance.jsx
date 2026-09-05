@@ -39,34 +39,6 @@ function classRank(className) {
   return idx === -1 ? 999 : idx;
 }
 
-// Function-kan wuxuu qaadayaa string-ka taariikhda (es: "2026-09-04") wuxuuna soo saarayaa Maalinta iyo Taariikhda saxda ah
-function getFormattedDateAndDay(dateString) {
-  if (!dateString) return { formattedDate: "-", dayName: "" };
-  
-  // Haysashada YYYY-MM-DD si looga fogaado GMT Timezone Offsets
-  const parts = dateString.split("-");
-  if (parts.length === 3) {
-    const year = parseInt(parts[0], 10);
-    const month = parseInt(parts[1], 10) - 1;
-    const day = parseInt(parts[2], 10);
-    const d = new Date(year, month, day);
-
-    const dayName = d.toLocaleDateString("so-SO", { weekday: "long" }); // ama "en-US" haddii aad English rabto
-    const formattedDate = d.toLocaleDateString("en-GB", {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-    });
-
-    return {
-      formattedDate: dateString, // Ama formattedDate
-      dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1),
-    };
-  }
-
-  return { formattedDate: dateString, dayName: "" };
-}
-
 function ResponsiveStyles() {
   return (
     <style>{`
@@ -540,11 +512,13 @@ export default function Attendance() {
     }, 300);
   };
 
+  // Modern PDF Generator function
   const handleDownloadPDF = async () => {
     try {
       setIsDownloadingPDF(true);
       expandAllSections();
 
+      // Add print mode class to document body
       document.body.classList.add("pdf-export-mode");
 
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -562,6 +536,7 @@ export default function Attendance() {
       const imgData = canvas.toDataURL("image/jpeg", 1.0);
       const pdf = new jsPDF("p", "mm", "a4");
       const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
       
       const imgWidth = canvas.width;
       const imgHeight = canvas.height;
@@ -574,6 +549,7 @@ export default function Attendance() {
       console.error(err);
       alert("Cillad ayaa ka dhacday soo dejinta PDF-ka: " + err.message);
     } finally {
+      // Clean up body class
       document.body.classList.remove("pdf-export-mode");
       setIsDownloadingPDF(false);
     }
@@ -1043,9 +1019,6 @@ export default function Attendance() {
                               {expandedClass[`${tKey}__toggle`] && (
                                 <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
                                   {sortedDates.map((date) => {
-                                    // Halkan waxaan ku helaynaa Taariikhda iyo Maalinta saxda ah
-                                    const { formattedDate, dayName } = getFormattedDateAndDay(date);
-
                                     const sessionsOnDate = info.records
                                       .filter((r) => r.date === date)
                                       .sort((a, b) => {
@@ -1094,9 +1067,8 @@ export default function Attendance() {
                                         >
                                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                             <Clock size={13} color="#8b87ad" />
-                                            {/* Halkan lagu muujiyay Taariikhda iyo Maalinta Saxda ah */}
                                             <span style={{ color: "#e5e3f7", fontSize: 13, fontWeight: 600 }}>
-                                              {formattedDate} {dayName ? `(${dayName})` : ""}
+                                              {date}
                                             </span>
                                             <span style={{ color: "#8b87ad", fontSize: 12 }}>
                                               ({sessionNums.length} xiisadood · {sessionsOnDate.length} arday)
@@ -1151,7 +1123,6 @@ export default function Attendance() {
                                                         <MiniTd>{r.studentName || "-"}</MiniTd>
                                                         <MiniTd>{r.studentId || "-"}</MiniTd>
                                                         <MiniTd>#{r.sessionNumber ?? "-"}</MiniTd>
-                                                        {/* Saacadda iyo Waqtiga kaliya ayaa halkan lagu soo saarayaa */}
                                                         <MiniTd>{r.sessionTime || "-"}</MiniTd>
                                                         <MiniTd>
                                                           <span
