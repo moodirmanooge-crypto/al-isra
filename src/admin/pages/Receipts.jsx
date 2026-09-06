@@ -505,6 +505,8 @@ export default function Receipts() {
 }
 
 function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
+  const [downloading, setDownloading] = useState(false);
+
   const paidDate = receipt.paidAt?.seconds
     ? new Date(receipt.paidAt.seconds * 1000)
     : receipt.createdAt?.seconds
@@ -514,6 +516,56 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
   const totalPaidAmount = Number(receipt.paidAmount) || 0;
   const sosAmount = Math.round(totalPaidAmount * USD_TO_SOS_RATE);
   const amountWords = amountToWords(totalPaidAmount);
+
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloading(true);
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const node = document.querySelector(".receipt-bg-wrapper");
+      if (!node) return;
+
+      const canvas = await html2canvas(node, {
+        scale: 3,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a5",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgRatio = canvas.width / canvas.height;
+      let renderWidth = pageWidth;
+      let renderHeight = renderWidth / imgRatio;
+
+      if (renderHeight > pageHeight) {
+        renderHeight = pageHeight;
+        renderWidth = renderHeight * imgRatio;
+      }
+
+      const x = (pageWidth - renderWidth) / 2;
+      const y = (pageHeight - renderHeight) / 2;
+
+      pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
+      pdf.save(`Receipt-${receipt.receiptNo || "voucher"}.pdf`);
+    } catch (err) {
+      console.error("Khalad ayaa dhacay markii PDF-ka la sameynayay:", err);
+      alert("Khalad ayaa dhacay markii PDF-ka la sameynayay.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <>
@@ -529,6 +581,9 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           <button onClick={() => window.print()} className="rv-print-btn">
             <Printer size={14} style={{ marginRight: 6, verticalAlign: "-2px" }} />
             Print
+          </button>
+          <button onClick={handleDownloadPdf} disabled={downloading} className="rv-pdf-btn">
+            {downloading ? "Diyaarinaya..." : "⬇️ PDF"}
           </button>
         </div>
 
@@ -566,7 +621,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         }
 
         .rv-actions { display: flex; gap: 10px; }
-        .rv-close-btn, .rv-print-btn, .rv-delete-btn {
+        .rv-close-btn, .rv-print-btn, .rv-delete-btn, .rv-pdf-btn {
           border: none;
           border-radius: 10px;
           padding: 10px 18px;
@@ -577,6 +632,12 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         .rv-close-btn { background: #ffffff; color: #374151; border: 1px solid #d1d5db; }
         .rv-delete-btn { background: #DC2626; color: #ffffff; }
         .rv-print-btn { background: #16a34a; color: #ffffff; }
+        .rv-pdf-btn {
+          background: #0b1f4d;
+          color: #ffffff;
+          opacity: ${downloading ? 0.7 : 1};
+          cursor: ${downloading ? "not-allowed" : "pointer"};
+        }
 
         .receipt-paper-container {
           width: 750px;
@@ -693,28 +754,88 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         }
 
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          .receipt-paper-container, .receipt-paper-container * {
-            visibility: visible;
-          }
-          .receipt-paper-container {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: none;
-            width: 190mm;
-          }
-          .no-print {
-            display: none !important;
-          }
-          @page {
-            size: A5 landscape;
-            margin: 2mm;
-          }
-        }
+  @page {
+    size: A5 landscape;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: 210mm !important;
+    height: 148mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .rv-overlay,
+  .rv-overlay * {
+    visibility: visible !important;
+  }
+
+  .rv-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+
+    width: 210mm !important;
+    height: 148mm !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: transparent !important;
+    display: block !important;
+    overflow: hidden !important;
+  }
+
+  .receipt-paper-container {
+    position: absolute !important;
+
+    left: 0 !important;
+    top: 0 !important;
+
+    width: 210mm !important;
+    height: 148mm !important;
+
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: #ffffff !important;
+    box-shadow: none !important;
+
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    overflow: hidden !important;
+  }
+
+  .receipt-bg-wrapper {
+    width: 202mm !important;
+    max-width: 202mm !important;
+    margin: 0 auto !important;
+  }
+
+  .receipt-bg-img {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
       `}</style>
     </>
   );

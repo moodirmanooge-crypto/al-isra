@@ -176,6 +176,58 @@ const saveReceiptRecord = async (receiptNo, payment, paidDate) => {
 export default function ReceiptModal({ payment, onClose }) {
   const [receiptNo, setReceiptNo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloading(true);
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+
+      const node = document.querySelector(".rc-frame");
+      if (!node) return;
+
+      const canvas = await html2canvas(node, {
+        scale: 3,
+        backgroundColor: "#ffffff",
+        useCORS: true,
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+
+      // A5 landscape in mm: 210 x 148
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: "a5",
+      });
+
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+
+      const imgRatio = canvas.width / canvas.height;
+      let renderWidth = pageWidth;
+      let renderHeight = renderWidth / imgRatio;
+
+      if (renderHeight > pageHeight) {
+        renderHeight = pageHeight;
+        renderWidth = renderHeight * imgRatio;
+      }
+
+      const x = (pageWidth - renderWidth) / 2;
+      const y = (pageHeight - renderHeight) / 2;
+
+      pdf.addImage(imgData, "PNG", x, y, renderWidth, renderHeight);
+      pdf.save(`Receipt-${receiptNo || "voucher"}.pdf`);
+    } catch (err) {
+      console.error("Khalad ayaa dhacay markii PDF-ka la sameynayay:", err);
+      alert("Khalad ayaa dhacay markii PDF-ka la sameynayay.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -236,6 +288,13 @@ export default function ReceiptModal({ payment, onClose }) {
           </button>
           <button onClick={() => window.print()} className="receipt-print-btn">
             🖨️ Print
+          </button>
+          <button
+            onClick={handleDownloadPdf}
+            disabled={downloading || loading}
+            className="receipt-pdf-btn"
+          >
+            {downloading ? "Diyaarinaya..." : "⬇️ PDF"}
           </button>
         </div>
 
@@ -404,6 +463,13 @@ export default function ReceiptModal({ payment, onClose }) {
         .receipt-print-btn {
           background: ${theme.colors.mint || "#16a34a"};
           color: #ffffff;
+        }
+
+        .receipt-pdf-btn {
+          background: #0b1f4d;
+          color: #ffffff;
+          opacity: ${downloading || loading ? 0.7 : 1};
+          cursor: ${downloading || loading ? "not-allowed" : "pointer"};
         }
 
         .receipt-paper {
@@ -742,7 +808,7 @@ export default function ReceiptModal({ payment, onClose }) {
           font-style: italic;
           font-weight: 700;
           padding: 5px 12px;
-          margin: 10px -16px -12px;
+          margin: 10px -16px -12.5px;
         }
 
         .rc-footer-icon {
@@ -759,33 +825,72 @@ export default function ReceiptModal({ payment, onClose }) {
         }
 
         @media print {
-          body * {
-            visibility: hidden;
-          }
-          .receipt-paper, .receipt-paper * {
-            visibility: visible;
-          }
-          .receipt-paper {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: none;
-            width: 190mm;
-            max-height: 138mm;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-          }
-          .rc-frame {
-            width: 100%;
-          }
-          .no-print {
-            display: none !important;
-          }
           @page {
             size: A5 landscape;
-            margin: 4mm;
+            margin: 0;
+          }
+
+          html,
+          body {
+            width: 210mm !important;
+            height: 148mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+          }
+
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          body * {
+            visibility: hidden !important;
+          }
+
+          .receipt-overlay,
+          .receipt-overlay * {
+            visibility: visible !important;
+          }
+
+          .receipt-overlay {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 210mm !important;
+            height: 148mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            display: block !important;
+            overflow: hidden !important;
+          }
+
+          .receipt-paper {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+
+            width: 210mm !important;
+            height: 148mm !important;
+
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+
+            background: #ffffff !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+          }
+
+          .rc-frame {
+            box-sizing: border-box !important;
+            width: 202mm !important;
+            max-width: 202mm !important;
+            margin: 4mm auto 0 auto !important;
+          }
+
+          .no-print {
+            display: none !important;
           }
         }
       `}</style>
