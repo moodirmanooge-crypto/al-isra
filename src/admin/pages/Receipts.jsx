@@ -8,7 +8,7 @@ import Topbar from "../components/Topbar";
 import receiptBgTemplate from "../../assets/receipt.png";
 
 const SCHOOL_NAME_LINE2 = "DUGSIGA HOOSE / DHEXE & SARE RISING STAR SCHOOL";
-const USD_TO_SOS_RATE = 28;
+const USD_TO_SOS_RATE = 28; // Ma la isticmaalayo hadda — "Amount of So Sh." wuxuu hadda tusayaa isla lacagta USD-ga ah
 
 function formatDate(value) {
   if (!value) return "—";
@@ -19,6 +19,12 @@ function formatDate(value) {
     month: "short",
     year: "numeric",
   });
+}
+
+function addMonths(date, months) {
+  const d = new Date(date.getTime());
+  d.setMonth(d.getMonth() + months);
+  return d;
 }
 
 // ---- Amount -> Words (English) ----
@@ -514,8 +520,15 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     : new Date();
 
   const totalPaidAmount = Number(receipt.paidAmount) || 0;
-  const sosAmount = Math.round(totalPaidAmount * USD_TO_SOS_RATE);
+  const sosAmount = totalPaidAmount;
   const amountWords = amountToWords(totalPaidAmount);
+
+  const monthsCoveredCount = Array.isArray(receipt.monthsCovered) && receipt.monthsCovered.length > 0
+    ? receipt.monthsCovered.length
+    : 1;
+  const coverageStart = paidDate;
+  const coverageEnd = addMonths(paidDate, monthsCoveredCount);
+  const coveragePeriod = `${formatDate(coverageStart)} — ${formatDate(coverageEnd)}`;
 
   const handleDownloadPdf = async () => {
     try {
@@ -599,9 +612,10 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
               <div className="r-amtsos">{sosAmount ? sosAmount.toLocaleString() : ""}</div>
               <div className="r-amtusd">{totalPaidAmount}</div>
               <div className="r-inwords">{amountWords} Only</div>
-              <div className="r-beingof">{receipt.monthLabel || "Monthly Fee"}</div>
+              <div className="r-beingof">{coveragePeriod}</div>
               <div className="r-class">{receipt.className || "—"}</div>
               <div className="r-tel">{receipt.studentPhone || receipt.parentPhone || "—"}</div>
+              <div className="r-evc-check">✓</div>
             </div>
           </div>
         </div>
@@ -675,8 +689,8 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         .r-no {
           position: absolute;
-          top: 38.8%;
-          right: 6.2%;
+          top: 44.8%;
+          right: 5.2%;
           font-size: 15px;
           color: #dc2626;
           font-weight: 900;
@@ -684,14 +698,14 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         .r-date {
           position: absolute;
-          top: 48.8%;
+          top: 51.8%;
           left: 11.5%;
           font-size: 11px;
         }
 
         .r-studentid {
           position: absolute;
-          top: 54.5%;
+          top: 56.0%;
           left: 13.8%;
           font-size: 11px;
           font-weight: 800;
@@ -700,15 +714,15 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         .r-receivedfrom {
           position: absolute;
           top: 60.5%;
-          left: 17%;
+          left: 19%;
           font-size: 12px;
           font-weight: 800;
         }
 
         .r-amtsos {
           position: absolute;
-          top: 68.2%;
-          right: 21.5%;
+          top: 67.5%;
+          right: 17.5%;
           font-size: 12px;
           font-weight: 800;
           text-align: right;
@@ -716,7 +730,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         .r-amtusd {
           position: absolute;
-          top: 68.2%;
+          top: 67.5%;
           right: 5.5%;
           font-size: 12px;
           font-weight: 800;
@@ -725,32 +739,43 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         .r-inwords {
           position: absolute;
-          top: 76.5%;
-          left: 18.5%;
+          top: 74.5%;
+          left: 19.5%;
           font-size: 11px;
           font-weight: 600;
         }
 
         .r-beingof {
           position: absolute;
-          top: 82.2%;
-          left: 15%;
+          top: 79.2%;
+          left: 23%;
           font-size: 11px;
           font-weight: 600;
         }
 
         .r-class {
           position: absolute;
-          top: 81.3%;
-          right: 17.5%;
+          top: 78.0%;
+          right: 11.5%;
           font-size: 11px;
         }
 
         .r-tel {
           position: absolute;
-          top: 86.3%;
-          right: 14.5%;
+          top: 83.3%;
+          right: 13.5%;
           font-size: 11px;
+        }
+
+        .r-evc-check {
+          position: absolute;
+          top: 88.7%;
+          left: 24.5%;
+          transform: translate(-50%, -50%);
+          font-size: 16px;
+          font-weight: 900;
+          color: #0b1f66;
+          line-height: 1;
         }
 
         @media print {

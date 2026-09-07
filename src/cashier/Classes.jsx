@@ -10,6 +10,9 @@ import {
   where,
   onSnapshot,
   getDocs,
+  runTransaction,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -17,6 +20,65 @@ import autoTable from "jspdf-autotable";
 import { db } from "../firebase/firebase";
 import { theme } from "./theme.js";
 import ReceiptModal from "./ReceiptModal.jsx";
+
+// Same self-healing receipt numbering as ReceiptModal.jsx: cross-checks the
+// counter document against the highest receiptNo actually stored, so a
+// stuck/out-of-sync counter can never hand out a number twice.
+async function getNextReceiptNumber() {
+  const counterRef = doc(db, "counters", "receiptCounter");
+
+  let highestStored = 0;
+  try {
+    const maxSnap = await getDocs(
+      query(collection(db, "receipts"), orderBy("receiptNo", "desc"), limit(1))
+    );
+    if (!maxSnap.empty) {
+      highestStored = Number(maxSnap.docs[0].data().receiptNo) || 0;
+    }
+  } catch (err) {
+    console.log(err);
+  }
+
+  const nextNumber = await runTransaction(db, async (transaction) => {
+    const counterDoc = await transaction.get(counterRef);
+    const counterValue = counterDoc.exists() ? Number(counterDoc.data().value || 0) : 0;
+    const current = Math.max(counterValue, highestStored);
+    const next = current + 1;
+    transaction.set(counterRef, { value: next }, { merge: true });
+    return next;
+  });
+
+  return String(nextNumber).padStart(3, "0");
+}
+
+// For bulk payments (many students saved in one batch): reserves `count`
+// consecutive numbers in a single transaction and returns the first one.
+async function reserveReceiptNumbers(count) {
+  const counterRef = doc(db, "counters", "receiptCounter");
+
+  let highestStored = 0;
+  try {
+    const maxSnap = await getDocs(
+      query(collection(db, "receipts"), orderBy("receiptNo", "desc"), limit(1))
+    );
+    if (!maxSnap.empty) {
+      highestStored = Number(maxSnap.docs[0].data().receiptNo) || 0;
+    }
+  } catch (err) {
+    console.log(err);
+  }
+
+  const firstNumber = await runTransaction(db, async (transaction) => {
+    const counterDoc = await transaction.get(counterRef);
+    const counterValue = counterDoc.exists() ? Number(counterDoc.data().value || 0) : 0;
+    const current = Math.max(counterValue, highestStored);
+    const first = current + 1;
+    transaction.set(counterRef, { value: current + count }, { merge: true });
+    return first;
+  });
+
+  return firstNumber;
+}
 
 const SCHOOL_NAME = "Rising School";
 
@@ -221,6 +283,77 @@ export default function Classes() {
     };
   }, []);
 
+  // Dib-u-soo-celinta xogta la "Reset" gareeyay: haddii admin-ku Firestore
+  // console-ka gudihiisa document kasta oo receiptDeleted ka beddelo
+  // "deleted: false", halkan si toos ah ayaa loo ogaanayaa oo:
+  //  1. Isla qofkaas (studentId) iyo isla wadhaxda reset-ka (resetBatchId)
+  //     dhammaan saddexda qaybood (payments, receiptCashier, receipts)
+  //     ayaa dib loogu celinayaa collection-yadoodii asalka ahaa.
+  //  2. Xogtaas oo dhan waa laga tirtiraa receiptDeleted (waa la soo celiyay).
+  useEffect(() => {
+    const unsubRestore = onSnapshot(
+      query(collection(db, "receiptDeleted"), where("deleted", "==", false)),
+      async (snap) => {
+        if (snap.empty) return;
+
+        const handledGroups = new Set();
+
+        for (const changedDoc of snap.docs) {
+          const changedData = changedDoc.data();
+          const groupKey = `${changedData.resetBatchId || "none"}::${changedData.studentId || "none"}`;
+          if (handledGroups.has(groupKey)) continue;
+          handledGroups.add(groupKey);
+
+          try {
+            let groupDocs = [changedDoc];
+
+            if (changedData.resetBatchId && changedData.studentId) {
+              const groupSnap = await getDocs(
+                query(
+                  collection(db, "receiptDeleted"),
+                  where("resetBatchId", "==", changedData.resetBatchId),
+                  where("studentId", "==", changedData.studentId)
+                )
+              );
+              groupDocs = groupSnap.docs;
+            }
+
+            const restoreBatch = writeBatch(db);
+
+            groupDocs.forEach((gDoc) => {
+              const data = gDoc.data();
+              const {
+                sourceCollection,
+                originalId,
+                deleted,
+                deletedAt,
+                deletedReason,
+                resetBatchId,
+                archiveId,
+                ...originalData
+              } = data;
+
+              if (!sourceCollection || !originalId) return;
+
+              restoreBatch.set(doc(db, sourceCollection, originalId), {
+                ...originalData,
+                restoredAt: serverTimestamp(),
+              });
+              restoreBatch.delete(gDoc.ref);
+            });
+
+            await restoreBatch.commit();
+          } catch (err) {
+            console.error("Khalad ayaa dhacay markii xogta la soo celinayay:", err);
+          }
+        }
+      },
+      (err) => console.error("Error listening for restored receipts:", err)
+    );
+
+    return () => unsubRestore();
+  }, []);
+
   const classGroups = useMemo(() => {
     const groups = {};
     classOptions.forEach((c) => (groups[c] = []));
@@ -362,6 +495,7 @@ export default function Classes() {
     try {
       setResettingAll(true);
       const batch = writeBatch(db);
+      const resetBatchId = doc(collection(db, "receiptDeleted")).id;
 
       const studentDocIds = currentClassStudents.map((s) => s.id);
 
@@ -378,19 +512,61 @@ export default function Classes() {
       const paymentsSnap = await getDocs(
         query(collection(db, "payments"), where("className", "==", selectedClass))
       );
-      paymentsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+      paymentsSnap.docs.forEach((docSnap) => {
+        const archiveRef = doc(collection(db, "receiptDeleted"));
+        batch.set(archiveRef, {
+          ...docSnap.data(),
+          archiveId: archiveRef.id,
+          resetBatchId,
+          sourceCollection: "payments",
+          originalId: docSnap.id,
+          deleted: true,
+          deletedReason: `reset-class:${selectedClass}`,
+          deletedAt: serverTimestamp(),
+        });
+        batch.delete(docSnap.ref);
+      });
 
       // ReceiptCashier delete
       const receiptCashierSnap = await getDocs(
         query(collection(db, "receiptCashier"), where("className", "==", selectedClass))
       );
-      receiptCashierSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+      receiptCashierSnap.docs.forEach((docSnap) => {
+        const archiveRef = doc(collection(db, "receiptDeleted"));
+        batch.set(archiveRef, {
+          ...docSnap.data(),
+          archiveId: archiveRef.id,
+          resetBatchId,
+          sourceCollection: "receiptCashier",
+          originalId: docSnap.id,
+          deleted: true,
+          deletedReason: `reset-class:${selectedClass}`,
+          deletedAt: serverTimestamp(),
+        });
+        batch.delete(docSnap.ref);
+      });
 
       // Receipts (Admin Receipts) delete - Ardayda fasalkan oo dhan
       const adminReceiptsSnap = await getDocs(
         query(collection(db, "receipts"), where("className", "==", selectedClass))
       );
-      adminReceiptsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+      adminReceiptsSnap.docs.forEach((docSnap) => {
+        const archiveRef = doc(collection(db, "receiptDeleted"));
+        batch.set(archiveRef, {
+          ...docSnap.data(),
+          archiveId: archiveRef.id,
+          resetBatchId,
+          sourceCollection: "receipts",
+          originalId: docSnap.id,
+          deleted: true,
+          deletedReason: `reset-class:${selectedClass}`,
+          deletedAt: serverTimestamp(),
+        });
+        batch.delete(docSnap.ref);
+      });
+
+      // Fasalka kaliya ayaa la reset-gareeyay — counter-ka guud (receiptCounter)
+      // lama beddelo, si aan lambarrada fasallada kale ee weli jira uga hor imaan.
 
       await batch.commit();
 
@@ -412,13 +588,14 @@ export default function Classes() {
   // 2. Reset-gareynta Dhammaan Fasalada Iskuulka (All Classes Reset)
   async function resetAllClassesPayments() {
     const confirmReset = window.confirm(
-      "⚠️ DHIRO: Ma ziirtaa in aad DHAMMAAN FASALLADA ISKUULKA oo dhan oo dhan aad lacagahooda Unpaid ka dhigto, tirtona DHAMMAAN Rasiidhadha Admin-ka iyo Cashier-ka?"
+      "⚠️ FIIRO: DHAMMAAN FASALLADA ISKUULKA oo dhan   lacagahooda Unpaid ka dhigto, tirtona DHAMMAAN Rasiidhadha Admin-ka iyo Cashier-ka?"
     );
     if (!confirmReset) return;
 
     try {
       setResettingEntireSchool(true);
       const batch = writeBatch(db);
+      const resetBatchId = doc(collection(db, "receiptDeleted")).id;
 
       // 1. Cashier status update
       const cashierSnap = await getDocs(collection(db, "cashier"));
@@ -433,15 +610,58 @@ export default function Classes() {
 
       // 2. Clear payments
       const paymentsSnap = await getDocs(collection(db, "payments"));
-      paymentsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+      paymentsSnap.docs.forEach((docSnap) => {
+        const archiveRef = doc(collection(db, "receiptDeleted"));
+        batch.set(archiveRef, {
+          ...docSnap.data(),
+          archiveId: archiveRef.id,
+          resetBatchId,
+          sourceCollection: "payments",
+          originalId: docSnap.id,
+          deleted: true,
+          deletedReason: "reset-all-classes",
+          deletedAt: serverTimestamp(),
+        });
+        batch.delete(docSnap.ref);
+      });
 
       // 3. Clear Cashier receipts
       const receiptCashierSnap = await getDocs(collection(db, "receiptCashier"));
-      receiptCashierSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+      receiptCashierSnap.docs.forEach((docSnap) => {
+        const archiveRef = doc(collection(db, "receiptDeleted"));
+        batch.set(archiveRef, {
+          ...docSnap.data(),
+          archiveId: archiveRef.id,
+          resetBatchId,
+          sourceCollection: "receiptCashier",
+          originalId: docSnap.id,
+          deleted: true,
+          deletedReason: "reset-all-classes",
+          deletedAt: serverTimestamp(),
+        });
+        batch.delete(docSnap.ref);
+      });
 
       // 4. Clear Admin receipts (Dhamaan bogga receipts ee Admin-ka)
       const adminReceiptsSnap = await getDocs(collection(db, "receipts"));
-      adminReceiptsSnap.docs.forEach((docSnap) => batch.delete(docSnap.ref));
+      adminReceiptsSnap.docs.forEach((docSnap) => {
+        const archiveRef = doc(collection(db, "receiptDeleted"));
+        batch.set(archiveRef, {
+          ...docSnap.data(),
+          archiveId: archiveRef.id,
+          resetBatchId,
+          sourceCollection: "receipts",
+          originalId: docSnap.id,
+          deleted: true,
+          deletedReason: "reset-all-classes",
+          deletedAt: serverTimestamp(),
+        });
+        batch.delete(docSnap.ref);
+      });
+
+      // 5. Dhammaan rasiidhada waa la tirtiray — lambarka rasiidka dib ayaa
+      // loogu celinayaa 0, si rasiidka xiga uu ka bilaabmo 001.
+      batch.set(doc(db, "counters", "receiptCounter"), { value: 0 }, { merge: true });
 
       await batch.commit();
 
@@ -564,6 +784,16 @@ export default function Classes() {
 
       setSavingId(student.id);
 
+      const nextReceiptNo = await getNextReceiptNumber();
+
+      const receiptMonthLabel = (() => {
+        const monthCount = Math.max(1, Math.round(entered / monthlyFee));
+        const firstMonthKey = updates.length > 0 ? updates[0].monthKey : startKey;
+        if (monthCount <= 1) return `Monthly Fee — ${monthLabel(firstMonthKey)}`;
+        const lastMonthKey = addMonthsToKey(firstMonthKey, monthCount - 1);
+        return `Monthly Fee — ${monthLabel(firstMonthKey)} to ${monthLabel(lastMonthKey)} (${monthCount} Months)`;
+      })();
+
       const batch = writeBatch(db);
 
       batch.update(doc(db, "cashier", student.id), {
@@ -610,6 +840,7 @@ export default function Classes() {
       // Receipt Admin (Laguma iloobin in laga sameeyo "receipts" collection)
       const adminReceiptRef = doc(collection(db, "receipts"));
       batch.set(adminReceiptRef, {
+        receiptNo: nextReceiptNo,
         studentId: student.studentId,
         studentName: student.fullName,
         className: student.className || "",
@@ -618,7 +849,10 @@ export default function Classes() {
         paidAmount: entered,
         monthsCovered: updates.map((u) => u.monthKey),
         month: updates.length > 0 ? monthLabel(updates[0].monthKey) : monthLabel(startKey),
+        monthLabel: receiptMonthLabel,
         creditBalanceAfter: newCreditBalance,
+        studentPhone: student.studentPhone || "",
+        parentPhone: student.parentPhone || "",
         createdAt: serverTimestamp(),
       });
 
@@ -632,33 +866,18 @@ export default function Classes() {
         return next;
       });
 
-      const receiptMonthLabel = (() => {
-        if (updates.length === 0) return monthLabel(startKey);
-        if (updates.length === 1) return monthLabel(updates[0].monthKey);
-
-        const names = updates.map((u) => {
-          const [, m] = u.monthKey.split("-");
-          const d = new Date(2000, Number(m) - 1, 1);
-          return d.toLocaleDateString("en-US", { month: "long" });
-        });
-        const year = updates[updates.length - 1].monthKey.split("-")[0];
-
-        const joined =
-          names.length === 2
-            ? `${names[0]} and ${names[1]}`
-            : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-
-        return `${joined} ${year} (${updates.length} Months)`;
-      })();
-
       setReceiptPayment({
+        receiptNo: nextReceiptNo,
         studentId: student.studentId,
         studentName: student.fullName,
         className: student.className || "",
         schoolName: SCHOOL_NAME,
         monthLabel: receiptMonthLabel,
+        monthsCovered: updates.map((u) => u.monthKey),
         paidAmount: entered,
         creditBalanceAfter: newCreditBalance,
+        studentPhone: student.studentPhone || "",
+        parentPhone: student.parentPhone || "",
         createdAt: { seconds: Math.floor(Date.now() / 1000) },
       });
     } catch (err) {
@@ -688,6 +907,8 @@ export default function Classes() {
       const batch = writeBatch(db);
       const newReceipts = [];
       const reportPaidList = [];
+
+      let receiptNoCounter = (await reserveReceiptNumbers(targets.length)) - 1;
 
       targets.forEach((student) => {
         const monthlyFee = Number(student.monthlyFee || 0);
@@ -772,32 +993,30 @@ export default function Classes() {
         });
 
         const receiptMonthLabel = (() => {
-          if (updates.length === 0) return monthLabel(startKey);
-          if (updates.length === 1) return monthLabel(updates[0].monthKey);
-
-          const names = updates.map((u) => {
-            const [, m] = u.monthKey.split("-");
-            const d = new Date(2000, Number(m) - 1, 1);
-            return d.toLocaleDateString("en-US", { month: "long" });
-          });
-          const year = updates[updates.length - 1].monthKey.split("-")[0];
-
-          const joined =
-            names.length === 2
-              ? `${names[0]} and ${names[1]}`
-              : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
-
-          return `${joined} ${year} (${updates.length} Months)`;
+          const monthCount = Math.max(1, Math.round(entered / monthlyFee));
+          const firstMonthKey = updates.length > 0 ? updates[0].monthKey : startKey;
+          if (monthCount <= 1) return `Monthly Fee — ${monthLabel(firstMonthKey)}`;
+          const lastMonthKey = addMonthsToKey(firstMonthKey, monthCount - 1);
+          return `Monthly Fee — ${monthLabel(firstMonthKey)} to ${monthLabel(lastMonthKey)} (${monthCount} Months)`;
         })();
 
+        // Admin Receipts — reserve this student's number now so it can be
+        // reused by both the print queue (newReceipts) and the Firestore write.
+        receiptNoCounter += 1;
+        const thisReceiptNo = String(receiptNoCounter).padStart(3, "0");
+
         newReceipts.push({
+          receiptNo: thisReceiptNo,
           studentId: student.studentId,
           studentName: student.fullName,
           className: student.className || "",
           schoolName: SCHOOL_NAME,
           monthLabel: receiptMonthLabel,
+          monthsCovered: updates.map((u) => u.monthKey),
           paidAmount: entered,
           creditBalanceAfter: newCreditBalance,
+          studentPhone: student.studentPhone || "",
+          parentPhone: student.parentPhone || "",
           createdAt: { seconds: Math.floor(Date.now() / 1000) },
         });
 
@@ -820,6 +1039,7 @@ export default function Classes() {
         // Admin Receipts
         const adminReceiptRef = doc(collection(db, "receipts"));
         batch.set(adminReceiptRef, {
+          receiptNo: thisReceiptNo,
           studentId: student.studentId,
           studentName: student.fullName,
           className: student.className || "",
@@ -828,7 +1048,10 @@ export default function Classes() {
           paidAmount: entered,
           monthsCovered: updates.map((u) => u.monthKey),
           month: updates.length > 0 ? monthLabel(updates[0].monthKey) : monthLabel(startKey),
+          monthLabel: receiptMonthLabel,
           creditBalanceAfter: newCreditBalance,
+          studentPhone: student.studentPhone || "",
+          parentPhone: student.parentPhone || "",
           createdAt: serverTimestamp(),
         });
       });
