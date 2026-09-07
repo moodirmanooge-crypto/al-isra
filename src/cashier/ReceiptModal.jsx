@@ -826,7 +826,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
         @media print {
           @page {
-            size: A5 landscape;
+            size: 210mm 148mm;
             margin: 0;
           }
 
@@ -848,45 +848,53 @@ export default function ReceiptModal({ payment, onClose }) {
             visibility: hidden !important;
           }
 
+          /* Belt-and-braces: also fully remove the rest of the app from the
+             print flow so no blank second page can appear in any browser. */
+          #root > *:not(.receipt-overlay) {
+            display: none !important;
+          }
+
           .receipt-overlay,
           .receipt-overlay * {
             visibility: visible !important;
           }
 
           .receipt-overlay {
-            position: fixed !important;
-            inset: 0 !important;
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
             width: 210mm !important;
             height: 148mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            background: transparent !important;
-            display: block !important;
+            background: #ffffff !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
             overflow: hidden !important;
           }
 
           .receipt-paper {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
+            position: static !important;
 
-            width: 210mm !important;
-            height: 148mm !important;
+            width: 200mm !important;
+            max-width: 200mm !important;
 
-            max-width: none !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             padding: 0 !important;
 
             background: #ffffff !important;
             box-shadow: none !important;
-            overflow: hidden !important;
+            overflow: visible !important;
           }
 
           .rc-frame {
             box-sizing: border-box !important;
-            width: 202mm !important;
-            max-width: 202mm !important;
-            margin: 4mm auto 0 auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
 
           .no-print {

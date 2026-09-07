@@ -589,8 +589,6 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         <div className="receipt-paper-container">
           <div className="receipt-bg-wrapper">
-            <img src={receiptBgTemplate} alt="Receipt Background" className="receipt-bg-img" />
-
             <div className="receipt-overlay-data">
               <div className="r-no">{receipt.receiptNo}</div>
               <div className="r-date">{formatDate(paidDate)}</div>
@@ -652,13 +650,11 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         .receipt-bg-wrapper {
           position: relative;
           width: 100%;
-          line-height: 0;
-        }
-
-        .receipt-bg-img {
-          width: 100%;
-          height: auto;
-          display: block;
+          aspect-ratio: 210 / 148;
+          background-image: url(${receiptBgTemplate});
+          background-size: 100% 100%;
+          background-repeat: no-repeat;
+          background-position: center;
         }
 
         .receipt-overlay-data {
@@ -755,7 +751,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         @media print {
   @page {
-    size: A5 landscape;
+    size: 210mm 148mm;
     margin: 0;
   }
 
@@ -777,14 +773,21 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     visibility: hidden !important;
   }
 
+  /* Belt-and-braces: also fully remove the rest of the app from the
+     print flow so no blank second page can appear in any browser. */
+  #root > *:not(.rv-overlay) {
+    display: none !important;
+  }
+
   .rv-overlay,
   .rv-overlay * {
     visibility: visible !important;
   }
 
   .rv-overlay {
-    position: fixed !important;
-    inset: 0 !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
 
     width: 210mm !important;
     height: 148mm !important;
@@ -792,16 +795,16 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     margin: 0 !important;
     padding: 0 !important;
 
-    background: transparent !important;
-    display: block !important;
+    background: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
     overflow: hidden !important;
   }
 
   .receipt-paper-container {
-    position: absolute !important;
-
-    left: 0 !important;
-    top: 0 !important;
+    position: static !important;
 
     width: 210mm !important;
     height: 148mm !important;
@@ -812,24 +815,16 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
     background: #ffffff !important;
     box-shadow: none !important;
-
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    border-radius: 0 !important;
 
     overflow: hidden !important;
   }
 
   .receipt-bg-wrapper {
-    width: 202mm !important;
-    max-width: 202mm !important;
-    margin: 0 auto !important;
-  }
-
-  .receipt-bg-img {
-    width: 100% !important;
-    height: auto !important;
-    display: block !important;
+    width: 210mm !important;
+    height: 148mm !important;
+    aspect-ratio: auto !important;
+    background-size: 100% 100% !important;
   }
 
   .no-print {
