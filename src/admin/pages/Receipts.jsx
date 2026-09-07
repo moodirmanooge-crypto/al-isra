@@ -589,6 +589,8 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         <div className="receipt-paper-container">
           <div className="receipt-bg-wrapper">
+            <img src={receiptBgTemplate} alt="Receipt Background" className="receipt-bg-img" />
+
             <div className="receipt-overlay-data">
               <div className="r-no">{receipt.receiptNo}</div>
               <div className="r-date">{formatDate(paidDate)}</div>
@@ -650,11 +652,13 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         .receipt-bg-wrapper {
           position: relative;
           width: 100%;
-          aspect-ratio: 210 / 148;
-          background-image: url(${receiptBgTemplate});
-          background-size: 100% 100%;
-          background-repeat: no-repeat;
-          background-position: center;
+          line-height: 0;
+        }
+
+        .receipt-bg-img {
+          width: 100%;
+          height: auto;
+          display: block;
         }
 
         .receipt-overlay-data {
@@ -773,12 +777,6 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     visibility: hidden !important;
   }
 
-  /* Belt-and-braces: also fully remove the rest of the app from the
-     print flow so no blank second page can appear in any browser. */
-  #root > *:not(.rv-overlay) {
-    display: none !important;
-  }
-
   .rv-overlay,
   .rv-overlay * {
     visibility: visible !important;
@@ -807,9 +805,9 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     position: static !important;
 
     width: 210mm !important;
-    height: 148mm !important;
+    max-width: 210mm !important;
+    max-height: 148mm !important;
 
-    max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
 
@@ -820,11 +818,10 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     overflow: hidden !important;
   }
 
-  .receipt-bg-wrapper {
-    width: 210mm !important;
-    height: 148mm !important;
-    aspect-ratio: auto !important;
-    background-size: 100% 100% !important;
+  .receipt-bg-wrapper,
+  .receipt-bg-img {
+    width: 100% !important;
+    height: auto !important;
   }
 
   .no-print {
