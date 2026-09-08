@@ -122,7 +122,6 @@ export default function ImportStudent() {
 
       const fullName = parts[0] || "";
       const motherName = parts[1] || "";
-      const genderFromLine = parts[2] || "";
       const placeOfBirth = parts[3] || "";
       const dateOfBirth = parts[4] || "";
       const feeType = parts[6] || "Free";
@@ -136,12 +135,11 @@ export default function ImportStudent() {
       const feeCategory = parts[14] || "";
       const feeCategoryAmount = parts[15] || "0";
 
-      // Shift-ka had iyo jeer waxa laga soo qaataa doorashada kore (Class agtiisa).
+      // Class, Shift, iyo Gender had iyo jeer waxaa laga qaataa doorashada kore
+      // (sadexda qayb ee kor ku yaal). Haddii safku wax ku qorayo meelahaas,
+      // waa la iska indho-tiraa oo lama isticmaalo.
       const shift = selectedShift;
-
-      // Gender-ka: hadii "Labadaba" la doortay, gender-ka waa in laga soo qoraa
-      // safka (Male/Female). Haddii kale, gender-ka had iyo jeer waa doorashada kore.
-      const gender = selectedGender === "Both" ? genderFromLine : selectedGender;
+      const gender = selectedGender;
 
       // --- VALIDATION FOR REQUIRED FIELDS ---
       if (!fullName) {
@@ -150,14 +148,6 @@ export default function ImportStudent() {
       }
       if (!motherName) {
         alert(`Safka ${lineNum} (${fullName}): Magaca Hooyada (Mother Name) waa ka dhiman yahay.`);
-        return null;
-      }
-      if (selectedGender === "Both" && !genderFromLine) {
-        alert(`Safka ${lineNum} (${fullName}): Waxaad doortay "Labadaba", marka Gender (Male/Female) waa ka dhiman yahay safkan.`);
-        return null;
-      }
-      if (selectedGender === "Both" && genderFromLine !== "Male" && genderFromLine !== "Female") {
-        alert(`Safka ${lineNum} (${fullName}): Gender waa inuu ahaadaa Male ama Female.`);
         return null;
       }
       if (feeType === "Paid" && !monthlyFee) {
@@ -204,7 +194,7 @@ export default function ImportStudent() {
     }
 
     if (!selectedGender) {
-      alert("Fadlan dooro Gender-ka (Male, Female ama Labadaba).");
+      alert("Fadlan dooro Gender-ka (Male ama Female).");
       return;
     }
 
@@ -417,7 +407,6 @@ export default function ImportStudent() {
                 <option value="">-- Dooro Gender --</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
-                <option value="Both">Labadaba (Male & Female)</option>
               </select>
             </div>
           </div>
@@ -447,8 +436,7 @@ export default function ImportStudent() {
             </div>
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
               * <strong>Waajib:</strong> FullName, MotherName.<br/>
-              * <strong>Shift:</strong> Waxaa loo isticmaalayaa doorashadaada kore ee Shift — safka gudihiisa lama baahna in la qoro.<br/>
-              * <strong>Gender:</strong> Haddii aad kor ka doorato Male ama Female, dhammaan ardayda waxay noqonayaan gender-kaas — safka gudihiisa lama baahna in la qoro. Haddii aad doorato "Labadaba", gender-ka (Male/Female) waa in safka la geliyaa.<br/>
+              * <strong>Class, Shift &amp; Gender:</strong> Had iyo jeer waxaa laga qaataa doorashada kore (sadexda qayb ee kor ku yaal). Haddii safka lagu qoro qiyam kale, si toos ah ayaa loo iska indho-tiraa.<br/>
               * <strong>Ikhtiyaari:</strong> Qeybaha kale waa la iska dhaafi karaan adoo komaha (,) reebaya.
             </div>
           </div>
