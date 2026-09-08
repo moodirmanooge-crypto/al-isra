@@ -4,10 +4,14 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   doc,
   setDoc,
+  deleteDoc,
   collection,
   getDocs,
   updateDoc,
   arrayUnion,
+  query,
+  where,
+  writeBatch,
 } from "firebase/firestore";
 import {
   UserPlus,
@@ -29,6 +33,10 @@ import {
   Users,
   Cake,
   CalendarDays,
+  Settings2,
+  Pencil,
+  Trash2,
+  X,
 } from "lucide-react";
 
 // ✅ Import-ka Logo-da Iskuulka
@@ -85,7 +93,8 @@ export default function AddStudent() {
     monthlyFee: "",
     feeCategory: "",
     feeCategoryAmount: "",
-    parentPhone: "",
+    guardianName: "",
+    guardianTel: "",
     studentPhone: "",
     district: "",
     hasPreviousSchool: "No",
@@ -99,6 +108,8 @@ export default function AddStudent() {
   const [saving, setSaving] = useState(false);
   const [customClasses, setCustomClasses] = useState([]);
   const [creatingClass, setCreatingClass] = useState(false);
+  const [managingClasses, setManagingClasses] = useState(false);
+  const [classActionBusy, setClassActionBusy] = useState(false);
 
   useEffect(() => {
     fetchCustomClasses();
@@ -220,6 +231,91 @@ export default function AddStudent() {
     }
   };
 
+  const handleRenameClass = async (classItem) => {
+    const raw = window.prompt("Fadlan geli magaca cusub ee Class-ka:", classItem.name);
+    if (raw === null) return;
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      alert("Fadlan geli magac sax ah oo Class-ka cusub ah");
+      return;
+    }
+
+    const target = normalizeClassName(trimmed);
+    if (target === normalizeClassName(classItem.name)) return;
+
+    const duplicateInBuiltIn = classOptions.some((c) => normalizeClassName(c) === target);
+    const duplicateInCustom = customClasses.some(
+      (c) => c.id !== classItem.id && normalizeClassName(c.name) === target
+    );
+    if (duplicateInBuiltIn || duplicateInCustom) {
+      alert(`Class-ka "${trimmed}" horeyba u jiray.`);
+      return;
+    }
+
+    try {
+      setClassActionBusy(true);
+
+      await updateDoc(doc(db, "customClasses", classItem.id), { name: trimmed });
+
+      // Ardayda hore u lahaa magacan hore ee Class-ka waa in la
+      // cusboonaysiiyaa magaca cusub, si aan xogtu isugu kala tagin.
+      const studentsSnap = await getDocs(
+        query(collection(db, "students"), where("className", "==", classItem.name))
+      );
+      const idCardsSnap = await getDocs(
+        query(collection(db, "studentIdCards"), where("className", "==", classItem.name))
+      );
+
+      const batch = writeBatch(db);
+      studentsSnap.docs.forEach((d) => batch.update(d.ref, { className: trimmed }));
+      idCardsSnap.docs.forEach((d) => batch.update(d.ref, { className: trimmed }));
+      await batch.commit();
+
+      setCustomClasses((prev) =>
+        prev.map((c) => (c.id === classItem.id ? { ...c, name: trimmed } : c))
+      );
+      setStudent((prev) =>
+        prev.className === classItem.name ? { ...prev, className: trimmed } : prev
+      );
+    } catch (err) {
+      console.log(err);
+      alert(err.message);
+    } finally {
+      setClassActionBusy(false);
+    }
+  };
+
+  const handleDeleteClass = async (classItem) => {
+    const confirmed = window.confirm(`Ma hubtaa inaad tirtirto Class-ka "${classItem.name}"?`);
+    if (!confirmed) return;
+
+    try {
+      setClassActionBusy(true);
+
+      const studentsSnap = await getDocs(
+        query(collection(db, "students"), where("className", "==", classItem.name))
+      );
+      if (!studentsSnap.empty) {
+        alert(
+          `Class-ka "${classItem.name}" waxaa ku jira ${studentsSnap.size} arday. Fadlan marka hore ka wareeji ardaydaas class kale ka hor intaadan tirtirin.`
+        );
+        return;
+      }
+
+      await deleteDoc(doc(db, "customClasses", classItem.id));
+
+      setCustomClasses((prev) => prev.filter((c) => c.id !== classItem.id));
+      setStudent((prev) =>
+        prev.className === classItem.name ? { ...prev, className: "" } : prev
+      );
+    } catch (err) {
+      console.log(err);
+      alert(err.message);
+    } finally {
+      setClassActionBusy(false);
+    }
+  };
+
   const normalizeName = (name) =>
     name.trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -289,8 +385,8 @@ export default function AddStudent() {
         return;
       }
 
-      if (student.parentPhone && !/^\d+$/.test(student.parentPhone)) {
-        alert("Parent Phone waa inuu ahaadaa lambar keliya (numbers only)");
+      if (student.guardianTel && !/^\d+$/.test(student.guardianTel)) {
+        alert("Guardian Tel waa inuu ahaadaa lambar keliya (numbers only)");
         return;
       }
 
@@ -351,7 +447,11 @@ export default function AddStudent() {
         registrationFees,
         rollNumberFees,
         examinationFees,
-        parentPhone: student.parentPhone,
+        guardianName: student.guardianName,
+        guardianTel: student.guardianTel,
+        // parentPhone waxaa la sii kaydinayaa (isku qiimo guardianTel) si aan u
+        // jabin qaybaha kale ee horey u isticmaali jiray parentPhone (Cashier, Receipt).
+        parentPhone: student.guardianTel,
         studentPhone: student.studentPhone,
         district: student.district,
         previousSchool: student.hasPreviousSchool === "Yes" ? student.previousSchool : "",
@@ -370,7 +470,9 @@ export default function AddStudent() {
         studentId,
         studentName: student.fullName,
         studentPhone: student.studentPhone,
-        parentPhone: student.parentPhone,
+        guardianName: student.guardianName,
+        guardianTel: student.guardianTel,
+        parentPhone: student.guardianTel,
         feeType: student.feeType,
         monthlyFee: finalMonthlyFee,
         feeCategory: student.feeCategory,
@@ -391,7 +493,9 @@ export default function AddStudent() {
         shift: student.shift,
         studentPhoto: photoURL,
         district: student.district,
-        parentPhone: student.parentPhone,
+        guardianName: student.guardianName,
+        guardianTel: student.guardianTel,
+        parentPhone: student.guardianTel,
         studentPhone: student.studentPhone,
         idIssuedAt: new Date(),
         issuedAt: new Date(),
@@ -419,7 +523,8 @@ export default function AddStudent() {
         monthlyFee: "",
         feeCategory: "",
         feeCategoryAmount: "",
-        parentPhone: "",
+        guardianName: "",
+        guardianTel: "",
         studentPhone: "",
         district: "",
         hasPreviousSchool: "No",
@@ -591,6 +696,14 @@ export default function AddStudent() {
                   <Plus size={18} />
                 )}
               </button>
+              <button
+                type="button"
+                onClick={() => setManagingClasses(true)}
+                title="Manage Classes (Edit/Delete)"
+                style={manageClassBtn}
+              >
+                <Settings2 size={18} />
+              </button>
             </div>
           </Field>
 
@@ -660,15 +773,25 @@ export default function AddStudent() {
             </Field>
           )}
 
-          <Field icon={Phone} label="Parent Phone">
+          <Field icon={User} label="Guardian Name">
             <input
               style={input}
-              name="parentPhone"
+              name="guardianName"
+              placeholder="Tusaale: Xasan Cali"
+              value={student.guardianName}
+              onChange={handleChange}
+            />
+          </Field>
+
+          <Field icon={Phone} label="Guardian Tel">
+            <input
+              style={input}
+              name="guardianTel"
               type="tel"
               inputMode="numeric"
               pattern="[0-9]*"
               placeholder="61xxxxxxx"
-              value={student.parentPhone}
+              value={student.guardianTel}
               onChange={handlePhoneChange}
             />
           </Field>
@@ -778,6 +901,79 @@ export default function AddStudent() {
         </button>
       </div>
 
+      {/* Manage Classes Modal — edit/delete custom classes */}
+      {managingClasses && (
+        <div style={classModalOverlay}>
+          <div style={classModalCard}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 18,
+              }}
+            >
+              <h2 style={{ color: "#fff", margin: 0, fontSize: 18, fontWeight: 700 }}>
+                Maamulka Class-yada
+              </h2>
+              <button onClick={() => setManagingClasses(false)} style={classModalCloseBtn}>
+                <X size={18} />
+              </button>
+            </div>
+
+            {customClasses.length === 0 ? (
+              <p style={{ color: "#8b87ad", fontSize: 13.5 }}>
+                Wali class gaar ah lama abuurin. Riix "+" ee Class Name si aad mid u sameyso.
+              </p>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                  maxHeight: 340,
+                  overflowY: "auto",
+                }}
+              >
+                {customClasses
+                  .slice()
+                  .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+                  .map((c) => (
+                    <div key={c.id} style={classRow}>
+                      <span style={{ color: "#e5e3f7", fontSize: 14, fontWeight: 600 }}>
+                        {c.name}
+                      </span>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button
+                          onClick={() => handleRenameClass(c)}
+                          disabled={classActionBusy}
+                          title="Edit"
+                          style={classActionBtn}
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClass(c)}
+                          disabled={classActionBusy}
+                          title="Delete"
+                          style={{
+                            ...classActionBtn,
+                            background: "rgba(239,68,68,0.15)",
+                            color: "#f87171",
+                            border: "1px solid rgba(239,68,68,0.3)",
+                          }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
@@ -882,4 +1078,75 @@ const createClassBtn = {
   border: "none",
   borderRadius: 12,
   boxShadow: "0 8px 18px rgba(109,93,240,0.3)",
+};
+
+const manageClassBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minWidth: 48,
+  background: "rgba(255,255,255,0.04)",
+  color: "#a9a6c4",
+  border: "1.5px solid rgba(139,108,245,0.35)",
+  borderRadius: 12,
+  cursor: "pointer",
+};
+
+const classModalOverlay = {
+  position: "fixed",
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: "rgba(0,0,0,0.6)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  zIndex: 1000,
+};
+
+const classModalCard = {
+  background: "linear-gradient(160deg,#151233,#181341)",
+  border: "1px solid rgba(139,108,245,0.3)",
+  borderRadius: 18,
+  padding: 26,
+  minWidth: 340,
+  maxWidth: 460,
+  width: "90%",
+};
+
+const classModalCloseBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  background: "rgba(255,255,255,0.05)",
+  color: "#a9a6c4",
+  border: "1px solid rgba(139,108,245,0.25)",
+  cursor: "pointer",
+};
+
+const classRow = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(139,108,245,0.15)",
+  borderRadius: 10,
+  padding: "10px 14px",
+};
+
+const classActionBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 30,
+  height: 30,
+  borderRadius: 8,
+  background: "rgba(139,108,245,0.15)",
+  color: "#c4b5fd",
+  border: "1px solid rgba(139,108,245,0.3)",
+  cursor: "pointer",
 };

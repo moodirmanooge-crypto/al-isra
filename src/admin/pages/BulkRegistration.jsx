@@ -20,6 +20,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 
+// ✅ Import-ka Logo-da Iskuulka — waxaa loo isticmaalayaa sawir default ah
+// haddii admin-ku uusan sawir arday u soo dooran.
+import schoolLogo from "../assets/logo.png";
+
 // ✅ Liiska fasalada oo la cusboonaysiiyay
 const classOptions = [
   "Fasalka 1aad",
@@ -321,8 +325,8 @@ export default function BulkRegistration() {
         const studentId = String(nextIdNumber).padStart(4, "0");
 
         // Sawirka waa ikhtiyaari — haddii uu la doortay wuu soo shubmayaa,
-        // haddii kalese photoURL wuxuu ahaanayaa string madhan.
-        let photoURL = "";
+        // haddii kalese photoURL wuxuu ahaanayaa logo-da iskuulka (default).
+        let photoURL = schoolLogo;
         if (student.studentPhoto) {
           const photoRef = ref(
             storage,

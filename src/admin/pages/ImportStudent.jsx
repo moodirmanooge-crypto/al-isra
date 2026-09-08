@@ -19,6 +19,10 @@ import {
   Clock,
 } from "lucide-react";
 
+// ✅ Import-ka Logo-da Iskuulka — waxaa loo isticmaalayaa sawir default ah
+// maadaama Import-ka aan la soo shubin sawir gaar ah arday kasta.
+import schoolLogo from "../assets/logo.png";
+
 const classOptions = [
   "Fasalka 1aad",
   "Fasalka 2aad",
@@ -310,7 +314,7 @@ export default function ImportStudent() {
           previousSchool: student.previousSchool,
           orphanStatus: student.orphanStatus,
           parentPassword: student.parentPassword,
-          studentPhoto: "",
+          studentPhoto: schoolLogo,
           createdAt: new Date(),
         });
 
@@ -345,7 +349,7 @@ export default function ImportStudent() {
           age: finalAge,
           className: selectedClass,
           shift: student.shift,
-          studentPhoto: "",
+          studentPhoto: schoolLogo,
           district: student.district,
           parentPhone: student.parentPhone,
           studentPhone: student.studentPhone,
