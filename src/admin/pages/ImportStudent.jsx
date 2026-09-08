@@ -35,6 +35,36 @@ const classOptions = [
 
 const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
+// ---- Header-based column detection (for pasting straight from Excel) ----
+// Maps every accepted header spelling to its internal field key. This lets
+// the textarea accept EITHER the old fixed-order comma format, OR a direct
+// paste from Excel (tab-separated, with a header row) in ANY column order.
+const FIELD_ALIASES = {
+  fullName: ["fullname", "full name", "name", "studentname", "student name"],
+  motherName: ["mothername", "mother name", "mathername", "mather name", "mothersname"],
+  placeOfBirth: ["placeofbirth", "place of birth", "birthplace", "pob"],
+  dateOfBirth: ["dateofbirth", "date of birth", "dob", "birthdate", "date"],
+  feeType: ["feetype", "fee type"],
+  monthlyFee: ["monthlyfee", "monthly fee", "fee"],
+  parentPhone: ["parentphone", "parent phone", "prentphone"],
+  studentPhone: ["studentphone", "student phone"],
+  district: ["district", "distiric", "distric"],
+  previousSchool: ["previousschool", "previous school"],
+  orphanStatus: ["orphanstatus", "orphan status"],
+  parentPassword: ["parentpassword", "password"],
+  feeCategory: ["feecategory", "fee category"],
+  feeCategoryAmount: ["feecategoryamount", "fee category amount"],
+};
+
+const normalizeHeaderCell = (s) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
+
+const ALIAS_TO_FIELD = {};
+Object.entries(FIELD_ALIASES).forEach(([field, aliases]) => {
+  aliases.forEach((alias) => {
+    ALIAS_TO_FIELD[normalizeHeaderCell(alias)] = field;
+  });
+});
+
 function calculateAge(dateOfBirth) {
   if (!dateOfBirth) return "";
   const dob = new Date(dateOfBirth);
@@ -109,31 +139,60 @@ export default function ImportStudent() {
   };
 
   const parseAndValidateInput = () => {
-    const lines = textInput
+    const rawLines = textInput
       .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+      .map((line) => line.replace(/\r$/, ""))
+      .filter((line) => line.trim().length > 0);
+
+    if (rawLines.length === 0) return [];
+
+    // Excel paste uses tabs between columns; the classic manual format uses commas.
+    const delimiter = rawLines[0].includes("\t") ? "\t" : ",";
+
+    // Check if the first line is a header row (Excel column names) by matching
+    // its cells against FIELD_ALIASES.
+    const firstCells = rawLines[0].split(delimiter).map((c) => c.trim());
+    const fieldIndexMap = {};
+    firstCells.forEach((cell, idx) => {
+      const key = ALIAS_TO_FIELD[normalizeHeaderCell(cell)];
+      if (key && fieldIndexMap[key] === undefined) {
+        fieldIndexMap[key] = idx;
+      }
+    });
+    const hasHeader = fieldIndexMap.fullName !== undefined && fieldIndexMap.motherName !== undefined;
+
+    const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
+
+    // Reads a field either by its header-mapped column (Excel paste) or by
+    // its fixed legacy position (classic comma format).
+    const getVal = (parts, field, legacyIndex) => {
+      if (hasHeader) {
+        const idx = fieldIndexMap[field];
+        return idx !== undefined ? (parts[idx] || "").trim() : "";
+      }
+      return (parts[legacyIndex] || "").trim();
+    };
 
     const parsed = [];
 
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = 0; i < dataLines.length; i++) {
       const lineNum = i + 1;
-      const parts = lines[i].split(",").map((p) => p.trim());
+      const parts = dataLines[i].split(delimiter).map((p) => p.trim());
 
-      const fullName = parts[0] || "";
-      const motherName = parts[1] || "";
-      const placeOfBirth = parts[3] || "";
-      const dateOfBirth = parts[4] || "";
-      const feeType = parts[6] || "Free";
-      const monthlyFee = parts[7] || "0";
-      const parentPhone = parts[8] || "";
-      const studentPhone = parts[9] || "";
-      const district = parts[10] || "";
-      const previousSchool = parts[11] || "";
-      const orphanStatus = parts[12] || "No";
-      const parentPassword = parts[13] || "";
-      const feeCategory = parts[14] || "";
-      const feeCategoryAmount = parts[15] || "0";
+      const fullName = getVal(parts, "fullName", 0);
+      const motherName = getVal(parts, "motherName", 1);
+      const placeOfBirth = getVal(parts, "placeOfBirth", 3);
+      const dateOfBirth = getVal(parts, "dateOfBirth", 4);
+      const feeType = getVal(parts, "feeType", 6) || "Free";
+      const monthlyFee = getVal(parts, "monthlyFee", 7) || "0";
+      const parentPhone = getVal(parts, "parentPhone", 8);
+      const studentPhone = getVal(parts, "studentPhone", 9);
+      const district = getVal(parts, "district", 10);
+      const previousSchool = getVal(parts, "previousSchool", 11);
+      const orphanStatus = getVal(parts, "orphanStatus", 12) || "No";
+      const parentPassword = getVal(parts, "parentPassword", 13);
+      const feeCategory = getVal(parts, "feeCategory", 14);
+      const feeCategoryAmount = getVal(parts, "feeCategoryAmount", 15) || "0";
 
       // Class, Shift, iyo Gender had iyo jeer waxaa laga qaataa doorashada kore
       // (sadexda qayb ee kor ku yaal). Haddii safku wax ku qorayo meelahaas,
@@ -423,7 +482,13 @@ export default function ImportStudent() {
               lineHeight: "1.6",
             }}
           >
-            <strong style={{ color: "#fff" }}>Dhabaha amarka kala-horreynta field-yada hal xariiq:</strong>
+            <strong style={{ color: "#fff" }}>Laba hab oo xogta loo geli karo:</strong>
+            <div style={{ marginTop: 8, color: "#8b87ad" }}>
+              <strong style={{ color: "#e5e3f7" }}>1) Excel Paste (ugu fudud):</strong> Excel-ka xogta ka koobiyee (copy) oo halkan ku dheji (paste) — si toos ah. Safka koowaad (row 1) ha ka kooban yahay magacyada column-ka (tusaale: FullName, MotherName, District, DateOfBirth, StudentPhone, ParentPhone, iwm). Nidaamka (order) ee tiirarku dani ma leh — system-ku wuxuu magaca column-ka ku ogaanayaa meesha saxda ah.
+            </div>
+            <div style={{ marginTop: 8, color: "#8b87ad" }}>
+              <strong style={{ color: "#e5e3f7" }}>2) Qoraal gacanta (comma):</strong> Hal xariiq = hal arday, oo field-yada la kala saaro comma (,) — sida kala-horreynta hoose:
+            </div>
             <div
               style={{
                 fontFamily: "monospace",
