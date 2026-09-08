@@ -1,26 +1,34 @@
 // src/admin/pages/Certificates.jsx
 // Class Leaving Certificate — AUTO-READ version.
 //
+// The real printed template (certificate-template.png) has a SINGLE
+// 6-row subjects table (No / Subject / Marks — row numbers 1-6 are
+// already printed on the template image itself), NOT separate Somali
+// and English tables. So there is only ONE `subjects` list now.
+//
 // Flow:
-// 1. Admin types Roll Number, then presses Fetch. The system reads:
-//      students/{rollNumber}          -> fullName, motherName (parentName)
+// 1. Admin types Roll Number (= Student ID), then presses Fetch. The
+//    system reads:
+//      students/{rollNumber} -> fullName, motherName (parentName),
+//         placeOfBirth, dateOfBirth, studentPhoto — all auto-filled.
+//         rollNumber itself is then forced to the real students.studentId
+//         value, so what's shown always matches the actual Student ID.
 //      results (where studentId==id) -> ALL "results" docs for that
-//         student, keeps only className == "8" AND examType == "Final",
-//         sorts by marks DESC, and keeps the TOP 6 subjects by marks.
-//         Those 6 auto-fill the ENGLISH (right) subject table — subject
-//         name exactly as stored in Firestore (e.g. "islamic"), and its
-//         marks. This is READ-ONLY / automatic; the admin cannot edit it.
-//         The same 6 subjects are then DUPLICATED into rows 7-12 so the
-//         full 12-row English table is filled (No 1-6 == No 7-12).
-// 2. The SOMALI (left) 12-subject table is always typed by hand, and
-//    is fully independent of the English side (can hold different
-//    subjects, does not have to mirror it).
-// 3. Year and School Name are typed by hand (no longer auto-read).
-// 4. Result Average is auto-computed from ALL entered/auto-filled marks
-//    (English auto 6 + Somali manual 12 combined — the duplicated 7-12
-//    English rows are excluded from the average so they don't double-
-//    count the same 6 marks twice).
-// 5. Generate saves to `certificates` (doc id = safe Roll Number).
+//         student, keeps only rows where:
+//           - className is in the Class-8 group ("8"/"G8"/"G8 A"/"G8 B",
+//             any casing/spacing) OR the Secondary group ("F4" and any
+//             subdivision like "F4 A"/"F4 B"),
+//           - examType loosely matches "final" (covers "Final",
+//             "Final Exam", etc. — the exact label varies in Firestore),
+//           - the student actually PASSED (marks >= 50% of maxMarks).
+//         Sorts the passed rows by marks DESC, keeps the TOP 6 subjects.
+//         Those 6 auto-fill the single subjects table. This is
+//         READ-ONLY / automatic; the admin cannot type subjects by hand.
+// 2. Year defaults to the current school year ("2026-2027" style, from
+//    today's calendar year), School Name defaults to the school's full
+//    name — both remain plain editable text fields.
+// 3. Result Average is auto-computed from the 6 auto-filled marks.
+// 4. Generate saves to `certificates` (doc id = safe Roll Number).
 //
 // ⚠️ FIELD NAMES CONFIRMED FROM YOUR FIRESTORE SCREENSHOT (results doc):
 //    className, examId, examType, marks, maxMarks, studentId,
@@ -46,13 +54,47 @@ import Topbar from "../components/Topbar";
 import CertificateCard from "../components/CertificateCard";
 
 const GREEN = "#14532d";
-const SUBJECT_COUNT = 12;
-const ENGLISH_AUTO_COUNT = 6; // top 6 subjects by marks, auto-read
-const ENGLISH_DISPLAY_COUNT = 12; // the 6 are duplicated to fill all 12 rows
-const FINAL_CLASS = "8";
-const FINAL_EXAM_TYPE = "Final";
+const SUBJECT_COUNT = 6; // the real template has a single 6-row table
+const PASS_RATIO = 0.5; // a subject counts as "passed" at >= 50% of maxMarks
 const VERIFY_BASE_URL =
   typeof window !== "undefined" ? `${window.location.origin}/verify` : "/verify";
+
+// Class-8 group: "8", "G8", "G8 A", "G8 B" (any spacing/case) — these are
+// all treated as the SAME eligible class for this certificate. Secondary
+// group: "F4" and any of its subdivisions ("F4 A", "F4 B", ...). A result
+// row is eligible if its className falls in EITHER group.
+function isEligibleCertificateClass(className) {
+  const c = String(className || "").trim().toUpperCase().replace(/\s+/g, "");
+  if (!c) return false;
+  if (c === "8" || c.startsWith("G8")) return true;
+  if (c.startsWith("F4")) return true;
+  return false;
+}
+
+// examType is stored inconsistently across the app ("Final", "final",
+// "Final Exam") — match loosely on "final" so all of them count.
+function isFinalExamType(examType) {
+  return String(examType || "").toLowerCase().includes("final");
+}
+
+// A subject counts as "passed" once marks reach PASS_RATIO of maxMarks.
+// If maxMarks is missing/zero we can't judge pass/fail, so it's kept in
+// (better to surface it than silently drop a real result).
+function hasPassed(row) {
+  const marks = Number(row.marks);
+  const maxMarks = Number(row.maxMarks);
+  if (Number.isNaN(marks)) return false;
+  if (!maxMarks) return true;
+  return marks >= maxMarks * PASS_RATIO;
+}
+
+// Default school-year label shown on the certificate — e.g. today in
+// 2026 shows "2026-2027". Still a plain editable text field, this is
+// only the starting value.
+function currentSchoolYearLabel() {
+  const y = new Date().getFullYear();
+  return `${y}-${y + 1}`;
+}
 
 function emptySubjects(count = SUBJECT_COUNT) {
   return Array.from({ length: count }, () => ({ name: "", marks: "" }));
@@ -63,13 +105,13 @@ function emptyForm() {
     rollNumber: "",
     dateOfBirth: "",
     issueDate: "",
-    // Auto-filled (read-only) from Firestore:
+    // Auto-filled (read-only) from Firestore on Fetch:
     fullName: "",
     motherName: "",
     placeOfBirth: "",
-    // Typed by hand:
+    // Typed by hand (year defaults to the current school year):
     completedSchool: "AL - ISRA Primary & Secondary School",
-    year: "",
+    year: currentSchoolYearLabel(),
   };
 }
 
@@ -77,14 +119,10 @@ function toSafeDocId(rawId) {
   return rawId.trim().replace(/[\/\s]+/g, "-");
 }
 
-// Averages ALL entered marks across BOTH subject tables (English auto-6 +
-// Somali manual-12). Blank/empty marks are correctly excluded so they
-// don't drag the average down toward 0. Only the FIRST 6 English rows
-// are counted (rows 7-12 are a visual duplicate of rows 1-6, so counting
-// them too would double-weight those same 6 marks).
-function computeAverage(subjectsSomali, subjectsEnglish) {
-  const englishForAverage = subjectsEnglish.slice(0, ENGLISH_AUTO_COUNT);
-  const marks = [...subjectsSomali, ...englishForAverage]
+// Averages the 6 auto-filled marks. Blank/empty marks are correctly
+// excluded so they don't drag the average down toward 0.
+function computeAverage(subjects) {
+  const marks = subjects
     .map((s) => (s?.marks ?? "").toString().trim())
     .filter((v) => v !== "")
     .map((v) => Number(v))
@@ -334,11 +372,10 @@ export default function Certificates() {
   const [fetchMsg, setFetchMsg] = useState("");
 
   const [form, setForm] = useState(emptyForm());
-  // Somali (left) table = always typed by hand, independent, 12 rows.
-  const [subjectsSomali, setSubjectsSomali] = useState(emptySubjects(SUBJECT_COUNT));
-  // English (right) table = auto-read TOP 6 subjects by marks, DUPLICATED
-  // into all 12 rows (rows 1-6 == rows 7-12), read-only.
-  const [subjectsEnglish, setSubjectsEnglish] = useState(emptySubjects(ENGLISH_DISPLAY_COUNT));
+  // Single subjects table — 6 rows, always auto-read from Firestore on
+  // Fetch (top 6 PASSED subjects by marks). Read-only, matches the
+  // template's one 6-row table exactly.
+  const [subjects, setSubjects] = useState(emptySubjects(SUBJECT_COUNT));
   const [photo, setPhoto] = useState("");
   const [photoFile, setPhotoFile] = useState(null);
 
@@ -346,10 +383,7 @@ export default function Certificates() {
   const [viewCert, setViewCert] = useState(null);
   const [search, setSearch] = useState("");
 
-  const resultAverage = useMemo(
-    () => computeAverage(subjectsSomali, subjectsEnglish),
-    [subjectsSomali, subjectsEnglish]
-  );
+  const resultAverage = useMemo(() => computeAverage(subjects), [subjects]);
 
   useEffect(() => {
     load();
@@ -369,7 +403,7 @@ export default function Certificates() {
     }
   }
 
-  // ── Roll Number entered → read student + auto top-6 Final-8 subjects ──
+  // ── Roll Number entered → read student + auto top-6 PASSED Final subjects ──
   async function handleFetchStudent() {
     const roll = form.rollNumber.trim();
     if (!roll) {
@@ -392,45 +426,62 @@ export default function Certificates() {
       const st = studentSnap.data();
       const fullName = st.fullName || "";
       const motherName = st.motherName || st.parentName || "";
+      const placeOfBirth = st.placeOfBirth || "";
+      const dateOfBirth = st.dateOfBirth || "";
+      const studentPhoto = st.studentPhoto || "";
+      // Roll Number-ka la muujinayo waa in ay had iyo jeer noqoto isla
+      // Student ID-ga sax ah ee xogta laga soo aqriyay — ha ahaato sida
+      // laga qoray sanduuqa Fetch (case/whitespace-ka).
+      const realRollNumber = st.studentId || roll;
 
-      // 2) Read ALL `results` docs for this student, keep only the FINAL
-      //    class-8 rows, sort by marks DESC, take the top 6 subjects.
-      //    Each results doc = { className, examType, subject, marks,
-      //    maxMarks, studentId, ... } — one subject per doc.
+      // 2) Read ALL `results` docs for this student, keep only rows in the
+      //    Class-8 group ("8"/"G8"/"G8 A"/"G8 B") OR the F4 group
+      //    ("F4"/"F4 A"/"F4 B"), with a Final exam type, AND that the
+      //    student actually PASSED — sort by marks DESC, take the top 6.
       const rq = fsQuery(collection(db, "results"), where("studentId", "==", id));
       const rSnap = await getDocs(rq);
       const rows = rSnap.docs.map((d) => d.data());
 
       const finalRows = rows.filter(
         (r) =>
-          (r.className || "").toString() === FINAL_CLASS &&
-          (r.examType || "").toString() === FINAL_EXAM_TYPE
+          isEligibleCertificateClass(r.className) &&
+          isFinalExamType(r.examType) &&
+          hasPassed(r)
       );
 
       const top6 = [...finalRows]
         .sort((a, b) => (Number(b.marks) || 0) - (Number(a.marks) || 0))
-        .slice(0, ENGLISH_AUTO_COUNT)
+        .slice(0, SUBJECT_COUNT)
         .map((r) => ({
           name: r.subject || "",
           marks: r.marks !== undefined && r.marks !== null ? String(r.marks) : "",
         }));
 
-      // Pad the top-6 to exactly 6 rows, then DUPLICATE those same 6 rows
-      // into rows 7-12 so the full 12-row English table is filled
-      // (No 1-6 on screen == No 7-12 on screen, same subjects/marks).
-      const paddedTop6 = Array.from({ length: ENGLISH_AUTO_COUNT }, (_, i) => top6[i] || { name: "", marks: "" });
-      const duplicated12 = [...paddedTop6, ...paddedTop6];
+      // Pad to exactly 6 rows so the table always has 6 slots, matching
+      // the template's fixed 6-row layout.
+      const padded6 = Array.from({ length: SUBJECT_COUNT }, (_, i) => top6[i] || { name: "", marks: "" });
 
-      setForm((f) => ({ ...f, fullName, motherName }));
-      setSubjectsEnglish(duplicated12);
+      setForm((f) => ({
+        ...f,
+        rollNumber: realRollNumber,
+        fullName,
+        motherName,
+        placeOfBirth,
+        dateOfBirth,
+      }));
+      setSubjects(padded6);
+      // Sawirka ardayga si toos ah ayaa looga soo aqrinayaa xogta
+      // students/{id} — haddii uu jiro. Admin-ku weli wuu iska badali
+      // karaa gacanta (Upload Photo) haddii uu rabo mid kale.
+      if (studentPhoto) setPhoto(studentPhoto);
 
       if (finalRows.length === 0) {
         setFetchMsg(
-          "⚠️ Ardayga waa la helay, laakiin natiijo Final-8 lama helin — maadooyinka English-ka looma soo aqrin karin."
+          "⚠️ Ardayga waa la helay, laakiin natiijo Final ah oo uu ku baasay lama helin — maadooyinka lama soo aqrin karin."
         );
       } else {
         setFetchMsg(
-          `✅ Xogta ardayga la soo aqriyay — ${Math.min(finalRows.length, ENGLISH_AUTO_COUNT)} maado oo ugu sarreeya marks ayaa si toos ah loo buuxiyay (oo laba jibbaaray si buuxda loogu soo bandhigo).`
+          `✅ Xogta ardayga la soo aqriyay — ${Math.min(finalRows.length, SUBJECT_COUNT)} maado oo uu ku baasay oo ugu sarreeya marks ayaa si toos ah loo buuxiyay.`
         );
       }
     } catch (e) {
@@ -451,14 +502,6 @@ export default function Certificates() {
     );
   }, [certificates, search]);
 
-  function updateSubjectSomali(index, field, value) {
-    setSubjectsSomali((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
-    });
-  }
-
   function handlePhotoChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -474,8 +517,7 @@ export default function Certificates() {
 
   function resetForm() {
     setForm(emptyForm());
-    setSubjectsSomali(emptySubjects(SUBJECT_COUNT));
-    setSubjectsEnglish(emptySubjects(ENGLISH_DISPLAY_COUNT));
+    setSubjects(emptySubjects(SUBJECT_COUNT));
     setPhoto("");
     setPhotoFile(null);
     setFetchMsg("");
@@ -520,11 +562,7 @@ export default function Certificates() {
         photoUrl = photo;
       }
 
-      const cleanSubjectsSomali = subjectsSomali
-        .filter((s) => s.name.trim() || s.marks.toString().trim())
-        .map((s) => ({ name: s.name.trim(), marks: s.marks.toString().trim() }));
-
-      const cleanSubjectsEnglish = subjectsEnglish
+      const cleanSubjects = subjects
         .filter((s) => s.name.trim() || s.marks.toString().trim())
         .map((s) => ({ name: s.name.trim(), marks: s.marks.toString().trim() }));
 
@@ -538,8 +576,7 @@ export default function Certificates() {
         rollNumber: form.rollNumber.trim(),
         issueDate: form.issueDate.trim(),
         resultAverage: resultAverage === "" ? "" : resultAverage,
-        subjects: cleanSubjectsSomali,
-        subjectsEnglish: cleanSubjectsEnglish,
+        subjects: cleanSubjects,
         studentPhoto: photoUrl,
         createdAt: existing.exists() ? existing.data().createdAt : serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -582,12 +619,14 @@ export default function Certificates() {
             Class Leaving Certificates
           </h1>
           <p style={{ fontSize: 13.5, color: "#6B7280", margin: "0 0 24px" }}>
-            Geli Roll Number-ka, riix Fetch — magaca, magaca hooyada, iyo 6-ka
-            maado ee English-ka ee ugu sarreeya marks (natiijada Final-8) waa
-            la soo aqrinayaa si toos ah, oo laba jibbaaran si loo buuxiyo
-            dhammaan 12-ka saf. Sanadka, Magaca Dugsiga, Taariikhda
-            Dhalashada, Sawirka, iyo 12-ka Maado ee Soomaaliga ayaa gacanta
-            lagu qoraa.
+            Geli Roll Number-ka (= Student ID), riix Fetch — magaca, magaca
+            hooyada, goobta iyo taariikhda dhalashada, sawirka ardayga, iyo
+            6-ka maado ee English-ka ee ugu sarreeya marks (natiijada Final
+            ee uu ardaygu ku baasay, Class 8 ama F4) waa la soo aqrinayaa si
+            toos ah, oo laba jibbaaran si loo buuxiyo dhammaan 12-ka saf.
+            Sanadka dugsiyeedka wuxuu si toos ah u bilaabmaa sanadka hadda
+            (waana la beddeli karaa). Magaca Dugsiga iyo 12-ka Maado ee
+            Soomaaliga ayaa gacanta lagu qoraa.
           </p>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 22 }} className="cert-row">
@@ -623,19 +662,21 @@ export default function Certificates() {
                   )}
                 </Field>
 
-                {/* Auto-filled read-only summary (name only) */}
+                {/* Auto-filled read-only summary */}
                 <div style={{ padding: "10px 12px", borderRadius: 10, background: "#F9FAFB", border: "1px solid rgba(17,24,39,0.08)", fontSize: 12.5, color: "#374151", display: "flex", flexDirection: "column", gap: 4 }}>
                   <div><b>Magaca:</b> {form.fullName || "—"}</div>
                   <div><b>Magaca Hooyada:</b> {form.motherName || "—"}</div>
+                  <div><b>Goobta Dhalashada:</b> {form.placeOfBirth || "—"}</div>
+                  <div><b>Taariikhda Dhalashada:</b> {form.dateOfBirth || "—"}</div>
                 </div>
 
                 {/* Manual: Year + School Name */}
                 <div style={{ display: "flex", gap: 12 }}>
-                  <Field label="Year / Sanadka (gacanta)">
+                  <Field label="Year / Sanadka (toos ah, la beddeli karaa)">
                     <input
                       value={form.year}
                       onChange={(e) => setForm({ ...form, year: e.target.value })}
-                      placeholder="e.g. 2026/2027"
+                      placeholder="e.g. 2026-2027"
                       style={inputStyle}
                     />
                   </Field>
@@ -651,7 +692,7 @@ export default function Certificates() {
 
                 {/* Manual: Place + DOB */}
                 <div style={{ display: "flex", gap: 12 }}>
-                  <Field label="Place of Birth (gacanta)">
+                  <Field label="Place of Birth (toos ah, la beddeli karaa)">
                     <input
                       value={form.placeOfBirth}
                       onChange={(e) => setForm({ ...form, placeOfBirth: e.target.value })}
@@ -659,7 +700,7 @@ export default function Certificates() {
                       style={inputStyle}
                     />
                   </Field>
-                  <Field label="Date of Birth (gacanta)">
+                  <Field label="Date of Birth (toos ah, la beddeli karaa)">
                     <input
                       value={form.dateOfBirth}
                       onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
@@ -678,8 +719,8 @@ export default function Certificates() {
                   />
                 </Field>
 
-                {/* Manual: Photo */}
-                <Field label="Student Photo (gacanta)">
+                {/* Auto-read from student record; can still be overridden manually */}
+                <Field label="Student Photo (toos ah, waa la beddeli karaa)">
                   <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ width: 64, height: 64, borderRadius: 10, overflow: "hidden", background: "#E5E7EB", border: "1px solid rgba(17,24,39,0.1)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                       {photo ? <img src={photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 10, color: "#9CA3AF" }}>No photo</span>}
@@ -691,37 +732,13 @@ export default function Certificates() {
                   </div>
                 </Field>
 
-                {/* Manual: 12 subjects — Somali (left table) — independent */}
+                {/* AUTO: top 6 PASSED subjects by marks — read-only, single table (matches the template's one 6-row table) */}
                 <div style={{ fontSize: 12.5, color: "#6B7280", fontWeight: 700, marginTop: 6 }}>
-                  Maadooyinka (12) — Soomaali (bidix) — gacanta ku qor
+                  Maadooyinka (6) — si toos ah ayaa loo soo aqrinayaa (Fetch)
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "24px 1fr 70px", gap: 8, alignItems: "center" }}>
-                  {subjectsSomali.map((s, i) => (
-                    <div key={`so-${i}`} style={{ display: "contents" }}>
-                      <span style={{ fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>{i + 1}</span>
-                      <input
-                        value={s.name}
-                        onChange={(e) => updateSubjectSomali(i, "name", e.target.value)}
-                        placeholder={`Maado ${i + 1}`}
-                        style={{ ...inputStyle, padding: "7px 10px" }}
-                      />
-                      <input
-                        value={s.marks}
-                        onChange={(e) => updateSubjectSomali(i, "marks", e.target.value)}
-                        placeholder="Dhibco"
-                        style={{ ...inputStyle, padding: "7px 10px" }}
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                {/* AUTO: top 6 English subjects by marks, duplicated to 12 rows — read-only */}
-                <div style={{ fontSize: 12.5, color: "#6B7280", fontWeight: 700, marginTop: 12 }}>
-                  Subjects (12) — English (midig) — si toos ah ayaa loo soo aqrinayaa (6-ka la soo aqriyay ayaa laba jibbaaran)
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "24px 1fr 70px", gap: 8, alignItems: "center" }}>
-                  {subjectsEnglish.map((s, i) => (
-                    <div key={`en-${i}`} style={{ display: "contents" }}>
+                  {subjects.map((s, i) => (
+                    <div key={`subj-${i}`} style={{ display: "contents" }}>
                       <span style={{ fontSize: 12, color: "#9CA3AF", textAlign: "center" }}>{i + 1}</span>
                       <input
                         value={s.name}
@@ -786,8 +803,7 @@ export default function Certificates() {
                     year: form.year,
                     rollNumber: form.rollNumber,
                     resultAverage,
-                    subjects: subjectsSomali,
-                    subjectsEnglish,
+                    subjects,
                     studentPhoto: photo,
                     issueDate: form.issueDate,
                   }}

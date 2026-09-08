@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { db } from "../../firebase/firebase";
-import { collection, getDocs, doc, writeBatch } from "firebase/firestore";
+import { collection, getDocs, getDoc, doc, writeBatch } from "firebase/firestore";
 import {
   CalendarCheck,
   Users,
@@ -24,18 +24,52 @@ import schoolLogo from "../assets/logo.png";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
-const CLASS_ORDER = ["1", "2", "3", "4", "5", "6", "7", "8", "F1", "F2", "F3", "F4"];
+// Isla liiska class-yada asalka ah (built-in) ee AddStudent.jsx isticmaalo —
+// waa in ay isku mid noqdaan si Attendance-ku u soo aqriyo class-yada saxda
+// ah oo kaliya, kuwa kalena uusan soo aqrin.
+const BUILT_IN_CLASSES = [
+  "Fasalka 1aad",
+  "Fasalka 2aad",
+  "Fasalka 3aad",
+  "PP",
+  "PI",
+  "G8 A",
+  "G8 B",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+];
 
-function formatClassName(className) {
-  if (!className) return "";
-  let clean = String(className).trim();
-  clean = clean.replace(/^fasalka\s*/i, "");
-  return `Fasalka ${clean}`;
+const normalizeClassName = (name) => String(name || "").trim().replace(/\s+/g, " ").toLowerCase();
+
+// Class-yada la abuuray (customClasses) iyo kuwa asalka ah ee la "tirtiray"
+// (hiddenBuiltInClasses, sida laga sameeyay AddStudent.jsx) — labadaba waa
+// in Attendance-ku isku waafaqo si uu u soo aqriyo kaliya class-yada
+// hadda dhab ahaantooda jira.
+function buildValidClassList(customClasses, hiddenBuiltIns) {
+  const visibleBuiltIns = BUILT_IN_CLASSES.filter(
+    (c) => !hiddenBuiltIns.some((h) => normalizeClassName(h) === normalizeClassName(c))
+  );
+  const customNames = customClasses
+    .map((c) => c.name)
+    .filter(
+      (name) => !visibleBuiltIns.some((c) => normalizeClassName(c) === normalizeClassName(name))
+    )
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return [...visibleBuiltIns, ...customNames];
 }
 
-function classRank(className) {
-  const clean = String(className || "").replace(/^fasalka\s*/i, "").trim().toUpperCase();
-  const idx = CLASS_ORDER.indexOf(clean);
+// Class-yadu horeba waxay u yihiin magacyadooda kama dambaystiga ah (sida
+// "Fasalka 1aad", "PP", "G8 A", "F1") — sidaas darteed halkan lama
+// baahna in wax lagu daro ama laga saaro, waxaa kaliya la nadiifinayaa
+// booska (whitespace).
+function formatClassName(className) {
+  return String(className || "").trim();
+}
+
+function classRank(className, validClassNames) {
+  const idx = validClassNames.indexOf(className);
   return idx === -1 ? 999 : idx;
 }
 
@@ -297,6 +331,9 @@ export default function Attendance() {
   const [timeRangeFilter, setTimeRangeFilter] = useState("ALL");
   const [expandedClass, setExpandedClass] = useState({});
   const [expandedDate, setExpandedDate] = useState({});
+  // Liiska class-yada dhab ahaantooda ku jira AddStudent.jsx (built-in
+  // minus la tirtiray + custom) — kuwaas oo kaliya la aqrinayo.
+  const [validClassNames, setValidClassNames] = useState(BUILT_IN_CLASSES);
 
   const [pendingChanges, setPendingChanges] = useState({});
   const [isSaving, setIsSaving] = useState(false);
@@ -324,6 +361,28 @@ export default function Attendance() {
       });
       setTeachers(teacherMap);
 
+      // Class-yada sax ah — isla habka AddStudent.jsx isticmaalo (customClasses
+      // Firestore collection-ka + settings/classManagement.hiddenBuiltInClasses).
+      let customClasses = [];
+      let hiddenBuiltIns = [];
+      try {
+        const customClassesSnap = await getDocs(collection(db, "customClasses"));
+        customClasses = customClassesSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (err) {
+        console.log(err);
+      }
+      try {
+        const settingsSnap = await getDoc(doc(db, "settings", "classManagement"));
+        if (settingsSnap.exists()) {
+          hiddenBuiltIns = settingsSnap.data().hiddenBuiltInClasses || [];
+        }
+      } catch (err) {
+        console.log(err);
+      }
+      const currentValidClasses = buildValidClassList(customClasses, hiddenBuiltIns);
+      setValidClassNames(currentValidClasses);
+      const validClassSet = new Set(currentValidClasses.map((c) => normalizeClassName(c)));
+
       const attSnap = await getDocs(collection(db, "attendance"));
       const list = attSnap.docs
         .map((d) => ({ id: d.id, ...d.data() }))
@@ -333,7 +392,10 @@ export default function Attendance() {
             String(r.className).trim() !== "" &&
             r.studentId &&
             String(r.studentId).trim() !== "" &&
-            r.date
+            r.date &&
+            // Kaliya class-yada hadda sax ah (sida ku jira AddStudent.jsx) ayaa
+            // la aqbalayaa — class-yo kale (la tirtiray, khalad ah, iwm) lama soo aqrin.
+            validClassSet.has(normalizeClassName(r.className))
         );
       setRecords(list);
     } catch (err) {
@@ -399,8 +461,7 @@ export default function Attendance() {
 
     return records.filter((r) => {
       if (selectedClassFilter !== "ALL") {
-        const cleanClass = String(r.className).replace(/^fasalka\s*/i, "").trim().toUpperCase();
-        if (cleanClass !== selectedClassFilter.toUpperCase()) {
+        if (normalizeClassName(r.className) !== normalizeClassName(selectedClassFilter)) {
           return false;
         }
       }
@@ -429,7 +490,7 @@ export default function Attendance() {
     const map = {};
 
     filteredRecords.forEach((r) => {
-      const rawClass = String(r.className || "-").replace(/^fasalka\s*/i, "").trim();
+      const rawClass = String(r.className || "-").trim();
       const teacherId = r.teacherId || "Unknown";
 
       if (!map[rawClass]) map[rawClass] = {};
@@ -474,8 +535,8 @@ export default function Attendance() {
         });
         return matchesClass || matchesTeacher;
       })
-      .sort((a, b) => classRank(a) - classRank(b));
-  }, [groupedByClass, search, teachers, selectedClassFilter]);
+      .sort((a, b) => classRank(a, validClassNames) - classRank(b, validClassNames));
+  }, [groupedByClass, search, teachers, selectedClassFilter, validClassNames]);
 
   const toggleClassExpand = (key) => {
     setExpandedClass((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -777,7 +838,7 @@ export default function Attendance() {
                 style={selectStyle}
               >
                 <option value="ALL">Dhammaan Fasallada (All Classes)</option>
-                {CLASS_ORDER.map((c) => (
+                {validClassNames.map((c) => (
                   <option key={c} value={c}>
                     {formatClassName(c)}
                   </option>

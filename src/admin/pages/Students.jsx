@@ -214,6 +214,12 @@ export default function Students() {
   const [exportingId, setExportingId] = useState(null);
   const [exportClassFilter, setExportClassFilter] = useState("All");
   const [exportingExcel, setExportingExcel] = useState(false);
+  // Class-ka lagu shaandheynayo Student List-ka (kan waa mid ka duwan
+  // exportClassFilter ee kaliya loo isticmaalo Export Excel-ka).
+  const [listClassFilter, setListClassFilter] = useState("All");
+  // Gender-ka lagu shaandheynayo Student List-ka — riixida "Male" ama
+  // "Female" waxay tustaa oo kaliya ardayda gender-kaas, riix mar labaad si aad ugu noqoto dhammaan.
+  const [genderFilter, setGenderFilter] = useState("All");
 
   useEffect(() => {
     fetchStudents();
@@ -234,6 +240,9 @@ export default function Students() {
   const filteredStudents = students.filter((s) => {
     if (s.pendingDeletion) return false;
 
+    if (listClassFilter !== "All" && s.className !== listClassFilter) return false;
+    if (genderFilter !== "All" && s.gender !== genderFilter) return false;
+
     const q = search.toLowerCase().trim();
     if (!q) return true;
     return (
@@ -242,6 +251,16 @@ export default function Students() {
       (s.fullName || "").toLowerCase().includes(q)
     );
   });
+
+  const genderCounts = useMemo(() => {
+    const counts = { Male: 0, Female: 0 };
+    students.forEach((s) => {
+      if (s.pendingDeletion) return;
+      if (s.gender === "Male") counts.Male += 1;
+      else if (s.gender === "Female") counts.Female += 1;
+    });
+    return counts;
+  }, [students]);
 
   const availableClasses = useMemo(() => {
     const names = new Set(
@@ -539,12 +558,51 @@ export default function Students() {
           </div>
 
           <div style={listCard}>
-            <h3 style={{ color: "#fff", margin: "0 0 16px", fontSize: 17 }}>
-              Student List{" "}
-              <span style={{ color: "#8b87ad", fontWeight: 400, fontSize: 14 }}>
-                ({filteredStudents.length})
-              </span>
-            </h3>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <h3 style={{ color: "#fff", margin: 0, fontSize: 17 }}>
+                Student List{" "}
+                <span style={{ color: "#8b87ad", fontWeight: 400, fontSize: 14 }}>
+                  ({filteredStudents.length})
+                </span>
+              </h3>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => setGenderFilter(genderFilter === "Male" ? "All" : "Male")}
+                  style={genderFilter === "Male" ? genderBadgeActive : genderBadge}
+                >
+                  👦 Male ({genderCounts.Male})
+                </button>
+                <button
+                  onClick={() => setGenderFilter(genderFilter === "Female" ? "All" : "Female")}
+                  style={genderFilter === "Female" ? genderBadgeActive : genderBadge}
+                >
+                  👧 Female ({genderCounts.Female})
+                </button>
+
+                <select
+                  value={listClassFilter}
+                  onChange={(e) => setListClassFilter(e.target.value)}
+                  style={exportClassSelect}
+                >
+                  <option value="All">Dhammaan Class-yada</option>
+                  {availableClasses.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
             {loading ? (
               <p style={{ color: "#8b87ad" }}>Loading...</p>
@@ -971,6 +1029,29 @@ const exportClassSelect = {
   fontSize: 13.5,
   outline: "none",
   minWidth: 170,
+};
+
+const genderBadge = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  height: 46,
+  padding: "0 16px",
+  borderRadius: 10,
+  border: "1.5px solid rgba(139,108,245,0.3)",
+  background: "rgba(255,255,255,0.02)",
+  color: "#c4b5fd",
+  fontSize: 13.5,
+  fontWeight: 700,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+};
+
+const genderBadgeActive = {
+  ...genderBadge,
+  background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
+  color: "#fff",
+  border: "1.5px solid #6d5df0",
 };
 
 const excelBtn = {

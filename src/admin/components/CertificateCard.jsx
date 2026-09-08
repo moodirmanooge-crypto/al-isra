@@ -3,131 +3,110 @@
 // artwork (certificate-template.png) as the background, with the
 // student's data overlaid on top at the correct positions.
 //
-// COORDINATES BELOW WERE RE-MEASURED DIRECTLY ON THE TEMPLATE IMAGE
-// (3508 x 2481 px) using a percentage grid overlay, reading the exact
-// pixel row of every printed underline and the exact pixel column
-// where each blank begins/ends.
+// COORDINATES BELOW WERE RE-MEASURED DIRECTLY AGAINST THE ACTUAL
+// certificate-template.png FILE (1491 x 1055 px) using pixel-level
+// underline/divider detection (not eyeballed) — this fixes a previous
+// version where every text field was rendering ~5-9% too high (which is
+// why "AL - ISRA School" used to appear overlapping the name line).
 //
-// Layout: LEFT half = Somali column, RIGHT half = English column.
-// Both halves are mirrored horizontally at IDENTICAL row heights, so
-// every Somali field and its English twin share the same `top`.
+// IMPORTANT — what the REAL template actually has (confirmed by direct
+// pixel inspection, not assumed):
+//  - Somali (left) side has ONLY 4 data lines: Full Name, Date of Birth,
+//    Place of Birth, Year. There is NO Somali "Mother's Name" line.
+//  - English (right) side has 6 data lines: Student's Name, Place &
+//    Date of Birth (ONE combined line), Completed Secondary School,
+//    Year, Roll Number (Year + Roll Number share one line, two blanks),
+//    Result Average.
+//  - The subjects table is a SINGLE 6-row table (No / Maadada-Subject /
+//    Notada-Marks) — NOT four separate Somali/English tables. Row
+//    numbers 1-6 are already printed on the template image itself.
+//  - There is NO printed "Date of Issue" line anywhere on this template,
+//    and NO "Mother's Name" line on either side — so neither is
+//    rendered here (rendering text with no real destination is exactly
+//    what caused the earlier misplaced-text bug).
 //
-// NOTE: The 12-subject table is INDEPENDENT per side. This component
-// itself doesn't care which side is auto-read vs hand-typed — it just
-// renders whatever is passed in `subjects` (Somali/left table) and
-// `subjectsEnglish` (English/right table). The auto-read vs manual
-// logic lives in Certificates.jsx.
+// Layout: LEFT half = Somali fields, RIGHT half = English fields (both
+// halves share the same student data — same names, same 6 subjects —
+// just at their own template positions).
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import certificateTemplate from "./assets/certificate-template.png";
 
 const CARD_W = 900;
-const RATIO = 2481 / 3508;
+const RATIO = 1055 / 1491; // matches the real template.png aspect ratio
 
-// School name is fixed — always "AL - ISRA School" on both sides.
-const SCHOOL_NAME = "AL - ISRA School";
+const DEFAULT_SCHOOL_NAME = "AL - ISRA Primary & Secondary School";
 
 // Font sizes — per-field, tuned to match the real printed certificate's
 // proportions (wider fields get smaller text so they never overflow).
 const FONT = {
   name: 14,
-  mother: 11.5,
   dob: 11,
-  school: 8,
-  year: 12.5,
-  roll: 12.5,
-  result: 12.5,
-  issue: 11.5,
-
+  school: 9,
+  year: 12,
+  roll: 12,
+  result: 12,
   subject: 9.5,
   marks: 9.5,
-  number: 9,
 };
 const FONT_WEIGHT = 600;
 const FONT_FAMILY = "Arial, Helvetica, sans-serif";
 
 // Sawirka ardayga (photo box) — dhexda labada dhinac
-const PHOTO_BOX = { left: 45.0, top: 33.5, width: 10.3, height: 16.5 };
+const PHOTO_BOX = { left: 44.0, top: 34.5, width: 10.5, height: 16.6 };
 
-// Goobaha qoraalada Soomaaliga (Somali Fields) — DHINACA BIDIX (left half)
-// Qoraalku wuxuu ku dul dhacaa xariiqda (underline), ee kuma dul dhaco
-// label-ka. `left` waa halka blank-ku ka bilaabmayo (label-ka ka dib).
+// Goobaha qoraalada Soomaaliga (Somali Fields) — DHINACA BIDIX (left half).
+// Only 4 real lines exist on the template — no motherName here.
 const FIELD_SOMALI = {
-  fullName: { top: 37.6, left: 15.0, right: 44.0 },
-  motherName: { top: 40.5, left: 24.5, right: 40.0 },
-  placeDob: { top: 43.5, left: 31.5, right: 43.0 },
-  schoolName: { top: 46.5, left: 36.0, right: 8.0 },
-  year: { top: 50.1, left: 16.5, right: 67.0 },
-  rollNumber: { top: 49.9, left: 35.9, right: 44.0 },
-  resultAverage: { top: 53.3, left: 32.5, right: 44.5 },
+  fullName: { top: 46.92, left: 16.5, right: 58.2 },
+  dateOfBirth: { top: 49.67, left: 20.2, right: 58.2 },
+  placeOfBirth: { top: 52.32, left: 18.0, right: 66.2 },
+  year: { top: 55.07, left: 17.3, right: 58.2 },
 };
 
 // Goobaha qoraalada Ingiriiska (English Fields) — DHINACA MIDIG (right half)
 const FIELD = {
-  fullName: { top: 37.6, left: 62.5, right: 8.5 },
-  motherName: { top: 40.7, left: 69.5, right: 7.5 },
-  placeDob: { top: 43.5, left: 70.5, right: 7.5 },
-  schoolName: { top: 46.5, left: 74.5, right: 2.0 },
-  year: { top: 50.6, left: 60.5, right: 24.5 },
-  rollNumber: { top: 50.5, left: 81.0, right: 7.5 },
-  resultAverage: { top: 53.5, left: 70.0, right: 11.0 },
+  fullName: { top: 46.82, left: 68.5, right: 4.8 },
+  placeDob: { top: 49.38, left: 72.0, right: 4.8 },
+  schoolName: { top: 52.04, left: 76.2, right: 4.9 },
+  year: { top: 54.55, left: 62.0, right: 25.9 },
+  rollNumber: { top: 54.55, left: 83.2, right: 4.8 },
+  resultAverage: { top: 57.16, left: 68.1, right: 15.7 },
 };
 
-// Miisaska Maadooyinka (Rows Y-axis) — top edge of each row's text line
-const ROW_TOPS = [61.2, 63.6, 66.0, 68.4, 70.8, 73.2];
-
-const TABLE_SOMALI_A = {
-  subjectLeft: 13.8, subjectRight: 40.2,
-  marksLeft: 10.5, marksRight: 39.7,
+// Single subjects table — 6 rows, one Subject column + one Marks column.
+// Row numbers (1-6) are already printed on the template; we only fill
+// the Subject and Marks cells alongside them.
+const ROW_TOPS = [67.68, 70.52, 73.32, 76.07, 78.86, 81.65];
+const TABLE_COLS = {
+  subjectLeft: 32.0,
+  subjectRight: 100 - 58.3, // = 41.7
+  marksLeft: 60.0,
+  marksRight: 100 - 74.3, // = 25.7
 };
-const TABLE_SOMALI_B = {
-  subjectLeft: 31.3, subjectRight: 49.5,
-  marksLeft: 28.0, marksRight: 55.0,
-};
-
-const TABLE_ENGLISH_A = {
-  subjectLeft: 61.0, subjectRight: 73.5,
-  marksLeft: 65.0, marksRight: 80.5,
-};
-const TABLE_ENGLISH_B = {
-  subjectLeft: 79.0, subjectRight: 86.8,
-  marksLeft: 89.2, marksRight: 89.0,
-};
-
-// Taariikhda la bixiyay (Date of Issue) — printed as three short slots
-// ( __ / __ / __ ) rather than one long blank, on both sides.
-const ISSUE_DATE_SOMALI = { top: 83.6, left: 27.2, right: 44.0 };
-const ISSUE_DATE = { top: 83.5, left: 66.5, right: 7.5 };
 
 export default function CertificateCard({ certificate, verifyUrl, elementId }) {
   const {
     fullName,
-    motherName,
     placeOfBirth,
     dateOfBirth,
     year,
     rollNumber,
     resultAverage,
-    // Somali (left) table — now hand-typed by the teacher, 12 rows.
-    subjects = [],
-    // English (right) table — now auto-read (top 6 by marks). If not
-    // supplied (or empty), falls back to mirroring `subjects` so older
-    // callers keep working unchanged.
+    completedSchool,
+    // The 6 auto-read (passed) subjects, single table. Falls back to
+    // `subjectsEnglish` so certificates saved before this fix (which
+    // used the old dual-table format) still display their data.
+    subjects,
     subjectsEnglish,
     studentPhoto,
-    issueDate,
   } = certificate || {};
 
+  const schoolName = (completedSchool || "").trim() || DEFAULT_SCHOOL_NAME;
   const placeDobText = [placeOfBirth, dateOfBirth].filter(Boolean).join(" - ");
 
-  const somaliSubjects = subjects;
-  const englishSubjects =
-    subjectsEnglish && subjectsEnglish.length ? subjectsEnglish : subjects;
-
-  const firstSixSo = somaliSubjects.slice(0, 6);
-  const lastSixSo = somaliSubjects.slice(6, 12);
-  const firstSixEn = englishSubjects.slice(0, 6);
-  const lastSixEn = englishSubjects.slice(6, 12);
+  const tableSubjects =
+    subjects && subjects.length ? subjects : (subjectsEnglish || []).slice(0, 6);
 
   const qrSrc = verifyUrl
     ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=0&data=${encodeURIComponent(
@@ -171,30 +150,23 @@ export default function CertificateCard({ certificate, verifyUrl, elementId }) {
             src={studentPhoto}
             alt=""
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            crossOrigin="anonymous"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
           />
         ) : null}
       </div>
 
-      {/* Somali column (left half) */}
+      {/* Somali column (left half) — 4 fields only */}
       <FitText text={fullName} {...FIELD_SOMALI.fullName} maxFontPx={FONT.name} />
-      <FitText text={motherName} {...FIELD_SOMALI.motherName} maxFontPx={FONT.mother} />
-      <FitText text={placeDobText} {...FIELD_SOMALI.placeDob} maxFontPx={FONT.dob} />
-      <FitText text={SCHOOL_NAME} {...FIELD_SOMALI.schoolName} maxFontPx={FONT.school} />
+      <FitText text={dateOfBirth} {...FIELD_SOMALI.dateOfBirth} maxFontPx={FONT.dob} />
+      <FitText text={placeOfBirth} {...FIELD_SOMALI.placeOfBirth} maxFontPx={FONT.dob} />
       <FitText text={year} {...FIELD_SOMALI.year} maxFontPx={FONT.year} />
-      <FitText text={rollNumber} {...FIELD_SOMALI.rollNumber} maxFontPx={FONT.roll} />
-      <FitText
-        text={resultAverage !== "" && resultAverage != null ? `${resultAverage}%` : ""}
-        {...FIELD_SOMALI.resultAverage}
-        maxFontPx={FONT.result}
-      />
-      <FitText text={issueDate} {...ISSUE_DATE_SOMALI} maxFontPx={FONT.issue} />
 
-      {/* English column (right half) */}
+      {/* English column (right half) — 6 fields */}
       <FitText text={fullName} {...FIELD.fullName} maxFontPx={FONT.name} />
-      <FitText text={motherName} {...FIELD.motherName} maxFontPx={FONT.mother} />
       <FitText text={placeDobText} {...FIELD.placeDob} maxFontPx={FONT.dob} />
-      <FitText text={SCHOOL_NAME} {...FIELD.schoolName} maxFontPx={FONT.school} />
+      <FitText text={schoolName} {...FIELD.schoolName} maxFontPx={FONT.school} />
       <FitText text={year} {...FIELD.year} maxFontPx={FONT.year} />
       <FitText text={rollNumber} {...FIELD.rollNumber} maxFontPx={FONT.roll} />
       <FitText
@@ -202,37 +174,26 @@ export default function CertificateCard({ certificate, verifyUrl, elementId }) {
         {...FIELD.resultAverage}
         maxFontPx={FONT.result}
       />
-      <FitText text={issueDate} {...ISSUE_DATE} maxFontPx={FONT.issue} />
 
-      {/* Subjects - Somali A (left table, cols 1-6) */}
-      {firstSixSo.map((s, i) => (
-        <div key={`so-a-${i}`}>
-          <FitText text={s?.name} top={ROW_TOPS[i]} left={TABLE_SOMALI_A.subjectLeft} right={100 - TABLE_SOMALI_A.subjectRight} maxFontPx={FONT.subject} align="left" />
-          <FitText text={s?.marks} top={ROW_TOPS[i]} left={TABLE_SOMALI_A.marksLeft} right={100 - TABLE_SOMALI_A.marksRight} maxFontPx={FONT.marks} align="center" />
-        </div>
-      ))}
-
-      {/* Subjects - Somali B (left table, cols 7-12) */}
-      {lastSixSo.map((s, i) => (
-        <div key={`so-b-${i}`}>
-          <FitText text={s?.name} top={ROW_TOPS[i]} left={TABLE_SOMALI_B.subjectLeft} right={100 - TABLE_SOMALI_B.subjectRight} maxFontPx={FONT.subject} align="left" />
-          <FitText text={s?.marks} top={ROW_TOPS[i]} left={TABLE_SOMALI_B.marksLeft} right={100 - TABLE_SOMALI_B.marksRight} maxFontPx={FONT.marks} align="center" />
-        </div>
-      ))}
-
-      {/* Subjects - English A (right table, cols 1-6) */}
-      {firstSixEn.map((s, i) => (
-        <div key={`en-a-${i}`}>
-          <FitText text={s?.name} top={ROW_TOPS[i]} left={TABLE_ENGLISH_A.subjectLeft} right={100 - TABLE_ENGLISH_A.subjectRight} maxFontPx={FONT.subject} align="left" />
-          <FitText text={s?.marks} top={ROW_TOPS[i]} left={TABLE_ENGLISH_A.marksLeft} right={100 - TABLE_ENGLISH_A.marksRight} maxFontPx={FONT.marks} align="center" />
-        </div>
-      ))}
-
-      {/* Subjects - English B (right table, cols 7-12) */}
-      {lastSixEn.map((s, i) => (
-        <div key={`en-b-${i}`}>
-          <FitText text={s?.name} top={ROW_TOPS[i]} left={TABLE_ENGLISH_B.subjectLeft} right={100 - TABLE_ENGLISH_B.subjectRight} maxFontPx={FONT.subject} align="left" />
-          <FitText text={s?.marks} top={ROW_TOPS[i]} left={TABLE_ENGLISH_B.marksLeft} right={100 - TABLE_ENGLISH_B.marksRight} maxFontPx={FONT.marks} align="center" />
+      {/* Subjects table — ONE table, 6 rows (No column already printed) */}
+      {tableSubjects.slice(0, 6).map((s, i) => (
+        <div key={`subj-${i}`}>
+          <FitText
+            text={s?.name}
+            top={ROW_TOPS[i]}
+            left={TABLE_COLS.subjectLeft}
+            right={TABLE_COLS.subjectRight}
+            maxFontPx={FONT.subject}
+            align="left"
+          />
+          <FitText
+            text={s?.marks}
+            top={ROW_TOPS[i]}
+            left={TABLE_COLS.marksLeft}
+            right={TABLE_COLS.marksRight}
+            maxFontPx={FONT.marks}
+            align="center"
+          />
         </div>
       ))}
 

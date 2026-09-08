@@ -3,6 +3,7 @@ import { db, storage } from "../../firebase/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   doc,
+  getDoc,
   setDoc,
   deleteDoc,
   collection,
@@ -107,12 +108,16 @@ export default function AddStudent() {
   const [photoPreview, setPhotoPreview] = useState(null);
   const [saving, setSaving] = useState(false);
   const [customClasses, setCustomClasses] = useState([]);
+  // Class-yada asalka ah (Fasalka 1aad, PP, iwm) ee la "tirtiray" — waxaa
+  // lagu kaydiyaa Firestore si ay u sii ahaadaan tirtiran booqasho kasta.
+  const [hiddenBuiltIns, setHiddenBuiltIns] = useState([]);
   const [creatingClass, setCreatingClass] = useState(false);
   const [managingClasses, setManagingClasses] = useState(false);
   const [classActionBusy, setClassActionBusy] = useState(false);
 
   useEffect(() => {
     fetchCustomClasses();
+    fetchClassSettings();
   }, []);
 
   const fetchCustomClasses = async () => {
@@ -124,13 +129,41 @@ export default function AddStudent() {
     }
   };
 
+  const fetchClassSettings = async () => {
+    try {
+      const snap = await getDoc(doc(db, "settings", "classManagement"));
+      if (snap.exists()) {
+        setHiddenBuiltIns(snap.data().hiddenBuiltInClasses || []);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
   const allClassOptions = useMemo(() => {
+    const visibleBuiltIns = classOptions.filter(
+      (c) => !hiddenBuiltIns.some((h) => normalizeClassName(h) === normalizeClassName(c))
+    );
     const customNames = customClasses
       .map((c) => c.name)
-      .filter((name) => !classOptions.some((c) => normalizeClassName(c) === normalizeClassName(name)))
+      .filter((name) => !visibleBuiltIns.some((c) => normalizeClassName(c) === normalizeClassName(name)))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    return [...classOptions, ...customNames];
-  }, [customClasses]);
+    return [...visibleBuiltIns, ...customNames];
+  }, [customClasses, hiddenBuiltIns]);
+
+  // Liiska buuxa ee modal-ka "Maamulka Class-yada" — wuxuu ka kooban yahay
+  // labada nooc: class-yada asalka ah (built-in, isCustom:false) iyo
+  // class-yada la abuuray (custom, isCustom:true) — labaduba edit/delete
+  // ayaa lagu sameyn karaa.
+  const manageableClasses = useMemo(() => {
+    const builtInItems = classOptions
+      .filter((c) => !hiddenBuiltIns.some((h) => normalizeClassName(h) === normalizeClassName(c)))
+      .map((name) => ({ id: null, name, isCustom: false }));
+    const customItems = customClasses.map((c) => ({ id: c.id, name: c.name, isCustom: true }));
+    return [...builtInItems, ...customItems].sort((a, b) =>
+      a.name.localeCompare(b.name, undefined, { numeric: true })
+    );
+  }, [customClasses, hiddenBuiltIns]);
 
   const handleChange = (e) => {
     setStudent({
@@ -243,11 +276,12 @@ export default function AddStudent() {
     const target = normalizeClassName(trimmed);
     if (target === normalizeClassName(classItem.name)) return;
 
-    const duplicateInBuiltIn = classOptions.some((c) => normalizeClassName(c) === target);
-    const duplicateInCustom = customClasses.some(
-      (c) => c.id !== classItem.id && normalizeClassName(c.name) === target
+    const duplicate = manageableClasses.some(
+      (c) =>
+        normalizeClassName(c.name) === target &&
+        !(c.isCustom === classItem.isCustom && c.id === classItem.id)
     );
-    if (duplicateInBuiltIn || duplicateInCustom) {
+    if (duplicate) {
       alert(`Class-ka "${trimmed}" horeyba u jiray.`);
       return;
     }
@@ -255,7 +289,27 @@ export default function AddStudent() {
     try {
       setClassActionBusy(true);
 
-      await updateDoc(doc(db, "customClasses", classItem.id), { name: trimmed });
+      if (classItem.isCustom) {
+        await updateDoc(doc(db, "customClasses", classItem.id), { name: trimmed });
+        setCustomClasses((prev) =>
+          prev.map((c) => (c.id === classItem.id ? { ...c, name: trimmed } : c))
+        );
+      } else {
+        // Class-ka asalka ah (built-in): magaca hore waa la qariyaa (hidden),
+        // magaca cusub waxaa loo abuuraa sida class la abuuray (customClasses).
+        const newDocRef = doc(collection(db, "customClasses"));
+        await setDoc(newDocRef, { name: trimmed, createdAt: new Date() });
+
+        const newHidden = [...hiddenBuiltIns, classItem.name];
+        await setDoc(
+          doc(db, "settings", "classManagement"),
+          { hiddenBuiltInClasses: newHidden },
+          { merge: true }
+        );
+
+        setCustomClasses((prev) => [...prev, { id: newDocRef.id, name: trimmed }]);
+        setHiddenBuiltIns(newHidden);
+      }
 
       // Ardayda hore u lahaa magacan hore ee Class-ka waa in la
       // cusboonaysiiyaa magaca cusub, si aan xogtu isugu kala tagin.
@@ -271,9 +325,6 @@ export default function AddStudent() {
       idCardsSnap.docs.forEach((d) => batch.update(d.ref, { className: trimmed }));
       await batch.commit();
 
-      setCustomClasses((prev) =>
-        prev.map((c) => (c.id === classItem.id ? { ...c, name: trimmed } : c))
-      );
       setStudent((prev) =>
         prev.className === classItem.name ? { ...prev, className: trimmed } : prev
       );
@@ -302,9 +353,19 @@ export default function AddStudent() {
         return;
       }
 
-      await deleteDoc(doc(db, "customClasses", classItem.id));
+      if (classItem.isCustom) {
+        await deleteDoc(doc(db, "customClasses", classItem.id));
+        setCustomClasses((prev) => prev.filter((c) => c.id !== classItem.id));
+      } else {
+        const newHidden = [...hiddenBuiltIns, classItem.name];
+        await setDoc(
+          doc(db, "settings", "classManagement"),
+          { hiddenBuiltInClasses: newHidden },
+          { merge: true }
+        );
+        setHiddenBuiltIns(newHidden);
+      }
 
-      setCustomClasses((prev) => prev.filter((c) => c.id !== classItem.id));
       setStudent((prev) =>
         prev.className === classItem.name ? { ...prev, className: "" } : prev
       );
@@ -921,9 +982,9 @@ export default function AddStudent() {
               </button>
             </div>
 
-            {customClasses.length === 0 ? (
+            {manageableClasses.length === 0 ? (
               <p style={{ color: "#8b87ad", fontSize: 13.5 }}>
-                Wali class gaar ah lama abuurin. Riix "+" ee Class Name si aad mid u sameyso.
+                Wali class lama abuurin.
               </p>
             ) : (
               <div
@@ -935,39 +996,52 @@ export default function AddStudent() {
                   overflowY: "auto",
                 }}
               >
-                {customClasses
-                  .slice()
-                  .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
-                  .map((c) => (
-                    <div key={c.id} style={classRow}>
-                      <span style={{ color: "#e5e3f7", fontSize: 14, fontWeight: 600 }}>
-                        {c.name}
-                      </span>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          onClick={() => handleRenameClass(c)}
-                          disabled={classActionBusy}
-                          title="Edit"
-                          style={classActionBtn}
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteClass(c)}
-                          disabled={classActionBusy}
-                          title="Delete"
+                {manageableClasses.map((c) => (
+                  <div key={`${c.isCustom ? "custom" : "builtin"}-${c.id || c.name}`} style={classRow}>
+                    <span style={{ color: "#e5e3f7", fontSize: 14, fontWeight: 600 }}>
+                      {c.name}
+                      {!c.isCustom && (
+                        <span
                           style={{
-                            ...classActionBtn,
-                            background: "rgba(239,68,68,0.15)",
-                            color: "#f87171",
-                            border: "1px solid rgba(239,68,68,0.3)",
+                            marginLeft: 8,
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                            color: "#8b6cf5",
+                            background: "rgba(139,108,245,0.12)",
+                            border: "1px solid rgba(139,108,245,0.3)",
+                            borderRadius: 6,
+                            padding: "2px 6px",
                           }}
                         >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
+                          BUILT-IN
+                        </span>
+                      )}
+                    </span>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => handleRenameClass(c)}
+                        disabled={classActionBusy}
+                        title="Edit"
+                        style={classActionBtn}
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteClass(c)}
+                        disabled={classActionBusy}
+                        title="Delete"
+                        style={{
+                          ...classActionBtn,
+                          background: "rgba(239,68,68,0.15)",
+                          color: "#f87171",
+                          border: "1px solid rgba(239,68,68,0.3)",
+                        }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
-                  ))}
+                  </div>
+                ))}
               </div>
             )}
           </div>

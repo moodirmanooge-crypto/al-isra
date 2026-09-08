@@ -82,6 +82,17 @@ async function reserveReceiptNumbers(count) {
 
 const SCHOOL_NAME = "Rising School";
 
+// Cashier-ka hadda login-gareeyay — waxaa lagu kaydiyaa localStorage marka
+// la galo (LoginForm). Waxaa lagu duugayaa (stamp) rasiid/payment kasta si
+// dib loogu ogaado cashier-kee ah kan qabtay lacag-bixintaas.
+function getLoggedInCashierUsername() {
+  try {
+    return localStorage.getItem("cashierUsername") || "";
+  } catch {
+    return "";
+  }
+}
+
 const classOptions = [
   "Fasalka 1aad",
   "Fasalka 2aad",
@@ -197,6 +208,16 @@ export default function Classes() {
   const [profileStudent, setProfileStudent] = useState(null);
   const [specialSavingId, setSpecialSavingId] = useState(null);
   const [specialAmounts, setSpecialAmounts] = useState({});
+
+  // Xogta la "Reset" gareeyay ee weli ku jira receiptDeleted (deleted:true) —
+  // waxaa lagu soo bandhigayaa modal-ka "Xogta La Reset-gareeyay" si loo
+  // dib-u-soo-celiyo hal mar, iyada oo aan la baahnayn in Firestore console-ka
+  // document-document loo galo sida hore.
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archivedGroups, setArchivedGroups] = useState([]);
+  const [loadingArchive, setLoadingArchive] = useState(false);
+  const [restoringBatchKey, setRestoringBatchKey] = useState(null);
+  const [restoringAllArchive, setRestoringAllArchive] = useState(false);
 
   const [now, setNow] = useState(new Date());
 
@@ -680,6 +701,109 @@ export default function Classes() {
     }
   }
 
+  // 3. Xogta La Reset-gareeyay — soo qaadista iyo dib-u-soo-celinta hal mar
+  // (halkii ay ka ahaan lahayd in Firestore console-ka document-document
+  // loo galo oo "deleted" loo beddelo false).
+  async function loadArchivedGroups() {
+    try {
+      setLoadingArchive(true);
+      const snap = await getDocs(
+        query(collection(db, "receiptDeleted"), where("deleted", "==", true))
+      );
+
+      const groups = {};
+      snap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const key = data.resetBatchId || docSnap.id;
+        if (!groups[key]) {
+          groups[key] = {
+            key,
+            deletedReason: data.deletedReason || "—",
+            deletedAt: data.deletedAt,
+            docs: [],
+          };
+        }
+        groups[key].docs.push(docSnap);
+        if (
+          data.deletedAt?.seconds &&
+          (!groups[key].deletedAt?.seconds || data.deletedAt.seconds < groups[key].deletedAt.seconds)
+        ) {
+          groups[key].deletedAt = data.deletedAt;
+        }
+      });
+
+      const list = Object.values(groups).sort((a, b) => {
+        const at = a.deletedAt?.seconds || 0;
+        const bt = b.deletedAt?.seconds || 0;
+        return bt - at;
+      });
+      setArchivedGroups(list);
+    } catch (err) {
+      console.error(err);
+      alert("Khalad ayaa dhacay marka xogta la reset-gareeyay la soo qaadanayay.");
+    } finally {
+      setLoadingArchive(false);
+    }
+  }
+
+  function openArchiveModal() {
+    setShowArchiveModal(true);
+    loadArchivedGroups();
+  }
+
+  // Firestore batched writes waxay ku xaddidan yihiin 500 operation — waxaan
+  // ku qaybinaynaa 450-450 si aan u dhaafin xadka. Isla marka "deleted" loo
+  // beddelo false, listener-ka kore ee onSnapshot ayaa si toos ah u
+  // dhaqaaqaya oo dib u celinaya xogta collection-yadeedii asalka ahaa.
+  async function restoreDocs(docsToRestore) {
+    for (let i = 0; i < docsToRestore.length; i += 450) {
+      const chunk = docsToRestore.slice(i, i + 450);
+      const batch = writeBatch(db);
+      chunk.forEach((d) => batch.update(d.ref, { deleted: false }));
+      await batch.commit();
+    }
+  }
+
+  async function restoreArchivedBatch(group) {
+    const confirmed = window.confirm(
+      `Ma hubtaa inaad dib u soo celinayso xogtan (${group.docs.length} qodob)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setRestoringBatchKey(group.key);
+      await restoreDocs(group.docs);
+      await loadArchivedGroups();
+    } catch (err) {
+      console.error(err);
+      alert("Khalad ayaa dhacay marka xogta dib loo soo celinayay.");
+    } finally {
+      setRestoringBatchKey(null);
+    }
+  }
+
+  async function restoreAllArchivedData() {
+    if (archivedGroups.length === 0) return;
+    const totalCount = archivedGroups.reduce((sum, g) => sum + g.docs.length, 0);
+    const confirmed = window.confirm(
+      `⚠️ Ma hubtaa inaad dib u soo celinayso DHAMMAAN xogta la reset-gareeyay (${totalCount} qodob, ${archivedGroups.length} wadhax)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setRestoringAllArchive(true);
+      const allDocs = archivedGroups.flatMap((g) => g.docs);
+      await restoreDocs(allDocs);
+      await loadArchivedGroups();
+      alert("Dhammaan xogta la reset-gareeyay waa la soo celiyay.");
+    } catch (err) {
+      console.error(err);
+      alert("Khalad ayaa dhacay marka dhammaan xogta la soo celinayay.");
+    } finally {
+      setRestoringAllArchive(false);
+    }
+  }
+
   const generateMonthlyRevenuePDF = (paidRecords) => {
     const docPdf = new jsPDF();
     const formattedMonth = monthLabel(currentMonthKey());
@@ -795,6 +919,7 @@ export default function Classes() {
       })();
 
       const batch = writeBatch(db);
+      const processedByUsername = getLoggedInCashierUsername();
 
       batch.update(doc(db, "cashier", student.id), {
         feeType: "Paid",
@@ -817,6 +942,7 @@ export default function Classes() {
           monthLabel: monthLabel(u.monthKey),
           studentPhone: student.studentPhone || "",
           parentPhone: student.parentPhone || "",
+          processedByUsername,
           createdAt: serverTimestamp(),
         });
       });
@@ -834,6 +960,7 @@ export default function Classes() {
         creditBalanceAfter: newCreditBalance,
         studentPhone: student.studentPhone || "",
         parentPhone: student.parentPhone || "",
+        processedByUsername,
         createdAt: serverTimestamp(),
       });
 
@@ -853,6 +980,7 @@ export default function Classes() {
         creditBalanceAfter: newCreditBalance,
         studentPhone: student.studentPhone || "",
         parentPhone: student.parentPhone || "",
+        processedByUsername,
         createdAt: serverTimestamp(),
       });
 
@@ -907,6 +1035,7 @@ export default function Classes() {
       const batch = writeBatch(db);
       const newReceipts = [];
       const reportPaidList = [];
+      const processedByUsername = getLoggedInCashierUsername();
 
       let receiptNoCounter = (await reserveReceiptNumbers(targets.length)) - 1;
 
@@ -980,6 +1109,7 @@ export default function Classes() {
             monthLabel: monthLabel(u.monthKey),
             studentPhone: student.studentPhone || "",
             parentPhone: student.parentPhone || "",
+            processedByUsername,
             createdAt: serverTimestamp(),
           });
 
@@ -1033,6 +1163,7 @@ export default function Classes() {
           creditBalanceAfter: newCreditBalance,
           studentPhone: student.studentPhone || "",
           parentPhone: student.parentPhone || "",
+          processedByUsername,
           createdAt: serverTimestamp(),
         });
 
@@ -1052,6 +1183,7 @@ export default function Classes() {
           creditBalanceAfter: newCreditBalance,
           studentPhone: student.studentPhone || "",
           parentPhone: student.parentPhone || "",
+          processedByUsername,
           createdAt: serverTimestamp(),
         });
       });
@@ -1485,7 +1617,25 @@ export default function Classes() {
               <p style={styles.subtitle}>Dooro fasal si aad u aragto ardayda iyo lacagahooda</p>
             </div>
             {/* BATANKA CUSUB EE DHAMMAAN FASALADA UNPAID KA DHIGAAYO */}
-            <div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                type="button"
+                onClick={openArchiveModal}
+                style={{
+                  ...styles.resetAllBtn,
+                  background: theme.colors.surface,
+                  color: theme.colors.brand,
+                  border: `1px solid ${theme.colors.border}`,
+                  padding: "12px 20px",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  borderRadius: theme.radius.md,
+                  cursor: "pointer",
+                }}
+              >
+                🗄️ Xogta La Reset-gareeyay
+              </button>
+
               <button
                 type="button"
                 onClick={resetAllClassesPayments}
@@ -1534,6 +1684,157 @@ export default function Classes() {
           )}
         </div>
       )}
+
+      {showArchiveModal && (
+        <ArchiveRestoreModal
+          groups={archivedGroups}
+          loading={loadingArchive}
+          restoringBatchKey={restoringBatchKey}
+          restoringAllArchive={restoringAllArchive}
+          onRestoreBatch={restoreArchivedBatch}
+          onRestoreAll={restoreAllArchivedData}
+          onClose={() => setShowArchiveModal(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ArchiveRestoreModal({
+  groups,
+  loading,
+  restoringBatchKey,
+  restoringAllArchive,
+  onRestoreBatch,
+  onRestoreAll,
+  onClose,
+}) {
+  function formatArchiveDate(deletedAt) {
+    if (!deletedAt?.seconds) return "—";
+    const d = new Date(deletedAt.seconds * 1000);
+    return d.toLocaleDateString("en-US", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  const totalCount = groups.reduce((sum, g) => sum + g.docs.length, 0);
+
+  return (
+    <div style={profileStyles.overlay} onClick={onClose}>
+      <div style={profileStyles.card} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} style={profileStyles.closeX}>
+          ✕
+        </button>
+
+        <h2
+          style={{
+            fontFamily: theme.font.display,
+            fontWeight: 800,
+            fontSize: 19,
+            color: theme.colors.ink,
+            marginTop: 0,
+            marginBottom: 6,
+          }}
+        >
+          🗄️ Xogta La Reset-gareeyay
+        </h2>
+        <p style={{ fontSize: 13, color: theme.colors.inkMuted, marginTop: 0, marginBottom: 18 }}>
+          Xogtan waxaa laga heli karaa dib-u-soo-celin — waxaad soo celin kartaa hal wadhax, ama
+          dhammaantood hal mar.
+        </p>
+
+        {!loading && groups.length > 0 && (
+          <button
+            type="button"
+            onClick={onRestoreAll}
+            disabled={restoringAllArchive || !!restoringBatchKey}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              width: "100%",
+              padding: "13px 18px",
+              borderRadius: theme.radius.md,
+              border: "none",
+              background: theme.colors.mint,
+              color: "#FFFFFF",
+              fontWeight: 800,
+              fontSize: 14,
+              marginBottom: 18,
+              cursor: restoringAllArchive || restoringBatchKey ? "not-allowed" : "pointer",
+              opacity: restoringAllArchive || restoringBatchKey ? 0.7 : 1,
+            }}
+          >
+            {restoringAllArchive
+              ? "Soo Celinaya Dhammaantood…"
+              : `♻️ Soo Celi Dhammaan (${totalCount} qodob)`}
+          </button>
+        )}
+
+        {loading ? (
+          <p style={{ color: theme.colors.inkMuted, fontSize: 13.5, textAlign: "center" }}>
+            Loading...
+          </p>
+        ) : groups.length === 0 ? (
+          <p style={{ color: theme.colors.inkMuted, fontSize: 13.5, textAlign: "center" }}>
+            Wax xog ah oo la reset-gareeyay lama helin.
+          </p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {groups.map((group) => {
+              const isRestoringThis = restoringBatchKey === group.key;
+              return (
+                <div
+                  key={group.key}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderRadius: theme.radius.sm,
+                    background: theme.colors.surface,
+                    border: `1px solid ${theme.colors.border}`,
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: theme.colors.ink }}>
+                      {group.deletedReason}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: theme.colors.inkMuted, marginTop: 2 }}>
+                      {formatArchiveDate(group.deletedAt)} · {group.docs.length} qodob
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRestoreBatch(group)}
+                    disabled={isRestoringThis || restoringAllArchive}
+                    style={{
+                      flexShrink: 0,
+                      padding: "9px 16px",
+                      borderRadius: theme.radius.sm,
+                      border: "none",
+                      background: theme.colors.brand,
+                      color: "#FFFFFF",
+                      fontWeight: 700,
+                      fontSize: 12.5,
+                      cursor: isRestoringThis || restoringAllArchive ? "not-allowed" : "pointer",
+                      opacity: isRestoringThis || restoringAllArchive ? 0.7 : 1,
+                    }}
+                  >
+                    {isRestoringThis ? "…" : "Soo Celi"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -13,15 +13,42 @@ import { theme } from "./theme.js";
 
 const SCHOOL_NAME = "Rising School";
 
+// Fiiro gaar ah: qiimahaan waxay ku waafaqsan yihiin exam type "key"-yada
+// laga soo diray ExamTimetable.jsx ("Monthly Exam Test 1", "Midterm Exam",
+// "Monthly Test 2", "final") — si ay u shaqeeyaan si sax ah.
 const EXAM_TYPE_LABELS = {
-  MonthlyExamTest1: "Monthly Exam Test 1",
-  MidtermExam: "Midterm Exam",
-  MonthlyTest2: "Monthly Test 2",
-  FinalExam: "Final Exam",
+  "Monthly Exam Test 1": "Monthly Exam Test 1",
+  "Midterm Exam": "Midterm Exam",
+  "Monthly Test 2": "Monthly Test 2",
+  final: "Final Exam",
 };
 
 function examTypeLabel(key) {
-  return EXAM_TYPE_LABELS[key] || "Final";
+  return EXAM_TYPE_LABELS[key] || "Final Exam";
+}
+
+// Fasalka 1aad, 2aad, 3aad kaliya ayaa ah heerka ugu jaban ee lacagta
+// imtixaanka. Wixii kale oo dhan — PP, PI, G8 A, G8 B, F1–F4, iyo class
+// kasta oo cusub oo la abuuro — waxay wada isticmaalaan qiimaha kale ee sare.
+const LOWER_PRIMARY_CLASSES = new Set(["fasalka 1aad", "fasalka 2aad", "fasalka 3aad"]);
+
+function isLowerPrimaryClass(className) {
+  return LOWER_PRIMARY_CLASSES.has(String(className || "").trim().toLowerCase());
+}
+
+// Qiimaha go'an ee Exam Fee-ga, ku xiran nooca imtixaanka iyo heerka
+// fasalka. Qiimahan waa go'an — cashier-ku wax kama badali karo, waxa uu
+// save gareynayaa waa isla qiimahan oo kaliya.
+const EXAM_FEE_SCHEDULE = {
+  "Monthly Exam Test 1": { lowerPrimary: 1, other: 2 },
+  "Midterm Exam": { lowerPrimary: 2, other: 3 },
+  "Monthly Test 2": { lowerPrimary: 1, other: 2 },
+  final: { lowerPrimary: 2, other: 3 },
+};
+
+function getExamFeeAmount(examType, className) {
+  const schedule = EXAM_FEE_SCHEDULE[examType] || EXAM_FEE_SCHEDULE.final;
+  return isLowerPrimaryClass(className) ? schedule.lowerPrimary : schedule.other;
 }
 
 function todayISO() {
@@ -42,7 +69,6 @@ export default function ExamPayments() {
   const [examCardStatus, setExamCardStatus] = useState({});
   const [search, setSearch] = useState("");
   const [selectedClass, setSelectedClass] = useState("All");
-  const [amounts, setAmounts] = useState({});
   const [savingId, setSavingId] = useState(null);
   const [lastCard, setLastCard] = useState(null);
 
@@ -124,13 +150,8 @@ export default function ExamPayments() {
   });
 
   async function savePaymentAndCard(student) {
-    const entered = Number(amounts[student.id] || 0);
-    if (entered <= 0) {
-      alert("Fadlan geli lacagta imtixaanka ee la bixiyay");
-      return;
-    }
-
     const examType = examTypeByClass[String(student.className || "").toUpperCase()] || "final";
+    const feeAmount = getExamFeeAmount(examType, student.className);
 
     setSavingId(student.id);
     try {
@@ -165,7 +186,7 @@ export default function ExamPayments() {
         className: student.className || "",
         cardNo,
         examType,
-        amountPaid: entered,
+        amountPaid: feeAmount,
         schoolName: SCHOOL_NAME,
         createdAt: serverTimestamp(),
       };
@@ -179,7 +200,6 @@ export default function ExamPayments() {
         ...prev,
         [student.studentId]: { cardNo, paid: true, examType },
       }));
-      setAmounts((prev) => ({ ...prev, [student.id]: "" }));
       setLastCard({ ...cardRecord, createdAt: { seconds: Math.floor(Date.now() / 1000) } });
     } catch (err) {
       console.log(err);
@@ -301,6 +321,7 @@ export default function ExamPayments() {
                 const cardInfo = examCardStatus[student.studentId];
                 const alreadyPaid = !!cardInfo?.paid && cardInfo.examType === studentExamType;
                 const isSaving = savingId === student.id;
+                const fixedFeeAmount = getExamFeeAmount(studentExamType, student.className);
 
                 return (
                   <tr
@@ -315,23 +336,12 @@ export default function ExamPayments() {
                     <td style={styles.td}>
                       <span style={styles.examTypeChip}>{examTypeLabel(studentExamType)}</span>
                     </td>
+                    <td style={{ ...styles.td, ...styles.money }}>${fixedFeeAmount}</td>
                     <td style={{ ...styles.td, ...styles.money }}>
-                      {student.examinationFees !== undefined && student.examinationFees !== ""
-                        ? `$${student.examinationFees}`
-                        : "—"}
-                    </td>
-                    <td style={styles.td}>
                       {alreadyPaid ? (
                         <span style={{ color: theme.colors.inkMuted, fontSize: 12.5 }}>—</span>
                       ) : (
-                        <input
-                          type="number"
-                          value={amounts[student.id] || ""}
-                          onChange={(e) =>
-                            setAmounts({ ...amounts, [student.id]: e.target.value })
-                          }
-                          style={styles.amountInput}
-                        />
+                        `$${fixedFeeAmount}`
                       )}
                     </td>
                     <td style={styles.td}>
