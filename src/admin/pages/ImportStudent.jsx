@@ -16,6 +16,7 @@ import {
   School,
   Loader2,
   Users,
+  Clock,
 } from "lucide-react";
 
 const classOptions = [
@@ -53,6 +54,8 @@ export default function ImportStudent() {
 
   // Class Selection
   const [selectedClass, setSelectedClass] = useState("");
+  const [selectedShift, setSelectedShift] = useState("");
+  const [selectedGender, setSelectedGender] = useState("");
   const [textInput, setTextInput] = useState("");
 
   const [showPopup, setShowPopup] = useState(false);
@@ -119,10 +122,9 @@ export default function ImportStudent() {
 
       const fullName = parts[0] || "";
       const motherName = parts[1] || "";
-      const gender = parts[2] || "";
+      const genderFromLine = parts[2] || "";
       const placeOfBirth = parts[3] || "";
       const dateOfBirth = parts[4] || "";
-      const shift = parts[5] || "";
       const feeType = parts[6] || "Free";
       const monthlyFee = parts[7] || "0";
       const parentPhone = parts[8] || "";
@@ -134,6 +136,13 @@ export default function ImportStudent() {
       const feeCategory = parts[14] || "";
       const feeCategoryAmount = parts[15] || "0";
 
+      // Shift-ka had iyo jeer waxa laga soo qaataa doorashada kore (Class agtiisa).
+      const shift = selectedShift;
+
+      // Gender-ka: hadii "Labadaba" la doortay, gender-ka waa in laga soo qoraa
+      // safka (Male/Female). Haddii kale, gender-ka had iyo jeer waa doorashada kore.
+      const gender = selectedGender === "Both" ? genderFromLine : selectedGender;
+
       // --- VALIDATION FOR REQUIRED FIELDS ---
       if (!fullName) {
         alert(`Safka ${lineNum}: Magaca Ardayga (Full Name) waa ka dhiman yahay.`);
@@ -143,12 +152,12 @@ export default function ImportStudent() {
         alert(`Safka ${lineNum} (${fullName}): Magaca Hooyada (Mother Name) waa ka dhiman yahay.`);
         return null;
       }
-      if (!gender) {
-        alert(`Safka ${lineNum} (${fullName}): Gender (Male/Female) waa ka dhiman yahay.`);
+      if (selectedGender === "Both" && !genderFromLine) {
+        alert(`Safka ${lineNum} (${fullName}): Waxaad doortay "Labadaba", marka Gender (Male/Female) waa ka dhiman yahay safkan.`);
         return null;
       }
-      if (!shift) {
-        alert(`Safka ${lineNum} (${fullName}): Shift (Morning/Afternoon) waa ka dhiman yahay.`);
+      if (selectedGender === "Both" && genderFromLine !== "Male" && genderFromLine !== "Female") {
+        alert(`Safka ${lineNum} (${fullName}): Gender waa inuu ahaadaa Male ama Female.`);
         return null;
       }
       if (feeType === "Paid" && !monthlyFee) {
@@ -186,6 +195,16 @@ export default function ImportStudent() {
   const saveStudents = async () => {
     if (!selectedClass) {
       alert("Fadlan marka hore dooro Class / Department-ka.");
+      return;
+    }
+
+    if (!selectedShift) {
+      alert("Fadlan dooro Shift-ka (Morning ama Afternoon).");
+      return;
+    }
+
+    if (!selectedGender) {
+      alert("Fadlan dooro Gender-ka (Male, Female ama Labadaba).");
       return;
     }
 
@@ -348,24 +367,59 @@ export default function ImportStudent() {
             boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
           }}
         >
-          {/* Class Selection Dropdown */}
-          <div style={{ marginBottom: 24 }}>
-            <label style={labelStyle}>
-              <School size={18} color="#8b6cf5" />
-              Dooro Class / Department (Waajib):
-            </label>
-            <select
-              style={selectStyle}
-              value={selectedClass}
-              onChange={(e) => setSelectedClass(e.target.value)}
-            >
-              <option value="">-- Dooro Class --</option>
-              {allClassOptions.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
+          {/* Class / Shift / Gender Selection */}
+          <div style={{ marginBottom: 24, display: "flex", gap: 16, flexWrap: "wrap" }}>
+            <div style={{ flex: "1 1 240px" }}>
+              <label style={labelStyle}>
+                <School size={18} color="#8b6cf5" />
+                Dooro Class / Department (Waajib):
+              </label>
+              <select
+                style={selectStyle}
+                value={selectedClass}
+                onChange={(e) => setSelectedClass(e.target.value)}
+              >
+                <option value="">-- Dooro Class --</option>
+                {allClassOptions.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={labelStyle}>
+                <Clock size={18} color="#8b6cf5" />
+                Dooro Shift (Waajib):
+              </label>
+              <select
+                style={selectStyle}
+                value={selectedShift}
+                onChange={(e) => setSelectedShift(e.target.value)}
+              >
+                <option value="">-- Dooro Shift --</option>
+                <option value="Morning">Morning</option>
+                <option value="Afternoon">Afternoon</option>
+              </select>
+            </div>
+
+            <div style={{ flex: "1 1 200px" }}>
+              <label style={labelStyle}>
+                <Users size={18} color="#8b6cf5" />
+                Dooro Gender (Waajib):
+              </label>
+              <select
+                style={selectStyle}
+                value={selectedGender}
+                onChange={(e) => setSelectedGender(e.target.value)}
+              >
+                <option value="">-- Dooro Gender --</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Both">Labadaba (Male & Female)</option>
+              </select>
+            </div>
           </div>
 
           {/* Guidelines */}
@@ -392,8 +446,10 @@ export default function ImportStudent() {
               FullName, MotherName, Gender, PlaceOfBirth, DateOfBirth, Shift, FeeType, MonthlyFee, ParentPhone, StudentPhone, District, PreviousSchool, OrphanStatus, ParentPassword, FeeCategory, FeeCategoryAmount
             </div>
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
-              * <strong>Waajib:</strong> FullName, MotherName, Gender (Male/Female), Shift (Morning/Afternoon).<br/>
-              * <strong>Ikhtiyaari:</strong> Waa la iska dhaafi karaan kuwa kale adoo komaha (,) reebaya.
+              * <strong>Waajib:</strong> FullName, MotherName.<br/>
+              * <strong>Shift:</strong> Waxaa loo isticmaalayaa doorashadaada kore ee Shift — safka gudihiisa lama baahna in la qoro.<br/>
+              * <strong>Gender:</strong> Haddii aad kor ka doorato Male ama Female, dhammaan ardayda waxay noqonayaan gender-kaas — safka gudihiisa lama baahna in la qoro. Haddii aad doorato "Labadaba", gender-ka (Male/Female) waa in safka la geliyaa.<br/>
+              * <strong>Ikhtiyaari:</strong> Qeybaha kale waa la iska dhaafi karaan adoo komaha (,) reebaya.
             </div>
           </div>
 

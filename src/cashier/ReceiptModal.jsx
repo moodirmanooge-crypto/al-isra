@@ -508,7 +508,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
     width: 96mm !important;
     max-width: 96mm !important;
-    max-height: 146mm !important;
+    max-height: 188mm !important;
 
     margin: 0 !important;
     padding: 0 !important;

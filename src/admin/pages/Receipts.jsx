@@ -690,7 +690,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         .r-no {
           position: absolute;
           top: 44.8%;
-          right: 5.2%;
+          right: 4.5%;
           font-size: 15px;
           color: #dc2626;
           font-weight: 900;
@@ -756,14 +756,14 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         .r-class {
           position: absolute;
           top: 78.0%;
-          right: 11.5%;
+          right: 8.5%;
           font-size: 11px;
         }
 
         .r-tel {
           position: absolute;
-          top: 83.3%;
-          right: 13.5%;
+          top: 83%;
+          right: 11.5%;
           font-size: 11px;
         }
 
@@ -836,8 +836,8 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     position: static !important;
     box-sizing: border-box !important;
 
-    width: 146mm !important;
-    max-width: 146mm !important;
+    width: 148mm !important;
+    max-width: 188mm !important;
     max-height: 96mm !important;
 
     margin: 0 !important;
