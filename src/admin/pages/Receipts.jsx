@@ -791,6 +791,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
+    position: relative !important;
   }
 
   body {
@@ -809,8 +810,8 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
   .rv-overlay {
     position: absolute !important;
-    top: 50% !important;
-    left: 50% !important;
+    top: 25mm !important;
+    left: -25mm !important;
 
     width: 152mm !important;
     height: 102mm !important;
@@ -823,10 +824,12 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     align-items: center !important;
     justify-content: center !important;
 
-    transform: translate(-50%, -50%) rotate(90deg) !important;
+    transform: rotate(90deg) !important;
     transform-origin: center center !important;
 
     overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .receipt-paper-container {
