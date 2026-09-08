@@ -451,14 +451,14 @@ export default function ReceiptModal({ payment, onClose }) {
 
         @media print {
   @page {
-    size: A5 landscape;
+    size: A4 landscape;
     margin: 0;
   }
 
   html,
   body {
-    width: 210mm !important;
-    height: 148mm !important;
+    width: 297mm !important;
+    height: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -483,8 +483,8 @@ export default function ReceiptModal({ payment, onClose }) {
     left: 0 !important;
     top: 0 !important;
 
-    width: 210mm !important;
-    height: 148mm !important;
+    width: 297mm !important;
+    height: 210mm !important;
 
     margin: 0 !important;
     padding: 0 !important;

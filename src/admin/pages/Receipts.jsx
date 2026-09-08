@@ -780,14 +780,14 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         @media print {
   @page {
-    size: A5 landscape;
+    size: 102mm 152mm;
     margin: 0;
   }
 
   html,
   body {
-    width: 210mm !important;
-    height: 148mm !important;
+    width: 102mm !important;
+    height: 152mm !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -809,11 +809,11 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
   .rv-overlay {
     position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
+    top: 50% !important;
+    left: 50% !important;
 
-    width: 210mm !important;
-    height: 148mm !important;
+    width: 152mm !important;
+    height: 102mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
@@ -823,15 +823,18 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     align-items: center !important;
     justify-content: center !important;
 
+    transform: translate(-50%, -50%) rotate(90deg) !important;
+    transform-origin: center center !important;
+
     overflow: hidden !important;
   }
 
   .receipt-paper-container {
     position: static !important;
 
-    width: 210mm !important;
-    max-width: 210mm !important;
-    max-height: 148mm !important;
+    width: 152mm !important;
+    max-width: 152mm !important;
+    max-height: 102mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
