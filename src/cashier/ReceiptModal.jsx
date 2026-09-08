@@ -451,8 +451,18 @@ export default function ReceiptModal({ payment, onClose }) {
 
         @media print {
   @page {
-    size: 210mm 148mm landscape;
+    size: 102mm 152mm;
     margin: 0;
+  }
+
+  html,
+  body {
+    width: 102mm !important;
+    height: 152mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    position: relative !important;
   }
 
   body {
@@ -469,13 +479,37 @@ export default function ReceiptModal({ payment, onClose }) {
     visibility: visible !important;
   }
 
+  .receipt-overlay {
+    position: absolute !important;
+    top: 25mm !important;
+    left: -25mm !important;
+
+    width: 152mm !important;
+    height: 102mm !important;
+
+    margin: 0 !important;
+    padding: 0 !important;
+
+    background: #ffffff !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+
+    transform: rotate(90deg) !important;
+    transform-origin: center center !important;
+
+    overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
   .receipt-paper-container {
     position: static !important;
     box-sizing: border-box !important;
 
-    width: 204mm !important;
-    max-width: 204mm !important;
-    max-height: 142mm !important;
+    width: 146mm !important;
+    max-width: 146mm !important;
+    max-height: 96mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
@@ -496,77 +530,6 @@ export default function ReceiptModal({ payment, onClose }) {
 
   .no-print {
     display: none !important;
-  }
-}
-
-@media print and (orientation: landscape) {
-  html,
-  body {
-    width: 210mm !important;
-    height: 148mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    position: relative !important;
-  }
-
-  .receipt-overlay {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-
-    width: 210mm !important;
-    height: 148mm !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    background: #ffffff !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-
-    transform: none !important;
-
-    overflow: hidden !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-}
-
-@media print and (orientation: portrait) {
-  html,
-  body {
-    width: 148mm !important;
-    height: 210mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    position: relative !important;
-  }
-
-  .receipt-overlay {
-    position: absolute !important;
-    top: 31mm !important;
-    left: -31mm !important;
-
-    width: 210mm !important;
-    height: 148mm !important;
-
-    margin: 0 !important;
-    padding: 0 !important;
-
-    background: #ffffff !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-
-    transform: rotate(90deg) !important;
-    transform-origin: center center !important;
-
-    overflow: hidden !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
   }
 }
       `}</style>
