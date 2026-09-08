@@ -451,14 +451,14 @@ export default function ReceiptModal({ payment, onClose }) {
 
         @media print {
   @page {
-    size: A4 portrait;
+    size: 210mm 148mm landscape;
     margin: 0;
   }
 
   html,
   body {
     width: 210mm !important;
-    height: 297mm !important;
+    height: 148mm !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -481,11 +481,11 @@ export default function ReceiptModal({ payment, onClose }) {
 
   .receipt-overlay {
     position: absolute !important;
-    top: 46.5mm !important;
-    left: -40.5mm !important;
+    top: 0 !important;
+    left: 0 !important;
 
-    width: 291mm !important;
-    height: 204mm !important;
+    width: 210mm !important;
+    height: 148mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
@@ -494,9 +494,6 @@ export default function ReceiptModal({ payment, onClose }) {
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-
-    transform: rotate(90deg) !important;
-    transform-origin: center center !important;
 
     overflow: hidden !important;
     page-break-inside: avoid !important;
@@ -507,9 +504,9 @@ export default function ReceiptModal({ payment, onClose }) {
     position: static !important;
     box-sizing: border-box !important;
 
-    width: 291mm !important;
-    max-width: 291mm !important;
-    max-height: 204mm !important;
+    width: 204mm !important;
+    max-width: 204mm !important;
+    max-height: 142mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
