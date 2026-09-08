@@ -810,11 +810,11 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
   .rv-overlay {
     position: absolute !important;
-    top: 25mm !important;
-    left: -25mm !important;
+    top: 28mm !important;
+    left: -22mm !important;
 
-    width: 152mm !important;
-    height: 102mm !important;
+    width: 146mm !important;
+    height: 96mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
@@ -834,16 +834,18 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
   .receipt-paper-container {
     position: static !important;
+    box-sizing: border-box !important;
 
-    width: 152mm !important;
-    max-width: 152mm !important;
-    max-height: 102mm !important;
+    width: 146mm !important;
+    max-width: 146mm !important;
+    max-height: 96mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
 
     background: #ffffff !important;
     box-shadow: none !important;
+    border: 1.5mm solid #0b1f4d !important;
     border-radius: 0 !important;
 
     overflow: hidden !important;

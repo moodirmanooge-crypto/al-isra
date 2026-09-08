@@ -462,6 +462,7 @@ export default function ReceiptModal({ payment, onClose }) {
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
+    position: relative !important;
   }
 
   body {
@@ -480,11 +481,11 @@ export default function ReceiptModal({ payment, onClose }) {
 
   .receipt-overlay {
     position: absolute !important;
-    top: 50% !important;
-    left: 50% !important;
+    top: 28mm !important;
+    left: -22mm !important;
 
-    width: 152mm !important;
-    height: 102mm !important;
+    width: 146mm !important;
+    height: 96mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
@@ -494,24 +495,28 @@ export default function ReceiptModal({ payment, onClose }) {
     align-items: center !important;
     justify-content: center !important;
 
-    transform: translate(-50%, -50%) rotate(90deg) !important;
+    transform: rotate(90deg) !important;
     transform-origin: center center !important;
 
     overflow: hidden !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .receipt-paper-container {
     position: static !important;
+    box-sizing: border-box !important;
 
-    width: 152mm !important;
-    max-width: 152mm !important;
-    max-height: 102mm !important;
+    width: 146mm !important;
+    max-width: 146mm !important;
+    max-height: 96mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
 
     background: #ffffff !important;
     box-shadow: none !important;
+    border: 1.5mm solid #0b1f4d !important;
     border-radius: 0 !important;
 
     overflow: hidden !important;
