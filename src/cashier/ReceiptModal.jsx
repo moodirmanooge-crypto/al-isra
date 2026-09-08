@@ -451,7 +451,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
         @media print {
   @page {
-    size: 210mm 148mm landscape;
+    size: 210mm 148mm;
     margin: 0;
   }
 

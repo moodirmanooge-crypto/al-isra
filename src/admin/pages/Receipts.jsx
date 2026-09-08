@@ -780,7 +780,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         @media print {
   @page {
-    size: 210mm 148mm landscape;
+    size: 210mm 148mm;
     margin: 0;
   }
 
