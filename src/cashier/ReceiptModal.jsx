@@ -515,7 +515,7 @@ export default function ReceiptModal({ payment, onClose }) {
 
     background: #ffffff !important;
     box-shadow: none !important;
-    border: 2mm solid #0b1f4d !important;
+    border: none !important;
     border-radius: 0 !important;
 
     overflow: hidden !important;
@@ -525,6 +525,11 @@ export default function ReceiptModal({ payment, onClose }) {
   .receipt-bg-img {
     width: 100% !important;
     height: auto !important;
+  }
+
+  .receipt-bg-wrapper {
+    box-sizing: border-box !important;
+    border: 2mm solid #0b1f4d !important;
   }
 
   .no-print {
