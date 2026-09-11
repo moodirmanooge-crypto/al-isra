@@ -3,7 +3,7 @@ import "../styles/about.css";
 import logo from "../assets/logo.png";
 import heroPhoto from "../admin/assets/hero-students.jpg";
 import { Link } from "react-router-dom";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const SUPPORT_WHATSAPP = "252617390261";
 const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
@@ -74,6 +74,73 @@ const STATS = [
   { icon: "🏆", value: "100%", label: "Pass Rate" },
 ];
 
+const HERO_LEDE =
+  "Since 2014, AL - ISRA Primary & Secondary School has been committed to academic excellence, character building and innovative learning — preparing every child to become a responsible global citizen and future leader.";
+
+// Types the given text out one character at a time, once, starting after
+// `startDelay` ms. Used once for the hero lede — the single deliberate
+// "written by hand" moment on this page, not repeated elsewhere.
+function TypewriterText({ text, startDelay = 0, speed = 18, className }) {
+  const [shown, setShown] = useState("");
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    let i = 0;
+    let timer;
+    const startTimer = setTimeout(() => {
+      timer = setInterval(() => {
+        i += 1;
+        setShown(text.slice(0, i));
+        if (i >= text.length) {
+          clearInterval(timer);
+          setDone(true);
+        }
+      }, speed);
+    }, startDelay);
+
+    return () => {
+      clearTimeout(startTimer);
+      clearInterval(timer);
+    };
+  }, [text, startDelay, speed]);
+
+  return (
+    <p className={className}>
+      {shown}
+      {!done && <span className="typewriter-cursor">&nbsp;</span>}
+    </p>
+  );
+}
+
+// Fades a whole section up once, the first time it enters the viewport.
+// Applied per-section (not per-card) — one quiet reveal, not a cascade.
+function RevealSection({ as: Tag = "section", className = "", children, ...rest }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <Tag ref={ref} className={`reveal-section${visible ? " is-visible" : ""} ${className}`} {...rest}>
+      {children}
+    </Tag>
+  );
+}
+
 export default function About() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -102,13 +169,11 @@ export default function About() {
     function handleKeyDown(e) {
       const key = (e.key || "").toLowerCase();
 
-      // F12
       if (key === "f12") {
         e.preventDefault();
         return;
       }
 
-      // Ctrl+Shift+I / J / C  (DevTools, Console, Inspect element)
       if (
         (e.ctrlKey || e.metaKey) &&
         e.shiftKey &&
@@ -118,7 +183,6 @@ export default function About() {
         return;
       }
 
-      // Ctrl+U (View source) iyo Ctrl+S (Save page)
       if ((e.ctrlKey || e.metaKey) && (key === "u" || key === "s")) {
         e.preventDefault();
         return;
@@ -133,6 +197,39 @@ export default function About() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, []);
+
+  // ---- Timeline: the connecting line fills as each year scrolls past
+  // the middle of the viewport — the one scroll-driven moment on the page.
+  const timelineItemRefs = useRef([]);
+  const [pastCount, setPastCount] = useState(0);
+
+  const setTimelineRef = useCallback((el, i) => {
+    timelineItemRefs.current[i] = el;
+  }, []);
+
+  useEffect(() => {
+    const items = timelineItemRefs.current.filter(Boolean);
+    if (items.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const idx = Number(entry.target.dataset.idx);
+          if (entry.isIntersecting) {
+            setPastCount((prev) => Math.max(prev, idx + 1));
+          }
+        });
+      },
+      { rootMargin: "-45% 0px -45% 0px", threshold: 0 }
+    );
+
+    items.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, []);
+
+  const fillPercent = HISTORY_TIMELINE.length
+    ? Math.round((pastCount / HISTORY_TIMELINE.length) * 100)
+    : 0;
 
   return (
     <div className="about-page">
@@ -214,35 +311,53 @@ export default function About() {
 
       {/* ---------- About Hero ---------- */}
       <section className="about-hero">
-        <span className="about-eyebrow">
-          <span className="about-eyebrow-star">★</span> About AL - ISRA School
-        </span>
-        <h1 className="about-hero-title">
-          Nurturing Minds,
-          <br />
-          <span className="about-hero-title-accent">Building Futures</span>
-        </h1>
-        <p className="about-hero-lede">
-          Since 2014, AL - ISRA Primary &amp; Secondary School has been committed
-          to academic excellence, character building and innovative learning —
-          preparing every child to become a responsible global citizen and future leader.
-        </p>
+        <div className="about-hero-copy">
+          <span className="about-eyebrow">
+            <span className="about-eyebrow-star">★</span>&nbsp;About AL - ISRA School
+          </span>
 
-        <div className="about-stats-row">
-          {STATS.map((s) => (
-            <div className="about-stat-pill" key={s.label}>
-              <span className="about-stat-icon">{s.icon}</span>
-              <div>
+          <h1 className="about-hero-title">
+            <span className="about-hero-title-line">
+              <span>Nurturing minds,</span>
+            </span>
+            <span className="about-hero-title-line">
+              <span>building futures.</span>
+            </span>
+          </h1>
+
+          <TypewriterText text={HERO_LEDE} startDelay={950} speed={14} className="about-hero-lede" />
+
+          <div className="about-hero-actions">
+            <Link to="/admissions" className="hero-cta hero-cta-primary">
+              Apply for Admission <span>➜</span>
+            </Link>
+            <Link to="/contact" className="hero-cta hero-cta-secondary">
+              Contact Us <span>➜</span>
+            </Link>
+          </div>
+
+          <div className="about-stats-row">
+            {STATS.map((s) => (
+              <div className="about-stat" key={s.label}>
                 <div className="about-stat-value">{s.value}</div>
-                <div className="about-stat-label">{s.label}</div>
+                <div className="about-stat-label">
+                  {s.icon} {s.label}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+
+        <div className="about-hero-visual">
+          <div className="about-hero-photo-frame">
+            <img src={heroPhoto} alt="AL - ISRA School students" />
+          </div>
+          <div className="about-hero-tag">Since 2014 — raising Mogadishu's next generation of leaders.</div>
         </div>
       </section>
 
       {/* ---------- Mission / Vision / Photo ---------- */}
-      <section className="about-mission-grid">
+      <RevealSection className="about-mission-grid">
         <div className="about-mission-photo-wrap">
           <img src={heroPhoto} alt="AL - ISRA School students" className="about-mission-photo" />
         </div>
@@ -271,64 +386,85 @@ export default function About() {
             </p>
           </div>
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- Mission Pillars ---------- */}
-      <section className="about-section about-section-alt">
-        <h2 className="about-section-title">How We Deliver Our Mission</h2>
-        <p className="about-section-sub">
-          Three pillars that shape every classroom, every lesson, and every student at AL - ISRA School.
-        </p>
+      <RevealSection className="about-section about-section-alt">
+        <div className="about-section-head">
+          <h2 className="about-section-title">How we deliver our mission</h2>
+          <p className="about-section-sub">
+            Three pillars that shape every classroom, every lesson, and every student at AL - ISRA School.
+          </p>
+        </div>
 
-        <div className="mission-pillars-grid">
+        <div className="mission-pillars-list">
           {MISSION_PILLARS.map((p) => (
-            <div className="mission-pillar-card" key={p.title}>
+            <div className="mission-pillar-row" key={p.title}>
               <span className="mission-pillar-icon">{p.icon}</span>
-              <h3 className="mission-pillar-title">{p.title}</h3>
-              <p className="mission-pillar-desc">{p.desc}</p>
+              <div>
+                <h3 className="mission-pillar-title">{p.title}</h3>
+                <p className="mission-pillar-desc">{p.desc}</p>
+              </div>
             </div>
           ))}
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- Core Values ---------- */}
-      <section className="about-section">
-        <h2 className="about-section-title">What We Stand For</h2>
-        <p className="about-section-sub">The values that guide everything we do at AL - ISRA School.</p>
+      <RevealSection className="about-section">
+        <div className="about-section-head">
+          <h2 className="about-section-title">What we stand for</h2>
+          <p className="about-section-sub">The values that guide everything we do at AL - ISRA School.</p>
+        </div>
 
-        <div className="core-values-grid">
+        <div className="core-values-list">
           {CORE_VALUES.map((v) => (
-            <div className="core-value-card" key={v.title}>
-              <span className="core-value-icon">{v.icon}</span>
-              <h3 className="core-value-title">{v.title}</h3>
-              <p className="core-value-desc">{v.desc}</p>
+            <div className="core-value-row" key={v.title}>
+              <div className="core-value-copy">
+                <span className="core-value-icon">{v.icon}</span>
+                <h3 className="core-value-title">{v.title}</h3>
+                <p className="core-value-desc">{v.desc}</p>
+              </div>
+              <div />
             </div>
           ))}
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- History Timeline ---------- */}
-      <section className="about-section about-section-alt">
-        <h2 className="about-section-title">Our Journey</h2>
-        <p className="about-section-sub">From our founding to today — a growing story of learning and leadership.</p>
+      <RevealSection className="about-section about-section-alt">
+        <div className="about-section-head">
+          <h2 className="about-section-title">Our journey</h2>
+          <p className="about-section-sub">From our founding to today — a growing story of learning and leadership.</p>
+        </div>
 
         <div className="timeline">
+          <div className="timeline-track">
+            <div className="timeline-track-fill" style={{ height: `${fillPercent}%` }} />
+          </div>
           {HISTORY_TIMELINE.map((t, i) => (
-            <div className="timeline-item" key={t.year}>
-              <div className="timeline-year">{t.year}</div>
+            <div
+              className={`timeline-item${i < pastCount ? " is-past" : ""}`}
+              key={t.year}
+              data-idx={i}
+              ref={(el) => setTimelineRef(el, i)}
+            >
               <div className="timeline-dot" />
+              <div className="timeline-year">{t.year}</div>
               <div className="timeline-text">{t.text}</div>
             </div>
           ))}
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- Leadership ---------- */}
-      <section className="about-section">
-        <h2 className="about-section-title">School Leadership</h2>
-        <p className="about-section-sub">Guiding AL - ISRA School with care, discipline and vision.</p>
+      <RevealSection className="about-section">
+        <div className="about-section-head">
+          <h2 className="about-section-title">School leadership</h2>
+          <p className="about-section-sub">Guiding AL - ISRA School with care, discipline and vision.</p>
+        </div>
 
-        <div className="leadership-grid">
+        <div className="leadership-row">
           {LEADERSHIP.map((l) => (
             <div className="leadership-card" key={l.name}>
               <span className="leadership-icon">{l.icon}</span>
@@ -337,11 +473,11 @@ export default function About() {
             </div>
           ))}
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- CTA ---------- */}
       <section className="about-cta">
-        <h2 className="about-cta-title">Ready to Join AL - ISRA School?</h2>
+        <h2 className="about-cta-title">Ready to join AL - ISRA School?</h2>
         <p className="about-cta-text">
           Give your child the foundation they deserve. Admissions are open now.
         </p>

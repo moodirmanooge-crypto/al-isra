@@ -144,6 +144,84 @@ const HERO_TESTIMONIALS = [
   },
 ];
 
+// Fades a whole section up once, the first time it enters the viewport.
+// Applied per-section (not per-card) — one quiet reveal, not a cascade.
+function RevealSection({ as: Tag = "section", className = "", children, ...rest }) {
+  const ref = useRef(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <Tag ref={ref} className={`reveal-section${visible ? " is-visible" : ""} ${className}`} {...rest}>
+      {children}
+    </Tag>
+  );
+}
+
+// Counts a numeric stat value (e.g. "800+", "98%") up from 0 once it
+// scrolls into view. The single "eye-catching" moment on this page —
+// applied only to the dark "School At A Glance" panel, nowhere else.
+function CountUpValue({ value }) {
+  const ref = useRef(null);
+  const [display, setDisplay] = useState(value);
+  const hasRun = useRef(false);
+
+  useEffect(() => {
+    const match = /^(\d+)(.*)$/.exec(value || "");
+    if (!match) {
+      setDisplay(value);
+      return undefined;
+    }
+    const target = Number(match[1]);
+    const suffix = match[2] || "";
+
+    const el = ref.current;
+    if (!el) return undefined;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !hasRun.current) {
+          hasRun.current = true;
+          const duration = 1100;
+          const start = performance.now();
+          const tick = (now) => {
+            const progress = Math.min((now - start) / duration, 1);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            setDisplay(`${Math.round(target * eased)}${suffix}`);
+            if (progress < 1) requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.4 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [value]);
+
+  return (
+    <span className="stat-mini-value" ref={ref}>
+      {display}
+    </span>
+  );
+}
+
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -282,10 +360,6 @@ export default function Home() {
         </nav>
 
         <div className="header-actions">
-          <Link to="/admin-login" className="login-portal-btn">
-            <User size={16} /> Portal Access
-          </Link>
-
           <div className="menu-wrap" ref={menuRef}>
             <button
               type="button"
@@ -332,9 +406,9 @@ export default function Home() {
               <span>Excellence in Somali &amp; Global Education</span>
             </div>
             <h1 className="hero-title">
-              NURTURING MINDS,
+              Nurturing minds,
               <br />
-              <span className="hero-title-accent">BUILDING FUTURES</span>
+              <span className="hero-title-accent">building futures.</span>
             </h1>
             <p className="hero-lede">
               Empowering students through academic rigor, moral integrity, and modern innovation in a safe, caring, and inspiring learning environment.
@@ -422,7 +496,7 @@ export default function Home() {
               </div>
             );
           })}
-          <span className="hero-stats-bar-divider">A BRIGHTER FUTURE BEGINS HERE</span>
+          <span className="hero-stats-bar-divider">A brighter future begins here</span>
           <Link to="/about" className="hero-stats-bar-cta">
             Our Achievements <ArrowRight size={15} />
           </Link>
@@ -430,10 +504,10 @@ export default function Home() {
       </section>
 
       {/* ---------- Stats (dark card, detailed) ---------- */}
-      <section className="feature-stats-row">
+      <RevealSection className="feature-stats-row">
         <div className="stats-dark-card">
           <div className="stats-header">
-            <h3>School At A Glance</h3>
+            <h3>School at a glance</h3>
             <p>Real-time metrics &amp; academic standing</p>
           </div>
           <div className="stats-grid-inner">
@@ -444,20 +518,20 @@ export default function Home() {
                   <div className="stat-icon-wrap">
                     <Icon size={20} />
                   </div>
-                  <span className="stat-mini-value">{s.value}</span>
+                  <CountUpValue value={s.value} />
                   <span className="stat-mini-label">{s.label}</span>
                 </div>
               );
             })}
           </div>
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- Portals ---------- */}
-      <section className="school-portals-section">
+      <RevealSection className="school-portals-section">
         <div className="section-title-wrap">
-          <span className="section-subtitle">QUICK ACCESS</span>
-          <h2 className="section-main-title">School Portals &amp; Digital Services</h2>
+          <span className="section-subtitle">Quick access</span>
+          <h2 className="section-main-title">School portals &amp; digital services</h2>
           <p className="section-desc">Select your portal below to log in to your custom administrative or learning dashboard.</p>
         </div>
 
@@ -484,19 +558,19 @@ export default function Home() {
             })}
           </div>
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- About Our School ---------- */}
-      <section className="about-section-wrap">
+      <RevealSection className="about-section-wrap">
         <div className="about-preview-card">
           <div className="about-content-grid">
             <div className="about-text-column">
-              <span className="section-subtitle">WHO WE ARE</span>
+              <span className="section-subtitle">Who we are</span>
               <h2 className="about-preview-title">About AL - ISRA School</h2>
               <p className="about-preview-text">
                 At AL - ISRA Primary &amp; Secondary School, we are dedicated to nurturing young minds through academic excellence, character building, and innovative digital learning. Our mission is to empower students with knowledge and strong values for a prosperous future.
               </p>
-              
+
               <ul className="about-highlights-list">
                 <li><CheckCircle2 size={18} /> Accredited Curriculum &amp; STEM Learning</li>
                 <li><CheckCircle2 size={18} /> Highly Qualified &amp; Dedicated Teachers</li>
@@ -522,7 +596,7 @@ export default function Home() {
           </div>
 
           <div className="gallery-section-divider">
-            <h3 className="gallery-preview-title">Life At AL - ISRA</h3>
+            <h3 className="gallery-preview-title">Life at AL - ISRA</h3>
             <div className="gallery-preview-grid">
               {GALLERY_PREVIEW.map((img, i) => (
                 <div key={i} className="gallery-img-wrapper">
@@ -537,7 +611,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
+      </RevealSection>
 
       {/* ---------- Footer ---------- */}
       <footer className="home-footer">
@@ -565,7 +639,7 @@ export default function Home() {
           </div>
 
           <div className="home-footer-quote">
-            “Excellence in Education, Bright Future for Every Child.”
+            "Excellence in Education, Bright Future for Every Child."
           </div>
         </div>
         <div className="footer-bottom-bar">
