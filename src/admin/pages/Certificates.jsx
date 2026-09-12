@@ -104,9 +104,34 @@ async function downloadCertificateImage(name, elementId = "certificate-render-ca
 // the blank-page bug caused by the background template image and student
 // photo (crossOrigin="anonymous") failing to (re)load inside a fresh
 // about:blank print window with a different origin/base URL.
+// One-time reminder (Chrome/Edge/etc. remember this choice per browser
+// profile once set, so the admin only has to do it once ever): the
+// date/title/URL/page-number strip you see in the print preview is added
+// by the BROWSER'S print dialog, not by this page — no website CSS or JS
+// is allowed to turn it off (Chrome blocks that for spoofing reasons).
+// The fix lives in the print dialog itself: "More settings" → uncheck
+// "Headers and footers". This just nudges the admin to do it once.
+function maybeShowPrintHint() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    if (localStorage.getItem("certPrintHeaderHintShown")) return;
+    window.alert(
+      "Tallaabo hal mar ah, si warqadu u ahaato mid nadiif ah (aan lahayn taariikh/URL/lambar bog):\n\n" +
+        "1) Marka daaqadda 'Print' soo baxdo, dhinaca bidix ee hoose riix 'More settings'.\n" +
+        "2) DEMI (uncheck) sanduuqa 'Headers and footers'.\n" +
+        "3) Kadibna riix Print.\n\n" +
+        "Browser-ku (Chrome) wuu xasuusan doonaa doorashadan — uma baahnid inaad mar kale sameyso."
+    );
+    localStorage.setItem("certPrintHeaderHintShown", "1");
+  } catch {
+    // localStorage unavailable (private mode etc.) — safe to ignore
+  }
+}
+
 async function printCertificate(elementId = "certificate-render-card") {
   const node = document.getElementById(elementId);
   if (!node) return;
+  maybeShowPrintHint();
   try {
     if (!window.html2canvas) {
       await new Promise((resolve, reject) => {
@@ -437,6 +462,7 @@ export default function Certificates() {
     );
     if (!printAll) return;
 
+    maybeShowPrintHint();
     setPrintingAllHonor(true);
     try {
       if (!window.html2canvas) {
