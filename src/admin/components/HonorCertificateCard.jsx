@@ -41,8 +41,8 @@ export const HONOR_DEFAULTS = {
 
 // Field positions — { top, bottom, left, right } all in % of the card.
 const FIELD = {
-  title: { top: 22.0, bottom: 28.3, left: 22, right: 22 },
-  subtitle: { top: 28.7, bottom: 32.0, left: 29, right: 29 },
+  title: { top: 22.0, bottom: 28.8, left: 23, right: 23 },
+  subtitle: { top: 28.7, bottom: 32.0, left: 30, right: 30 },
   fullName: { top: 33.0, bottom: 42.0, left: 26, right: 26 },
   hambalyoText: { top: 56.5, bottom: 63.2, left: 33, right: 33 },
   bodyText: { top: 64.5, bottom: 78.3, left: 23, right: 21 },

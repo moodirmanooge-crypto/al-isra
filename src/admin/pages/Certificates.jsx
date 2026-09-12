@@ -64,6 +64,26 @@ function formatDate(d) {
   return dateObj.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+// Waits for every <img> inside a node (background template + any student
+// photo) to finish loading before it's safe to snapshot with html2canvas.
+// Without this, html2canvas can capture the node before images are fully
+// decoded, producing a canvas with the wrong/incomplete height — which is
+// what was causing the certificate to be sliced across 2 printed pages.
+async function waitForImagesToLoad(node) {
+  const imgs = Array.from(node.querySelectorAll("img"));
+  await Promise.all(
+    imgs.map((img) => {
+      if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+      return new Promise((resolve) => {
+        img.addEventListener("load", resolve, { once: true });
+        img.addEventListener("error", resolve, { once: true });
+      });
+    })
+  );
+  // One extra frame so layout/fonts settle after images resolve.
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
 async function downloadCertificateImage(name, elementId = "certificate-render-card") {
   const node = document.getElementById(elementId);
   if (!node) return;
@@ -77,6 +97,7 @@ async function downloadCertificateImage(name, elementId = "certificate-render-ca
         document.body.appendChild(script);
       });
     }
+    await waitForImagesToLoad(node);
     const rect = node.getBoundingClientRect();
     const canvas = await window.html2canvas(node, {
       backgroundColor: "#ffffff",
@@ -142,6 +163,7 @@ async function printCertificate(elementId = "certificate-render-card") {
         document.body.appendChild(script);
       });
     }
+    await waitForImagesToLoad(node);
     const rect = node.getBoundingClientRect();
     const canvas = await window.html2canvas(node, {
       backgroundColor: "#ffffff",
@@ -168,7 +190,7 @@ async function printCertificate(elementId = "certificate-render-card") {
           <meta charset="utf-8" />
           <style>
             @page { size: A4 landscape; margin: 0; }
-            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+            * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
             html, body {
               margin: 0;
               padding: 0;
@@ -177,7 +199,15 @@ async function printCertificate(elementId = "certificate-render-card") {
               height: 210mm;
               overflow: hidden;
             }
-            img {
+            .page {
+              width: 297mm;
+              height: 210mm;
+              position: relative;
+              overflow: hidden;
+              page-break-after: avoid;
+              page-break-inside: avoid;
+            }
+            .page img {
               position: absolute;
               top: 0;
               left: 0;
@@ -188,11 +218,12 @@ async function printCertificate(elementId = "certificate-render-card") {
             }
             @media print {
               html, body { width: 297mm; height: 210mm; }
+              .page { page-break-after: avoid; page-break-inside: avoid; }
             }
           </style>
         </head>
         <body>
-          <img src="${imgData}" />
+          <div class="page"><img src="${imgData}" /></div>
           <script>
             window.onload = function () {
               setTimeout(function () { window.focus(); window.print(); }, 300);
@@ -235,6 +266,7 @@ async function downloadCertificatePdf(name, elementId = "certificate-render-card
       });
     }
 
+    await waitForImagesToLoad(node);
     const rect = node.getBoundingClientRect();
     const canvas = await window.html2canvas(node, {
       backgroundColor: "#ffffff",
@@ -479,6 +511,7 @@ export default function Certificates() {
       for (const cert of honorCertificates) {
         const node = document.getElementById(`bulk-print-honor-${cert.id}`);
         if (!node) continue;
+        await waitForImagesToLoad(node);
         const rect = node.getBoundingClientRect();
         const canvas = await window.html2canvas(node, {
           backgroundColor: "#ffffff",
