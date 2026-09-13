@@ -83,6 +83,20 @@ function calculateAge(dateOfBirth) {
   return age >= 0 ? String(age) : "";
 }
 
+// Haddii maamulku uusan gelin Password, si toos ah ayaa loo dhigayaa
+// afarta lambar ee ugu dambeeya ee Student Phone-ka. Haddii Student
+// Phone maqan yahay, waxaa loo isticmaalaa afarta lambar ee ugu
+// dambeeya ee Parent Phone (Guardian Tel) halkiisa.
+function autoPassword(studentPhone, parentPhone) {
+  const fromStudent = (studentPhone || "").replace(/\D/g, "");
+  if (fromStudent.length >= 4) return fromStudent.slice(-4);
+
+  const fromParent = (parentPhone || "").replace(/\D/g, "");
+  if (fromParent.length >= 4) return fromParent.slice(-4);
+
+  return "";
+}
+
 export default function ImportStudent() {
   const navigate = useNavigate();
 
@@ -95,6 +109,7 @@ export default function ImportStudent() {
   const [showPopup, setShowPopup] = useState(false);
   const [savedStudents, setSavedStudents] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
   const [customClasses, setCustomClasses] = useState([]);
 
   useEffect(() => {
@@ -198,6 +213,11 @@ export default function ImportStudent() {
       const feeCategory = getVal(parts, "feeCategory", 14);
       const feeCategoryAmount = getVal(parts, "feeCategoryAmount", 15) || "0";
 
+      // Password ikhtiyaari (optional) — haddii aan la gelin, si toos ah
+      // ayaa looga dhigayaa afarta lambar ee ugu dambeeya ee Student
+      // Phone, ama haddii kale Parent Phone.
+      const finalParentPassword = parentPassword || autoPassword(studentPhone, parentPhone);
+
       // Class, Shift, iyo Gender had iyo jeer waxaa laga qaataa doorashada kore
       // (sadexda qayb ee kor ku yaal). Haddii safku wax ku qorayo meelahaas,
       // waa la iska indho-tiraa oo lama isticmaalo.
@@ -235,7 +255,7 @@ export default function ImportStudent() {
         district,
         previousSchool,
         orphanStatus,
-        parentPassword,
+        parentPassword: finalParentPassword,
         feeCategory,
         feeCategoryAmount,
       });
@@ -284,6 +304,7 @@ export default function ImportStudent() {
 
     try {
       setSaving(true);
+      setSaveProgress({ done: 0, total: parsedList.length });
       const saved = [];
 
       const existingSnap = await getDocs(collection(db, "students"));
@@ -405,6 +426,7 @@ export default function ImportStudent() {
           ...student,
           studentId,
         });
+        setSaveProgress({ done: i + 1, total: parsedList.length });
       }
 
       setSavedStudents(saved);
@@ -415,6 +437,7 @@ export default function ImportStudent() {
       alert(err.message);
     } finally {
       setSaving(false);
+      setSaveProgress({ done: 0, total: 0 });
     }
   };
 
@@ -568,7 +591,9 @@ export default function ImportStudent() {
               {saving ? (
                 <>
                   <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
-                  Kaydinaya...
+                  {saveProgress.total > 0
+                    ? `Kaydinaya... (${saveProgress.done}/${saveProgress.total})`
+                    : "Kaydinaya..."}
                 </>
               ) : (
                 <>
