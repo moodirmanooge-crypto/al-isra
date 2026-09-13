@@ -217,10 +217,9 @@ export default function ImportStudent() {
         alert(`Safka ${lineNum} (${fullName}): Monthly Fee waa ka dhiman yahay maadaama Fee Type uu yahay Paid.`);
         return null;
       }
-      if (feeCategory && (!feeCategoryAmount || feeCategoryAmount === "0")) {
-        alert(`Safka ${lineNum} (${fullName}): Qiimaha Fee Category (${feeCategory}) waa ka dhiman yahay.`);
-        return null;
-      }
+      // FeeCategory iyo FeeCategoryAmount labaduba waa ikhtiyaari (optional) —
+      // haddii FeeCategory la geliyo laakiin qiimo aan lagu darin, si toos ah
+      // ayaa loo dhigayaa "0", mana joojinayo import-ka.
 
       parsed.push({
         fullName,
@@ -269,6 +268,20 @@ export default function ImportStudent() {
     const parsedList = parseAndValidateInput();
     if (!parsedList) return; // Validation failed
 
+    // Wraps one write/update so that if it fails, the error message says
+    // exactly which Firestore collection it was trying to write to —
+    // instead of a bare "Missing or insufficient permissions" with no
+    // context about where in the import it happened.
+    const step = async (label, fn) => {
+      try {
+        await fn();
+      } catch (err) {
+        const e = new Error(`Collection "${label}": ${err.message}`);
+        e.code = err.code;
+        throw e;
+      }
+    };
+
     try {
       setSaving(true);
       const saved = [];
@@ -291,80 +304,102 @@ export default function ImportStudent() {
         const examinationFees =
           student.feeCategory === "Examination Fees" ? student.feeCategoryAmount : "0";
 
-        // 1. Save to `students`
-        await setDoc(doc(db, "students", studentId), {
-          studentId,
-          fullName: student.fullName,
-          motherName: student.motherName,
-          gender: student.gender,
-          placeOfBirth: student.placeOfBirth,
-          dateOfBirth: student.dateOfBirth,
-          age: finalAge,
-          className: selectedClass,
-          shift: student.shift,
-          feeType: student.feeType,
-          monthlyFee: student.monthlyFee,
-          feeCategory: student.feeCategory,
-          registrationFees,
-          rollNumberFees,
-          examinationFees,
-          parentPhone: student.parentPhone,
-          studentPhone: student.studentPhone,
-          district: student.district,
-          previousSchool: student.previousSchool,
-          orphanStatus: student.orphanStatus,
-          parentPassword: student.parentPassword,
-          studentPhoto: schoolLogo,
-          createdAt: new Date(),
-        });
+        try {
+          // 1. Save to `students`
+          await step("students", () =>
+            setDoc(doc(db, "students", studentId), {
+              studentId,
+              fullName: student.fullName,
+              motherName: student.motherName,
+              gender: student.gender,
+              placeOfBirth: student.placeOfBirth,
+              dateOfBirth: student.dateOfBirth,
+              age: finalAge,
+              className: selectedClass,
+              shift: student.shift,
+              feeType: student.feeType,
+              monthlyFee: student.monthlyFee,
+              feeCategory: student.feeCategory,
+              registrationFees,
+              rollNumberFees,
+              examinationFees,
+              parentPhone: student.parentPhone,
+              studentPhone: student.studentPhone,
+              district: student.district,
+              previousSchool: student.previousSchool,
+              orphanStatus: student.orphanStatus,
+              parentPassword: student.parentPassword,
+              studentPhoto: schoolLogo,
+              createdAt: new Date(),
+            })
+          );
 
-        // 2. Save to `attendance`
-        await setDoc(doc(db, "attendance", studentId), {
-          studentId,
-          studentName: student.fullName,
-        });
+          // 2. Save to `attendance`
+          await step("attendance", () =>
+            setDoc(doc(db, "attendance", studentId), {
+              studentId,
+              studentName: student.fullName,
+            })
+          );
 
-        // 3. Save to `cashier`
-        await setDoc(doc(db, "cashier", studentId), {
-          studentId,
-          studentName: student.fullName,
-          studentPhone: student.studentPhone,
-          parentPhone: student.parentPhone,
-          feeType: student.feeType,
-          monthlyFee: student.monthlyFee,
-          feeCategory: student.feeCategory,
-          registrationFees,
-          rollNumberFees,
-          examinationFees,
-        });
+          // 3. Save to `cashier`
+          await step("cashier", () =>
+            setDoc(doc(db, "cashier", studentId), {
+              studentId,
+              studentName: student.fullName,
+              studentPhone: student.studentPhone,
+              parentPhone: student.parentPhone,
+              feeType: student.feeType,
+              monthlyFee: student.monthlyFee,
+              feeCategory: student.feeCategory,
+              registrationFees,
+              rollNumberFees,
+              examinationFees,
+            })
+          );
 
-        // 4. Save to `studentIdCards`
-        await setDoc(doc(db, "studentIdCards", studentId), {
-          studentId,
-          fullName: student.fullName,
-          motherName: student.motherName,
-          gender: student.gender,
-          placeOfBirth: student.placeOfBirth,
-          dateOfBirth: student.dateOfBirth,
-          age: finalAge,
-          className: selectedClass,
-          shift: student.shift,
-          studentPhoto: schoolLogo,
-          district: student.district,
-          parentPhone: student.parentPhone,
-          studentPhone: student.studentPhone,
-          idIssuedAt: new Date(),
-          issuedAt: new Date(),
-          createdAt: new Date(),
-        });
+          // 4. Save to `studentIdCards`
+          await step("studentIdCards", () =>
+            setDoc(doc(db, "studentIdCards", studentId), {
+              studentId,
+              fullName: student.fullName,
+              motherName: student.motherName,
+              gender: student.gender,
+              placeOfBirth: student.placeOfBirth,
+              dateOfBirth: student.dateOfBirth,
+              age: finalAge,
+              className: selectedClass,
+              shift: student.shift,
+              studentPhoto: schoolLogo,
+              district: student.district,
+              parentPhone: student.parentPhone,
+              studentPhone: student.studentPhone,
+              idIssuedAt: new Date(),
+              issuedAt: new Date(),
+              createdAt: new Date(),
+            })
+          );
 
-        // 5. Attach to teachers
-        await attachStudentToClassTeachers(
-          teachersSnap,
-          selectedClass,
-          studentId,
-          student.fullName
-        );
+          // 5. Attach to teachers
+          await step("teachers", () =>
+            attachStudentToClassTeachers(
+              teachersSnap,
+              selectedClass,
+              studentId,
+              student.fullName
+            )
+          );
+        } catch (stepErr) {
+          // Stop here, but report exactly how far we got and who/what
+          // failed, instead of a bare permissions message with no context.
+          const progressNote =
+            saved.length > 0
+              ? `${saved.length} arday ayaa si guul leh loo kaydiyay ka hor intii khaladkan aanu dhicin (studentId-yadoodu waa ${saved[0].studentId} ilaa ${saved[saved.length - 1].studentId}).`
+              : "Weli arday lama kaydin ka hor intii khaladkan aanu dhicin.";
+          throw new Error(
+            `Waxaa ku dhacay khalad markii la kaydinayay ardayga "${student.fullName}" (safka ${i + 1}, studentId la isku dayay: ${studentId}).\n\n${stepErr.message}\n\n${progressNote}`
+          );
+        }
 
         saved.push({
           ...student,
