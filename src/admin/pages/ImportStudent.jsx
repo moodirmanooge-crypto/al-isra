@@ -46,6 +46,7 @@ const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCas
 const FIELD_ALIASES = {
   fullName: ["fullname", "full name", "name", "studentname", "student name"],
   motherName: ["mothername", "mother name", "mathername", "mather name", "mothersname"],
+  gender: ["gender", "sex"],
   placeOfBirth: ["placeofbirth", "place of birth", "birthplace", "pob"],
   dateOfBirth: ["dateofbirth", "date of birth", "dob", "birthdate", "date"],
   feeType: ["feetype", "fee type"],
@@ -95,6 +96,17 @@ function autoPassword(studentPhone, parentPhone) {
   if (fromParent.length >= 4) return fromParent.slice(-4);
 
   return "";
+}
+
+// Marka "Both" (Male & Female) la doorto, gender-ka saf kasta waxaa laga
+// akhrinayaa xogtiisa gaarka ah (column-ka Gender), ma aha doorashada
+// dropdown-ka. Tan waxay si dabacsan u aqoonsataa "Male"/"M"/"Female"/"F"
+// iyada oo aan waxba ka welwelin xarfaha yar/wayn.
+function normalizeGender(raw) {
+  const v = (raw || "").trim().toLowerCase();
+  if (v === "male" || v === "m") return "Male";
+  if (v === "female" || v === "f") return "Female";
+  return null;
 }
 
 export default function ImportStudent() {
@@ -218,11 +230,27 @@ export default function ImportStudent() {
       // Phone, ama haddii kale Parent Phone.
       const finalParentPassword = parentPassword || autoPassword(studentPhone, parentPhone);
 
-      // Class, Shift, iyo Gender had iyo jeer waxaa laga qaataa doorashada kore
-      // (sadexda qayb ee kor ku yaal). Haddii safku wax ku qorayo meelahaas,
+      // Class iyo Shift had iyo jeer waxaa laga qaataa doorashada kore
+      // (labada qayb ee kor ku yaal). Haddii safku wax ku qorayo meesha,
       // waa la iska indho-tiraa oo lama isticmaalo.
       const shift = selectedShift;
-      const gender = selectedGender;
+
+      // Gender: marka "Both" la doorto, mid kasta xogtiisa gaarka ah
+      // (column-ka Gender) ayaa laga akhrinayaa; haddii kale (Male ama
+      // Female si gaar ah loo doortay), dhammaan ardayda isla gender-kaas
+      // ayaa loo dhigayaa, sida hore.
+      let gender = selectedGender;
+      if (selectedGender === "Both") {
+        const rowGender = getVal(parts, "gender", 2);
+        const normalized = normalizeGender(rowGender);
+        if (!normalized) {
+          alert(
+            `Safka ${lineNum}${fullName ? ` (${fullName})` : ""}: Gender-ka waa ka dhiman yahay ama sax ma aha (waa in uu ahaadaa Male ama Female), maadaama aad dooratay "Male & Female".`
+          );
+          return null;
+        }
+        gender = normalized;
+      }
 
       // --- VALIDATION FOR REQUIRED FIELDS ---
       if (!fullName) {
@@ -528,6 +556,7 @@ export default function ImportStudent() {
                 <option value="">-- Dooro Gender --</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
+                <option value="Both">Male &amp; Female (ka akhri xogta safka)</option>
               </select>
             </div>
           </div>
@@ -563,7 +592,8 @@ export default function ImportStudent() {
             </div>
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
               * <strong>Waajib:</strong> FullName, MotherName.<br/>
-              * <strong>Class, Shift &amp; Gender:</strong> Had iyo jeer waxaa laga qaataa doorashada kore (sadexda qayb ee kor ku yaal). Haddii safka lagu qoro qiyam kale, si toos ah ayaa loo iska indho-tiraa.<br/>
+              * <strong>Class &amp; Shift:</strong> Had iyo jeer waxaa laga qaataa doorashada kore. Haddii safka lagu qoro qiyam kale, si toos ah ayaa loo iska indho-tiraa.<br/>
+              * <strong>Gender:</strong> Haddii Male ama Female si gaar ah loo doorto, dhammaan ardayda waa loo dhigaa isla gender-kaas. Haddii "Male &amp; Female" la doorto, mid kasta gender-kiisa waxaa laga akhrinayaa column-ka Gender ee safka (Male/Female/M/F).<br/>
               * <strong>Ikhtiyaari:</strong> Qeybaha kale waa la iska dhaafi karaan adoo komaha (,) reebaya.
             </div>
           </div>
