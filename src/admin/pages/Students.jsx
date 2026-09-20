@@ -4,6 +4,7 @@ import { db, storage } from "../../firebase/firebase";
 import {
   collection,
   getDocs,
+  getDoc,
   doc,
   updateDoc,
   writeBatch,
@@ -47,6 +48,8 @@ import {
 } from "lucide-react";
 
 const classOptions = ["Fasalka 1aad", "Fasalka 2aad", "Fasalka 3aad", "PP", "PI", "G8 A", "G8 B", "F1", "F2", "F3", "F4"];
+
+const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
 
 const feeCategoryOptions = [
   { value: "", label: "Select Fee Category" },
@@ -232,9 +235,49 @@ export default function Students() {
   const [newClassNameInput, setNewClassNameInput] = useState("");
   const [renameSaving, setRenameSaving] = useState(false);
 
+  // Isla liiska class-yada ee bogga "Add Student" isticmaalo — class-yada
+  // asalka ah (built-in) oo aan la qarin, iyo class-yada la abuuray
+  // (custom), si dropdown-ka "Magaca Cusub" (rename) uu ku soo bandhigo
+  // kaliya class-yada dhab ahaan jira.
+  const [customClasses, setCustomClasses] = useState([]);
+  const [hiddenBuiltIns, setHiddenBuiltIns] = useState([]);
+
   useEffect(() => {
     fetchStudents();
+    fetchCustomClasses();
+    fetchClassSettings();
   }, []);
+
+  async function fetchCustomClasses() {
+    try {
+      const snap = await getDocs(collection(db, "customClasses"));
+      setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  async function fetchClassSettings() {
+    try {
+      const snap = await getDoc(doc(db, "settings", "classManagement"));
+      if (snap.exists()) {
+        setHiddenBuiltIns(snap.data().hiddenBuiltInClasses || []);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  const allClassOptions = useMemo(() => {
+    const visibleBuiltIns = classOptions.filter(
+      (c) => !hiddenBuiltIns.some((h) => normalizeClassName(h) === normalizeClassName(c))
+    );
+    const customNames = customClasses
+      .map((c) => c.name)
+      .filter((name) => !visibleBuiltIns.some((c) => normalizeClassName(c) === normalizeClassName(name)))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...visibleBuiltIns, ...customNames];
+  }, [customClasses, hiddenBuiltIns]);
 
   async function fetchStudents() {
     try {
@@ -251,7 +294,7 @@ export default function Students() {
   // Waxay furaysaa modal-ka "Beddel magaca Class-ka", oo ku qoran magaca
   // hadda ee class-ka la doortay ee liiska (listClassFilter).
   function openRenameClass() {
-    setNewClassNameInput(listClassFilter);
+    setNewClassNameInput("");
     setRenamingClass(true);
   }
 
@@ -269,7 +312,7 @@ export default function Students() {
     const newName = newClassNameInput.trim();
 
     if (!newName) {
-      alert("Fadlan geli magaca cusub ee Class-ka.");
+      alert("Fadlan dooro magaca cusub ee Class-ka.");
       return;
     }
     if (newName === oldName) {
@@ -1081,13 +1124,21 @@ export default function Students() {
               </Field>
               <div style={{ height: 16 }} />
               <Field icon={Pencil} label="Magaca Cusub">
-                <input
+                <select
                   style={input}
                   value={newClassNameInput}
                   onChange={(e) => setNewClassNameInput(e.target.value)}
-                  placeholder="Tusaale: F1 B"
                   autoFocus
-                />
+                >
+                  <option value="">-- Dooro Class --</option>
+                  {allClassOptions
+                    .filter((c) => c !== listClassFilter)
+                    .map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                </select>
               </Field>
               <p style={{ fontSize: 12.5, color: "#8b87ad", marginTop: 14, lineHeight: 1.5 }}>
                 Dhammaan ardayda hadda ku jira class-ka "{listClassFilter}" ayaa
