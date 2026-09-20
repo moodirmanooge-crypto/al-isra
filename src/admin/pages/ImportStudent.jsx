@@ -1,818 +1,1261 @@
-import { useState, useEffect, useMemo } from "react";
+// src/admin/pages/AddTeacher.jsx
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { db } from "../../firebase/firebase";
+
+import { db, storage } from "../../firebase/firebase";
+
 import {
   doc,
   setDoc,
-  collection,
+  getDoc,
   getDocs,
-  updateDoc,
-  arrayUnion,
+  collection,
+  query,
+  where,
+  writeBatch,
+  serverTimestamp,
 } from "firebase/firestore";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
-  Upload,
-  CheckCircle2,
-  ArrowRight,
+  GraduationCap,
+  User,
+  AtSign,
+  Lock,
   School,
-  Loader2,
-  Users,
+  BookOpen,
+  Plus,
+  X,
   Clock,
+  Loader2,
+  Phone,
+  Users,
+  Camera,
 } from "lucide-react";
 
-// ✅ Import-ka Logo-da Iskuulka — waxaa loo isticmaalayaa sawir default ah
-// maadaama Import-ka aan la soo shubin sawir gaar ah arday kasta.
-import schoolLogo from "../assets/logo.png";
-
-const classOptions = [
-  "Fasalka 1aad",
-  "Fasalka 2aad",
-  "Fasalka 3aad",
-  "PP",
-  "PI",
-  "G8 A",
-  "G8 B",
-  "F1",
-  "F2",
-  "F3",
-  "F4",
+// Macalimiinta Full Time waxay leeyihiin maalmaha caadiga ah ee toddobaadka
+// dugsiga. Macalimiinta Part Time kaliya waxay xaadirin karaan/waxaa loo
+// qaboojiyay Thursday iyo Friday, sida ardayda Part Time.
+const fullTimeWeekDays = [
+  "Saturday",
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
 ];
 
-const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCase();
+const partTimeWeekDays = ["Thursday", "Friday"];
 
-// ---- Header-based column detection (for pasting straight from Excel) ----
-// Maps every accepted header spelling to its internal field key. This lets
-// the textarea accept EITHER the old fixed-order comma format, OR a direct
-// paste from Excel (tab-separated, with a header row) in ANY column order.
-const FIELD_ALIASES = {
-  fullName: ["fullname", "full name", "name", "studentname", "student name"],
-  motherName: ["mothername", "mother name", "mathername", "mather name", "mothersname"],
-  gender: ["gender", "sex"],
-  placeOfBirth: ["placeofbirth", "place of birth", "birthplace", "pob"],
-  dateOfBirth: ["dateofbirth", "date of birth", "dob", "birthdate", "date"],
-  feeType: ["feetype", "fee type"],
-  monthlyFee: ["monthlyfee", "monthly fee", "fee"],
-  parentPhone: ["parentphone", "parent phone", "prentphone"],
-  studentPhone: ["studentphone", "student phone"],
-  district: ["district", "distiric", "distric"],
-  previousSchool: ["previousschool", "previous school"],
-  orphanStatus: ["orphanstatus", "orphan status"],
-  parentPassword: ["parentpassword", "password"],
-  feeCategory: ["feecategory", "fee category"],
-  feeCategoryAmount: ["feecategoryamount", "fee category amount"],
-};
+// Liiska caadiga ah ee fasalada ka bilaabanaya 1 ilaa F4
+const defaultClassOptions = [
+  "1", "2", "3", "4", "5", "6", "7", "8",
+  "F1", "F2", "F3", "F4"
+];
 
-const normalizeHeaderCell = (s) => (s || "").toLowerCase().replace(/[^a-z]/g, "");
-
-const ALIAS_TO_FIELD = {};
-Object.entries(FIELD_ALIASES).forEach(([field, aliases]) => {
-  aliases.forEach((alias) => {
-    ALIAS_TO_FIELD[normalizeHeaderCell(alias)] = field;
-  });
+const emptySession = () => ({
+  startTime: "",
+  endTime: "",
+  label: "",
 });
 
-function calculateAge(dateOfBirth) {
-  if (!dateOfBirth) return "";
-  const dob = new Date(dateOfBirth);
-  if (Number.isNaN(dob.getTime())) return "";
+const emptyClassBlock = () => ({
+  className: "",
+  subject: "",
+  shift: "",
+  days: [],
+  daySessions: {},
+});
 
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const monthDiff = today.getMonth() - dob.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-    age -= 1;
+function sortedBySessionTime(sessions) {
+  return [...sessions].sort((a, b) =>
+    (a.startTime || "").localeCompare(b.startTime || "")
+  );
+}
+
+function withSessionNumbers(sessions) {
+  return sessions.map((s, i) => ({ ...s, sessionNumber: i + 1 }));
+}
+
+// Computes the label to pre-fill a NEWLY added session with, continuing
+// from the highest number already USED among this day's existing session
+// labels — whether that number came from auto-numbering or from the admin
+// manually typing a custom one (e.g. renaming "Xiisadda #1" to
+// "Xiisadda #6"). Without this, adding a new session after a manual
+// rename would restart counting from the array position instead of
+// picking up where the admin's own numbering left off. Falls back to
+// existingSessions.length only when none of the existing labels contain
+// any digit at all (e.g. every session still has its default blank/typed
+// label with no number in it).
+function nextSessionLabel(existingSessions) {
+  let maxNum = 0;
+  existingSessions.forEach((s) => {
+    const match = (s.label || "").match(/(\d+)/);
+    if (match) {
+      const n = parseInt(match[1], 10);
+      if (n > maxNum) maxNum = n;
+    }
+  });
+  if (maxNum === 0) {
+    maxNum = existingSessions.length;
   }
-  return age >= 0 ? String(age) : "";
+  return `Xiisadda #${maxNum + 1}`;
 }
 
-// Haddii maamulku uusan gelin Password, si toos ah ayaa loo dhigayaa
-// afarta lambar ee ugu dambeeya ee Student Phone-ka. Haddii Student
-// Phone maqan yahay, waxaa loo isticmaalaa afarta lambar ee ugu
-// dambeeya ee Parent Phone (Guardian Tel) halkiisa.
-function autoPassword(studentPhone, parentPhone) {
-  const fromStudent = (studentPhone || "").replace(/\D/g, "");
-  if (fromStudent.length >= 4) return fromStudent.slice(-4);
-
-  const fromParent = (parentPhone || "").replace(/\D/g, "");
-  if (fromParent.length >= 4) return fromParent.slice(-4);
-
-  return "";
-}
-
-// Marka "Both" (Male & Female) la doorto, gender-ka saf kasta waxaa laga
-// akhrinayaa xogtiisa gaarka ah (column-ka Gender), ma aha doorashada
-// dropdown-ka. Tan waxay si dabacsan u aqoonsataa "Male"/"M"/"Female"/"F"
-// iyada oo aan waxba ka welwelin xarfaha yar/wayn.
-function normalizeGender(raw) {
-  const v = (raw || "").trim().toLowerCase();
-  if (v === "male" || v === "m") return "Male";
-  if (v === "female" || v === "f") return "Female";
-  return null;
-}
-
-export default function ImportStudent() {
+export default function AddTeacher() {
   const navigate = useNavigate();
 
-  // Class Selection
-  const [selectedClass, setSelectedClass] = useState("");
-  const [selectedShift, setSelectedShift] = useState("");
-  const [selectedGender, setSelectedGender] = useState("");
-  const [textInput, setTextInput] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [parentPhoneNumber, setParentPhoneNumber] = useState("");
+  const [employmentTypes, setEmploymentTypes] = useState([]);
 
-  const [showPopup, setShowPopup] = useState(false);
-  const [savedStudents, setSavedStudents] = useState([]);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Fasalada laga soo saari doono db ama default
+  const [availableClasses, setAvailableClasses] = useState(defaultClassOptions);
+
+  const [classBlocks, setClassBlocks] = useState([emptyClassBlock()]);
   const [saving, setSaving] = useState(false);
-  const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
-  const [customClasses, setCustomClasses] = useState([]);
 
+  // 1. Soo akhrinta Fasalada ka jira Database-ka si Dynamic ah
   useEffect(() => {
-    fetchCustomClasses();
+    const fetchClasses = async () => {
+      try {
+        const classesSnap = await getDocs(collection(db, "classes"));
+        if (!classesSnap.empty) {
+          const dbClasses = classesSnap.docs.map((d) => d.data().className || d.id);
+          // Isku dar fasalada DB-ka iyo kuwii hore oo ka saar kuwa ku doban (Unique)
+          const mergedClasses = Array.from(new Set([...defaultClassOptions, ...dbClasses]));
+          setAvailableClasses(mergedClasses);
+        }
+      } catch (err) {
+        console.log("Warbixinta fasalada DB-ka waa la heli waayay, waxaa la isticmaalayaa liiska default-ka:", err);
+      }
+    };
+    fetchClasses();
   }, []);
 
-  const fetchCustomClasses = async () => {
-    try {
-      const snap = await getDocs(collection(db, "customClasses"));
-      setCustomClasses(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    } catch (err) {
-      console.log(err);
-    }
-  };
+  // Maalmaha loogu talagalay noocyada shaqada ee la doortay hadda. Haddii
+  // Full Time la doorto (kali ama isla Part Time), maalmaha caadiga ah ayaa
+  // la isticmaalaa (Sat–Wed). Haddii KALIYA Part Time la doorto, waxaa
+  // gaar loo hayaa Thursday iyo Friday oo keliya.
+  const allowedWeekDays = employmentTypes.includes("Full Time")
+    ? fullTimeWeekDays
+    : employmentTypes.includes("Part Time")
+    ? partTimeWeekDays
+    : fullTimeWeekDays;
 
-  const allClassOptions = useMemo(() => {
-    const customNames = customClasses
-      .map((c) => c.name)
-      .filter(
-        (name) => !classOptions.some((c) => normalizeClassName(c) === normalizeClassName(name))
-      )
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    return [...classOptions, ...customNames];
-  }, [customClasses]);
+  const toggleEmploymentType = (type) => {
+    setEmploymentTypes((prev) => {
+      const updated = prev.includes(type)
+        ? prev.filter((t) => t !== type)
+        : [...prev, type];
 
-  const attachStudentToClassTeachers = async (
-    teachersSnap,
-    className,
-    studentId,
-    fullName
-  ) => {
-    for (const teacherDoc of teachersSnap.docs) {
-      const data = teacherDoc.data();
-      const teacherClasses = Array.isArray(data.classes) ? data.classes : [];
+      // Haddii nooca shaqadu isbedelo una noqdo Part Time oo keliya, ka
+      // saar maalin kasta oo aan ka mid ahayn Thursday/Friday oo horeba
+      // loo doortay fasalada, si aan loo hayn xog aan la rabin.
+      const newAllowedDays = updated.includes("Full Time")
+        ? fullTimeWeekDays
+        : updated.includes("Part Time")
+        ? partTimeWeekDays
+        : fullTimeWeekDays;
 
-      const teachesThisClass = teacherClasses.some(
-        (c) => c.className === className
+      setClassBlocks((prevBlocks) =>
+        prevBlocks.map((block) => {
+          const filteredDays = block.days.filter((d) => newAllowedDays.includes(d));
+          const filteredSessions = {};
+          filteredDays.forEach((d) => {
+            filteredSessions[d] = block.daySessions[d];
+          });
+          return {
+            ...block,
+            days: filteredDays,
+            daySessions: filteredSessions,
+          };
+        })
       );
 
-      if (teachesThisClass) {
-        await updateDoc(doc(db, "teachers", teacherDoc.id), {
-          students: arrayUnion({ studentId, fullName }),
-        });
-      }
-    }
-  };
-
-  const parseAndValidateInput = () => {
-    const rawLines = textInput
-      .split("\n")
-      .map((line) => line.replace(/\r$/, ""))
-      .filter((line) => line.trim().length > 0);
-
-    if (rawLines.length === 0) return [];
-
-    // Excel paste uses tabs between columns; the classic manual format uses commas.
-    const delimiter = rawLines[0].includes("\t") ? "\t" : ",";
-
-    // Check if the first line is a header row (Excel column names) by matching
-    // its cells against FIELD_ALIASES.
-    const firstCells = rawLines[0].split(delimiter).map((c) => c.trim());
-    const fieldIndexMap = {};
-    firstCells.forEach((cell, idx) => {
-      const key = ALIAS_TO_FIELD[normalizeHeaderCell(cell)];
-      if (key && fieldIndexMap[key] === undefined) {
-        fieldIndexMap[key] = idx;
-      }
+      return updated;
     });
-    const hasHeader = fieldIndexMap.fullName !== undefined && fieldIndexMap.motherName !== undefined;
-
-    const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
-
-    // Reads a field either by its header-mapped column (Excel paste) or by
-    // its fixed legacy position (classic comma format).
-    const getVal = (parts, field, legacyIndex) => {
-      if (hasHeader) {
-        const idx = fieldIndexMap[field];
-        return idx !== undefined ? (parts[idx] || "").trim() : "";
-      }
-      return (parts[legacyIndex] || "").trim();
-    };
-
-    const parsed = [];
-
-    for (let i = 0; i < dataLines.length; i++) {
-      const lineNum = i + 1;
-      const parts = dataLines[i].split(delimiter).map((p) => p.trim());
-
-      const fullName = getVal(parts, "fullName", 0);
-      const motherName = getVal(parts, "motherName", 1);
-      const placeOfBirth = getVal(parts, "placeOfBirth", 3);
-      const dateOfBirth = getVal(parts, "dateOfBirth", 4);
-      const feeType = getVal(parts, "feeType", 6) || "Free";
-      const monthlyFee = getVal(parts, "monthlyFee", 7) || "0";
-      const parentPhone = getVal(parts, "parentPhone", 8);
-      const studentPhone = getVal(parts, "studentPhone", 9);
-      const district = getVal(parts, "district", 10);
-      const previousSchool = getVal(parts, "previousSchool", 11);
-      const orphanStatus = getVal(parts, "orphanStatus", 12) || "No";
-      const parentPassword = getVal(parts, "parentPassword", 13);
-      const feeCategory = getVal(parts, "feeCategory", 14);
-      const feeCategoryAmount = getVal(parts, "feeCategoryAmount", 15) || "0";
-
-      // Password ikhtiyaari (optional) — haddii aan la gelin, si toos ah
-      // ayaa looga dhigayaa afarta lambar ee ugu dambeeya ee Student
-      // Phone, ama haddii kale Parent Phone.
-      const finalParentPassword = parentPassword || autoPassword(studentPhone, parentPhone);
-
-      // Class iyo Shift had iyo jeer waxaa laga qaataa doorashada kore
-      // (labada qayb ee kor ku yaal). Haddii safku wax ku qorayo meesha,
-      // waa la iska indho-tiraa oo lama isticmaalo.
-      const shift = selectedShift;
-
-      // Gender: marka "Both" la doorto, mid kasta xogtiisa gaarka ah
-      // (column-ka Gender) ayaa laga akhrinayaa; haddii kale (Male ama
-      // Female si gaar ah loo doortay), dhammaan ardayda isla gender-kaas
-      // ayaa loo dhigayaa, sida hore.
-      let gender = selectedGender;
-      if (selectedGender === "Both") {
-        const rowGender = getVal(parts, "gender", 2);
-        const normalized = normalizeGender(rowGender);
-        if (!normalized) {
-          alert(
-            `Safka ${lineNum}${fullName ? ` (${fullName})` : ""}: Gender-ka waa ka dhiman yahay ama sax ma aha (waa in uu ahaadaa Male ama Female), maadaama aad dooratay "Male & Female".`
-          );
-          return null;
-        }
-        gender = normalized;
-      }
-
-      // --- VALIDATION FOR REQUIRED FIELDS ---
-      if (!fullName) {
-        alert(`Safka ${lineNum}: Magaca Ardayga (Full Name) waa ka dhiman yahay.`);
-        return null;
-      }
-      if (!motherName) {
-        alert(`Safka ${lineNum} (${fullName}): Magaca Hooyada (Mother Name) waa ka dhiman yahay.`);
-        return null;
-      }
-      if (feeType === "Paid" && !monthlyFee) {
-        alert(`Safka ${lineNum} (${fullName}): Monthly Fee waa ka dhiman yahay maadaama Fee Type uu yahay Paid.`);
-        return null;
-      }
-      // FeeCategory iyo FeeCategoryAmount labaduba waa ikhtiyaari (optional) —
-      // haddii FeeCategory la geliyo laakiin qiimo aan lagu darin, si toos ah
-      // ayaa loo dhigayaa "0", mana joojinayo import-ka.
-
-      parsed.push({
-        fullName,
-        motherName,
-        gender,
-        placeOfBirth,
-        dateOfBirth,
-        shift,
-        feeType,
-        monthlyFee: feeType === "Free" ? "0" : monthlyFee,
-        parentPhone,
-        studentPhone,
-        district,
-        previousSchool,
-        orphanStatus,
-        parentPassword: finalParentPassword,
-        feeCategory,
-        feeCategoryAmount,
-      });
-    }
-
-    return parsed;
   };
 
-  const saveStudents = async () => {
-    if (!selectedClass) {
-      alert("Fadlan marka hore dooro Class / Department-ka.");
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Fadlan dooro sawir sax ah (jpg, png, iwm)");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Sawirku waa inuu ka yaraadaa 5MB");
       return;
     }
 
-    if (!selectedShift) {
-      alert("Fadlan dooro Shift-ka (Morning ama Afternoon).");
-      return;
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const removePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+  };
+
+  const updateClassBlock = (index, field, value) => {
+    const updated = [...classBlocks];
+    updated[index][field] = value;
+    setClassBlocks(updated);
+  };
+
+  const toggleDay = (index, day) => {
+    const updated = [...classBlocks];
+    const days = updated[index].days;
+
+    if (days.includes(day)) {
+      updated[index].days = days.filter((d) => d !== day);
+      const remainingSessions = { ...updated[index].daySessions };
+      delete remainingSessions[day];
+      updated[index].daySessions = remainingSessions;
+    } else {
+      updated[index].days = [...days, day];
+      updated[index].daySessions = {
+        ...updated[index].daySessions,
+        [day]: [{ ...emptySession(), label: nextSessionLabel([]) }],
+      };
     }
 
-    if (!selectedGender) {
-      alert("Fadlan dooro Gender-ka (Male ama Female).");
-      return;
-    }
+    setClassBlocks(updated);
+  };
 
-    if (!textInput.trim()) {
-      alert("Fadlan geli ugu yaraan hal xariiq oo xogta ardayda ah.");
-      return;
-    }
-
-    const parsedList = parseAndValidateInput();
-    if (!parsedList) return; // Validation failed
-
-    // Wraps one write/update so that if it fails, the error message says
-    // exactly which Firestore collection it was trying to write to —
-    // instead of a bare "Missing or insufficient permissions" with no
-    // context about where in the import it happened.
-    const step = async (label, fn) => {
-      try {
-        await fn();
-      } catch (err) {
-        const e = new Error(`Collection "${label}": ${err.message}`);
-        e.code = err.code;
-        throw e;
-      }
+  const addSessionToDay = (index, day) => {
+    const updated = [...classBlocks];
+    const existing = updated[index].daySessions[day] || [];
+    updated[index].daySessions = {
+      ...updated[index].daySessions,
+      [day]: [...existing, { ...emptySession(), label: nextSessionLabel(existing) }],
     };
+    setClassBlocks(updated);
+  };
+
+  const removeSessionFromDay = (index, day, sessionIdx) => {
+    const updated = [...classBlocks];
+    const existing = updated[index].daySessions[day] || [];
+    if (existing.length === 1) return;
+    updated[index].daySessions = {
+      ...updated[index].daySessions,
+      [day]: existing.filter((_, i) => i !== sessionIdx),
+    };
+    setClassBlocks(updated);
+  };
+
+  const updateSessionTime = (index, day, sessionIdx, field, value) => {
+    const updated = [...classBlocks];
+    const existing = [...(updated[index].daySessions[day] || [])];
+    existing[sessionIdx] = { ...existing[sessionIdx], [field]: value };
+    updated[index].daySessions = {
+      ...updated[index].daySessions,
+      [day]: existing,
+    };
+    setClassBlocks(updated);
+  };
+
+  const addClassBlock = () => {
+    setClassBlocks([...classBlocks, emptyClassBlock()]);
+  };
+
+  const removeClassBlock = (index) => {
+    if (classBlocks.length === 1) return;
+    setClassBlocks(classBlocks.filter((_, i) => i !== index));
+  };
+
+  const validateSessions = () => {
+    for (let blockIdx = 0; blockIdx < classBlocks.length; blockIdx++) {
+      const block = classBlocks[blockIdx];
+      // Identifies this block in every alert below: "Fasalka #3 (Class 8 -
+      // Social Studies)" — so when there are many blocks (as in a long
+      // schedule), the admin can jump straight to the right one instead of
+      // having to guess from the day name alone.
+      const blockLabel = `Fasalka #${blockIdx + 1} (${block.className || "fasal aan la dooran"}${
+        block.subject ? " - " + block.subject : ""
+      })`;
+
+      for (const day of block.days) {
+        const sessions = block.daySessions[day] || [];
+
+        for (const s of sessions) {
+          const sessionLabel = s.label ? ` — ${s.label}` : "";
+          if (!s.startTime || !s.endTime) {
+            alert(
+              `${blockLabel}: fadlan buuxi waqtiga bilowga iyo dhamaadka ee ${day}${sessionLabel}`
+            );
+            return false;
+          }
+          if (s.startTime >= s.endTime) {
+            alert(
+              `${blockLabel}: ${day}${sessionLabel} — waqtiga dhamaadka waa inuu ka dambeeyaa waqtiga bilowga`
+            );
+            return false;
+          }
+        }
+
+        const sorted = [...sessions].sort((a, b) =>
+          a.startTime.localeCompare(b.startTime)
+        );
+        for (let i = 0; i < sorted.length - 1; i++) {
+          if (sorted[i].endTime > sorted[i + 1].startTime) {
+            alert(
+              `${blockLabel}: ${day} — xiisadaha waa isku dhacayaan waqti ahaan, fadlan wax ka beddel`
+            );
+            return false;
+          }
+        }
+      }
+    }
+    return true;
+  };
+
+  // 2. SOO AKHRISKA TIMETABLE-KA IYO KU SHUBAALADA MAADOOBYINKA & ARDAYDA CUSUB
+  const syncTeacherTimetableToClasses = async (teacherUsername, teacherFullName) => {
+    const modifiedClasses = new Set();
+    const assignedStudents = [];
+
+    for (const block of classBlocks) {
+      const className = block.className;
+      const subject = block.subject;
+
+      if (!className) continue;
+      modifiedClasses.add(className);
+
+      for (const day of block.days) {
+        const daySessions = block.daySessions[day] || [];
+        if (daySessions.length === 0) continue;
+
+        const ttDocKey = `${className}__${day}`;
+        const ttRef = doc(db, "timetable", ttDocKey);
+
+        const ttSnap = await getDoc(ttRef);
+
+        let existingSessions = [];
+        if (ttSnap.exists()) {
+          existingSessions = ttSnap.data().sessions || [];
+        }
+
+        let otherTeachersSessions = existingSessions.filter((s) => s.teacherId !== teacherUsername);
+
+        const newTeacherSessions = daySessions.map((s) => ({
+          id: `s_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          label: s.label || "",
+          teacherId: teacherUsername,
+          teacherName: teacherFullName,
+          subject: subject,
+        }));
+
+        const allSessionsCombined = sortedBySessionTime([...otherTeachersSessions, ...newTeacherSessions]);
+        const finalSessions = withSessionNumbers(allSessionsCombined);
+
+        await setDoc(ttRef, {
+          className,
+          day,
+          sessions: finalSessions,
+          updatedAt: new Date(),
+        }, { merge: true });
+      }
+    }
+
+    // 3. SOO AKHRINAYA ARDAYDA FASALADAAS OO DIGNIIN LA'AAN LOO KU LINGAYO MACALINKA
+    for (const className of modifiedClasses) {
+      try {
+        const studentsSnap = await getDocs(
+          query(collection(db, "students"), where("className", "==", className))
+        );
+
+        studentsSnap.docs.forEach((docSnap) => {
+          const sData = docSnap.data();
+          assignedStudents.push({
+            studentId: docSnap.id,
+            fullName: sData.fullName || "",
+            className: className
+          });
+        });
+
+        if (studentsSnap.empty) continue;
+
+        const fullWeekSchedule = [];
+        for (const d of fullTimeWeekDays) {
+          const key = `${className}__${d}`;
+          const ttSnap = await getDoc(doc(db, "timetable", key));
+          const sessionsData = ttSnap.exists() ? ttSnap.data().sessions || [] : [];
+
+          const sortedSessions = sortedBySessionTime(sessionsData).map((s) => ({
+            sessionNumber: s.sessionNumber,
+            startTime: s.startTime,
+            endTime: s.endTime,
+            label: s.label || "",
+            teacherId: s.teacherId,
+            teacherName: s.teacherName || s.teacherId,
+            subject: s.subject || "",
+          }));
+
+          fullWeekSchedule.push({
+            day: d,
+            dayLabel: d,
+            sessions: sortedSessions,
+          });
+        }
+
+        const batch = writeBatch(db);
+        studentsSnap.docs.forEach((studentDoc) => {
+          batch.update(doc(db, "students", studentDoc.id), {
+            timetable: fullWeekSchedule,
+            timetableUpdatedAt: new Date(),
+          });
+        });
+        await batch.commit();
+      } catch (err) {
+        console.log("Error updating student schedules:", err);
+      }
+    }
+
+    return assignedStudents;
+  };
+
+  const saveTeacher = async (e) => {
+    e.preventDefault();
+
+    if (fullName === "" || username === "" || password === "") {
+      alert("Fill Required Fields");
+      return;
+    }
+
+    if (password.length < 6) {
+      alert("Password must be at least 6 characters");
+      return;
+    }
+
+    if (phoneNumber === "") {
+      alert("Fadlan geli numbarka macalinka");
+      return;
+    }
+
+    if (parentName === "") {
+      alert("Fadlan geli magaca waalidka");
+      return;
+    }
+
+    if (parentPhoneNumber === "") {
+      alert("Fadlan geli numbarka waalidka");
+      return;
+    }
+
+    if (employmentTypes.length === 0) {
+      alert("Fadlan dooro nooca shaqada macalinka (Full Time / Part Time) - waad dooran kartaa labadaba");
+      return;
+    }
+
+    if (!validateSessions()) {
+      return;
+    }
 
     try {
       setSaving(true);
-      setSaveProgress({ done: 0, total: parsedList.length });
-      const saved = [];
 
-      const existingSnap = await getDocs(collection(db, "students"));
-      let nextIdNumber = existingSnap.size;
-      const teachersSnap = await getDocs(collection(db, "teachers"));
-
-      for (let i = 0; i < parsedList.length; i++) {
-        const student = parsedList[i];
-
-        nextIdNumber += 1;
-        const studentId = String(nextIdNumber).padStart(4, "0");
-        const finalAge = calculateAge(student.dateOfBirth);
-
-        const registrationFees =
-          student.feeCategory === "Registration Fees" ? student.feeCategoryAmount : "0";
-        const rollNumberFees =
-          student.feeCategory === "Roll Number Fees" ? student.feeCategoryAmount : "0";
-        const examinationFees =
-          student.feeCategory === "Examination Fees" ? student.feeCategoryAmount : "0";
-
-        try {
-          // 1. Save to `students`
-          await step("students", () =>
-            setDoc(doc(db, "students", studentId), {
-              studentId,
-              fullName: student.fullName,
-              motherName: student.motherName,
-              gender: student.gender,
-              placeOfBirth: student.placeOfBirth,
-              dateOfBirth: student.dateOfBirth,
-              age: finalAge,
-              className: selectedClass,
-              shift: student.shift,
-              feeType: student.feeType,
-              monthlyFee: student.monthlyFee,
-              feeCategory: student.feeCategory,
-              registrationFees,
-              rollNumberFees,
-              examinationFees,
-              parentPhone: student.parentPhone,
-              studentPhone: student.studentPhone,
-              district: student.district,
-              previousSchool: student.previousSchool,
-              orphanStatus: student.orphanStatus,
-              parentPassword: student.parentPassword,
-              studentPhoto: schoolLogo,
-              createdAt: new Date(),
-            })
-          );
-
-          // 2. Save to `attendance`
-          await step("attendance", () =>
-            setDoc(doc(db, "attendance", studentId), {
-              studentId,
-              studentName: student.fullName,
-            })
-          );
-
-          // 3. Save to `cashier`
-          await step("cashier", () =>
-            setDoc(doc(db, "cashier", studentId), {
-              studentId,
-              studentName: student.fullName,
-              studentPhone: student.studentPhone,
-              parentPhone: student.parentPhone,
-              feeType: student.feeType,
-              monthlyFee: student.monthlyFee,
-              feeCategory: student.feeCategory,
-              registrationFees,
-              rollNumberFees,
-              examinationFees,
-            })
-          );
-
-          // 4. Save to `studentIdCards`
-          await step("studentIdCards", () =>
-            setDoc(doc(db, "studentIdCards", studentId), {
-              studentId,
-              fullName: student.fullName,
-              motherName: student.motherName,
-              gender: student.gender,
-              placeOfBirth: student.placeOfBirth,
-              dateOfBirth: student.dateOfBirth,
-              age: finalAge,
-              className: selectedClass,
-              shift: student.shift,
-              studentPhoto: schoolLogo,
-              district: student.district,
-              parentPhone: student.parentPhone,
-              studentPhone: student.studentPhone,
-              idIssuedAt: new Date(),
-              issuedAt: new Date(),
-              createdAt: new Date(),
-            })
-          );
-
-          // 5. Attach to teachers
-          await step("teachers", () =>
-            attachStudentToClassTeachers(
-              teachersSnap,
-              selectedClass,
-              studentId,
-              student.fullName
-            )
-          );
-        } catch (stepErr) {
-          // Stop here, but report exactly how far we got and who/what
-          // failed, instead of a bare permissions message with no context.
-          const progressNote =
-            saved.length > 0
-              ? `${saved.length} arday ayaa si guul leh loo kaydiyay ka hor intii khaladkan aanu dhicin (studentId-yadoodu waa ${saved[0].studentId} ilaa ${saved[saved.length - 1].studentId}).`
-              : "Weli arday lama kaydin ka hor intii khaladkan aanu dhicin.";
-          throw new Error(
-            `Waxaa ku dhacay khalad markii la kaydinayay ardayga "${student.fullName}" (safka ${i + 1}, studentId la isku dayay: ${studentId}).\n\n${stepErr.message}\n\n${progressNote}`
-          );
-        }
-
-        saved.push({
-          ...student,
-          studentId,
-        });
-        setSaveProgress({ done: i + 1, total: parsedList.length });
+      let teacherPhotoUrl = "";
+      if (photoFile) {
+        setUploadingPhoto(true);
+        const fileExt = photoFile.name.split(".").pop();
+        const photoRef = ref(
+          storage,
+          `teacherPhotos/${username}-${Date.now()}.${fileExt}`
+        );
+        await uploadBytes(photoRef, photoFile);
+        teacherPhotoUrl = await getDownloadURL(photoRef);
+        setUploadingPhoto(false);
       }
 
-      setSavedStudents(saved);
-      setShowPopup(true);
-      setTextInput("");
+      const uniqueSubjects = [
+        ...new Set(
+          classBlocks
+            .map((b) => (b.subject || "").trim())
+            .filter((s) => s.length > 0)
+        ),
+      ];
+
+      // DISPATCH TIMETABLE READ & ARDAYDA FASALADAAS
+      const assignedStudents = await syncTeacherTimetableToClasses(username, fullName);
+
+      const teacherData = {
+        fullName,
+        username,
+        password,
+        phoneNumber,
+        phone: phoneNumber,
+        parentName,
+        matherName: parentName,
+        parentPhoneNumber,
+        employmentType: employmentTypes,
+        subjects: uniqueSubjects,
+        teacherPhoto: teacherPhotoUrl,
+        classes: classBlocks,
+        students: assignedStudents, // Ardayda loo xiray macalinka sida AddStudent.jsx ga
+        createdAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "teachers", username), teacherData);
+
+      await setDoc(doc(db, "teacher_id", username), {
+        ...teacherData,
+        teacherUsername: username,
+        issuedAt: serverTimestamp(),
+      });
+
+      alert("Macalinka waa la kaydiyay, jadwalka fasaladiisa iyo ardayda oo dhan waa la aqriyay oo la cusbooneysiiyay!");
+      navigate("/admin/teachers");
     } catch (err) {
       console.log(err);
       alert(err.message);
     } finally {
       setSaving(false);
-      setSaveProgress({ done: 0, total: 0 });
+      setUploadingPhoto(false);
     }
   };
 
   return (
-    <div style={{ background: "#0b0a1c", minHeight: "100vh", padding: "30px", color: "#e5e3f7" }}>
-      <div style={{ maxWidth: 1050, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: "#fff" }}>
-            Import Students
-          </h1>
-          <p style={{ margin: "6px 0 0", color: "#8b87ad", fontSize: 14 }}>
-            Bulk import multi-students into a selected Class/Department.
-          </p>
-        </div>
-
-        {/* Tab / Mode Bar */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
-          <button
-            onClick={() => navigate("/admin/add-student")}
-            style={inactiveTabBtn}
-          >
-            Hal Student
-          </button>
-          <button style={activeTabBtn}>
-            <Upload size={16} />
-            Diiwaan-gelin Badan (Import)
-          </button>
-        </div>
-
-        {/* Main Form Container */}
-        <div
-          style={{
-            background: "linear-gradient(160deg,#151233,#181341)",
-            borderRadius: 20,
-            padding: "32px",
-            border: "1px solid rgba(139,108,245,0.25)",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-          }}
-        >
-          {/* Class / Shift / Gender Selection */}
-          <div style={{ marginBottom: 24, display: "flex", gap: 16, flexWrap: "wrap" }}>
-            <div style={{ flex: "1 1 240px" }}>
-              <label style={labelStyle}>
-                <School size={18} color="#8b6cf5" />
-                Dooro Class / Department (Waajib):
-              </label>
-              <select
-                style={selectStyle}
-                value={selectedClass}
-                onChange={(e) => setSelectedClass(e.target.value)}
-              >
-                <option value="">-- Dooro Class --</option>
-                {allClassOptions.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={labelStyle}>
-                <Clock size={18} color="#8b6cf5" />
-                Dooro Shift (Waajib):
-              </label>
-              <select
-                style={selectStyle}
-                value={selectedShift}
-                onChange={(e) => setSelectedShift(e.target.value)}
-              >
-                <option value="">-- Dooro Shift --</option>
-                <option value="Morning">Morning</option>
-                <option value="Afternoon">Afternoon</option>
-              </select>
-            </div>
-
-            <div style={{ flex: "1 1 200px" }}>
-              <label style={labelStyle}>
-                <Users size={18} color="#8b6cf5" />
-                Dooro Gender (Waajib):
-              </label>
-              <select
-                style={selectStyle}
-                value={selectedGender}
-                onChange={(e) => setSelectedGender(e.target.value)}
-              >
-                <option value="">-- Dooro Gender --</option>
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Both">Male &amp; Female (ka akhri xogta safka)</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Guidelines */}
+    <div style={{ background: "#0b0a1c", minHeight: "100vh", padding: "30px" }}>
+      <div
+        style={{
+          background: "linear-gradient(160deg,#151233,#181341)",
+          borderRadius: 24,
+          padding: "36px 40px",
+          border: "1px solid rgba(139,108,245,0.25)",
+          maxWidth: 1000,
+          margin: "0 auto",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 32 }}>
           <div
             style={{
-              background: "rgba(139,108,245,0.08)",
-              border: "1px solid rgba(139,108,245,0.2)",
-              borderRadius: 12,
-              padding: "16px",
-              marginBottom: 20,
-              fontSize: 13,
-              lineHeight: "1.6",
+              width: 52,
+              height: 52,
+              minWidth: 52,
+              borderRadius: 14,
+              background: "linear-gradient(135deg,#6d5df0,#8b6cf5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 8px 20px rgba(109,93,240,0.3)",
             }}
           >
-            <strong style={{ color: "#fff" }}>Laba hab oo xogta loo geli karo:</strong>
-            <div style={{ marginTop: 8, color: "#8b87ad" }}>
-              <strong style={{ color: "#e5e3f7" }}>1) Excel Paste (ugu fudud):</strong> Excel-ka xogta ka koobiyee (copy) oo halkan ku dheji (paste) — si toos ah. Safka koowaad (row 1) ha ka kooban yahay magacyada column-ka (tusaale: FullName, MotherName, District, DateOfBirth, StudentPhone, ParentPhone, iwm). Nidaamka (order) ee tiirarku dani ma leh — system-ku wuxuu magaca column-ka ku ogaanayaa meesha saxda ah.
-            </div>
-            <div style={{ marginTop: 8, color: "#8b87ad" }}>
-              <strong style={{ color: "#e5e3f7" }}>2) Qoraal gacanta (comma):</strong> Hal xariiq = hal arday, oo field-yada la kala saaro comma (,) — sida kala-horreynta hoose:
-            </div>
-            <div
-              style={{
-                fontFamily: "monospace",
-                color: "#a78bfa",
-                marginTop: 6,
-                wordBreak: "break-all",
-              }}
-            >
-              FullName, MotherName, Gender, PlaceOfBirth, DateOfBirth, Shift, FeeType, MonthlyFee, ParentPhone, StudentPhone, District, PreviousSchool, OrphanStatus, ParentPassword, FeeCategory, FeeCategoryAmount
-            </div>
-            <div style={{ marginTop: 8, color: "#8b87ad" }}>
-              * <strong>Waajib:</strong> FullName, MotherName.<br/>
-              * <strong>Class &amp; Shift:</strong> Had iyo jeer waxaa laga qaataa doorashada kore. Haddii safka lagu qoro qiyam kale, si toos ah ayaa loo iska indho-tiraa.<br/>
-              * <strong>Gender:</strong> Haddii Male ama Female si gaar ah loo doorto, dhammaan ardayda waa loo dhigaa isla gender-kaas. Haddii "Male &amp; Female" la doorto, mid kasta gender-kiisa waxaa laga akhrinayaa column-ka Gender ee safka (Male/Female/M/F).<br/>
-              * <strong>Ikhtiyaari:</strong> Qeybaha kale waa la iska dhaafi karaan adoo komaha (,) reebaya.
-            </div>
+            <GraduationCap color="#fff" size={26} />
           </div>
-
-          {/* Textarea Bulk Input */}
-          <textarea
-            rows={10}
-            style={textareaStyle}
-            placeholder={`Amina Abdi, Faadumo Ali, Female, Mogadishu, 2005-04-12, Morning, Free, 0, 615000000, 616000000, Hodan, Banadir, No, pass123\nMohamed Hassan, Asha Omar, Male, Hargeisa, 2003-08-20, Afternoon, Paid, 15, 615111111, , Hawlwadaag, , No, pass456`}
-            value={textInput}
-            onChange={(e) => setTextInput(e.target.value)}
-          />
-
-          {/* Submit Button */}
-          <div style={{ marginTop: 24, textAlign: "right" }}>
-            <button
-              onClick={saveStudents}
-              disabled={saving}
-              style={{
-                ...btnPrimary,
-                opacity: saving ? 0.7 : 1,
-                cursor: saving ? "not-allowed" : "pointer",
-              }}
-            >
-              {saving ? (
-                <>
-                  <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
-                  {saveProgress.total > 0
-                    ? `Kaydinaya... (${saveProgress.done}/${saveProgress.total})`
-                    : "Kaydinaya..."}
-                </>
-              ) : (
-                <>
-                  <Upload size={18} />
-                  Import Dhammaan Ardayda
-                </>
-              )}
-            </button>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: "#fff" }}>
+              Macalin Cusub Abuur
+            </h1>
+            <p style={{ margin: "4px 0 0", color: "#8b87ad", fontSize: 13.5 }}>
+              Geli macluumaadka macalinka iyo jadwalka fasalada uu xaadirin doono.
+            </p>
           </div>
         </div>
-      </div>
 
-      {/* Success Modal */}
-      {showPopup && (
-        <div style={popupOverlay}>
-          <div style={popupCard}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: "50%",
-                  background: "rgba(34,197,94,0.15)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <CheckCircle2 color="#4ade80" size={24} />
+        <form onSubmit={saveTeacher}>
+          <div style={{ marginBottom: 26 }}>
+            <label style={label}>
+              <Camera size={15} color="#8b6cf5" />
+              Sawirka Macalinka <span style={{ color: "#8b87ad", fontWeight: 400 }}>(ikhtiyaari)</span>
+            </label>
+
+            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+              <div style={photoPreviewBox}>
+                {photoPreview ? (
+                  <img src={photoPreview} alt="Preview" style={photoPreviewImg} />
+                ) : (
+                  <Camera size={26} color="#5a5680" />
+                )}
               </div>
-              <div>
-                <h2 style={{ color: "#fff", margin: 0, fontSize: 18, fontWeight: 700 }}>
-                  Import Completed Successfully!
-                </h2>
-                <p style={{ margin: 0, color: "#8b87ad", fontSize: 13 }}>
-                  Diiwaan-gelinta {savedStudents.length} arday waa la dhameystiray.
-                </p>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <label style={uploadBtn}>
+                  {photoPreview ? "Bedel Sawirka" : "Soo Geli Sawir"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
+                    style={{ display: "none" }}
+                  />
+                </label>
+                {photoPreview && (
+                  <button type="button" onClick={removePhoto} style={removePhotoBtn}>
+                    <X size={13} /> Ka saar sawirka
+                  </button>
+                )}
+                <span style={{ fontSize: 11.5, color: "#6b6890" }}>
+                  JPG ama PNG, ugu badnaan 5MB
+                </span>
               </div>
             </div>
+          </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 260, overflowY: "auto" }}>
-              {savedStudents.map((st) => (
-                <div
-                  key={st.studentId}
+          <div style={topGrid}>
+            <Field icon={User} label="Magaca Macalinka">
+              <input
+                style={input}
+                placeholder="Tusaale: Cabdi Xasan"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+              />
+            </Field>
+
+            <Field icon={AtSign} label="Username">
+              <input
+                style={input}
+                placeholder="Tusaale: cabdi.macalin"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div style={topGrid}>
+            <Field icon={Phone} label="Numbarka Macalinka">
+              <input
+                style={input}
+                type="tel"
+                placeholder="Tusaale: 0615XXXXXX"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+            </Field>
+
+            <Field icon={Users} label="Numbarka Waalidka">
+              <input
+                style={input}
+                type="tel"
+                placeholder="Tusaale: 0615XXXXXX"
+                value={parentPhoneNumber}
+                onChange={(e) => setParentPhoneNumber(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div style={topGrid}>
+            <Field icon={User} label="Magaca Waalidka">
+              <input
+                style={input}
+                placeholder="Tusaale: Xasan Cali"
+                value={parentName}
+                onChange={(e) => setParentName(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div style={topGrid}>
+            <Field icon={Lock} label="Password">
+              <input
+                style={{ ...input, maxWidth: 420 }}
+                type="password"
+                placeholder="Ugu yaraan 6 xaraf"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+
+            <Field icon={Clock} label="Nooca Shaqada">
+              <div style={employmentCheckRow}>
+                <label
                   style={{
-                    background: "rgba(255,255,255,0.03)",
-                    borderRadius: 10,
-                    padding: "10px 14px",
-                    border: "1px solid rgba(139,108,245,0.15)",
+                    ...employmentCheckPill,
+                    background: employmentTypes.includes("Full Time")
+                      ? "linear-gradient(90deg,#6d5df0,#8b6cf5)"
+                      : "rgba(255,255,255,0.03)",
+                    color: employmentTypes.includes("Full Time") ? "#fff" : "#a9a6c4",
+                    borderColor: employmentTypes.includes("Full Time")
+                      ? "transparent"
+                      : "rgba(139,108,245,0.3)",
                   }}
                 >
-                  <div style={{ color: "#fff", fontWeight: 600, fontSize: 14 }}>
-                    {st.fullName}
-                  </div>
-                  <div style={{ color: "#8b87ad", fontSize: 12.5, marginTop: 2 }}>
-                    ID: <strong style={{ color: "#a78bfa" }}>{st.studentId}</strong> · {selectedClass} · {st.shift}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  <input
+                    type="checkbox"
+                    checked={employmentTypes.includes("Full Time")}
+                    onChange={() => toggleEmploymentType("Full Time")}
+                    style={{ display: "none" }}
+                  />
+                  Full Time
+                </label>
 
-            <button
-              onClick={() => {
-                setShowPopup(false);
-                setSavedStudents([]);
-                navigate("/admin/students");
-              }}
-              style={{ ...btnPrimary, width: "100%", marginTop: 20, justifyContent: "center" }}
-            >
-              U gudub Students List
-              <ArrowRight size={17} />
-            </button>
+                <label
+                  style={{
+                    ...employmentCheckPill,
+                    background: employmentTypes.includes("Part Time")
+                      ? "linear-gradient(90deg,#6d5df0,#8b6cf5)"
+                      : "rgba(255,255,255,0.03)",
+                    color: employmentTypes.includes("Part Time") ? "#fff" : "#a9a6c4",
+                    borderColor: employmentTypes.includes("Part Time")
+                      ? "transparent"
+                      : "rgba(139,108,245,0.3)",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={employmentTypes.includes("Part Time")}
+                    onChange={() => toggleEmploymentType("Part Time")}
+                    style={{ display: "none" }}
+                  />
+                  Part Time
+                </label>
+              </div>
+              <span style={{ fontSize: 11.5, color: "#6b6890", display: "block", marginTop: 8 }}>
+                Waad dooran kartaa mid ama labadaba
+              </span>
+            </Field>
           </div>
-        </div>
-      )}
+
+          <hr style={{ margin: "10px 0 26px", border: "none", borderTop: "1px solid rgba(139,108,245,0.2)" }} />
+
+          <h3 style={{ color: "#fff", fontSize: 17, marginBottom: 18 }}>
+            Fasalada uu Xaadirin Doono
+          </h3>
+
+          {classBlocks.map((block, index) => (
+            <div key={index} style={classCard}>
+              <div style={classCardHeader}>
+                <span style={classCardTitle}>Fasalka #{index + 1}</span>
+                {classBlocks.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeClassBlock(index)}
+                    style={removeBtn}
+                  >
+                    <X size={13} /> Ka saar
+                  </button>
+                )}
+              </div>
+
+              <div style={twoColGrid}>
+                <Field icon={School} label="Class">
+                  <select
+                    style={input}
+                    value={block.className}
+                    onChange={(e) =>
+                      updateClassBlock(index, "className", e.target.value)
+                    }
+                  >
+                    <option value="">-- Dooro Fasal --</option>
+                    {availableClasses.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field icon={BookOpen} label="Maadada">
+                  <input
+                    style={input}
+                    placeholder="Tusaale: Mathematics"
+                    value={block.subject}
+                    onChange={(e) =>
+                      updateClassBlock(index, "subject", e.target.value)
+                    }
+                  />
+                </Field>
+
+                <Field icon={Clock} label="Shift">
+                  <select
+                    style={input}
+                    value={block.shift}
+                    onChange={(e) =>
+                      updateClassBlock(index, "shift", e.target.value)
+                    }
+                  >
+                    <option value="">-- Dooro Shift --</option>
+                    <option value="Morning">Morning</option>
+                    <option value="Afternoon">Afternoon</option>
+                  </select>
+                </Field>
+              </div>
+
+              <div style={{ marginTop: 18 }}>
+                <label style={label}>
+                  Maalmaha Toddobaadka
+                  {employmentTypes.includes("Part Time") && !employmentTypes.includes("Full Time") && (
+                    <span style={{ color: "#8b87ad", fontWeight: 400, fontSize: 12 }}>
+                      {" "}(Part Time — Thursday &amp; Friday oo keliya)
+                    </span>
+                  )}
+                </label>
+                <div style={dayRow}>
+                  {allowedWeekDays.map((day) => {
+                    const active = block.days.includes(day);
+                    return (
+                      <button
+                        type="button"
+                        key={day}
+                        onClick={() => toggleDay(index, day)}
+                        style={{
+                          ...dayPill,
+                          background: active
+                            ? "linear-gradient(90deg,#6d5df0,#8b6cf5)"
+                            : "rgba(255,255,255,0.03)",
+                          color: active ? "#fff" : "#a9a6c4",
+                          borderColor: active
+                            ? "transparent"
+                            : "rgba(139,108,245,0.3)",
+                        }}
+                      >
+                        {day}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {block.days.length > 0 && (
+                <div style={{ marginTop: 22 }}>
+                  <label style={label}>Saacadaha Xiisadaha</label>
+
+                  {block.days.map((day) => {
+                    const sessions = block.daySessions[day] || [];
+                    // Display number = this session's rank by startTime
+                    // among today's sessions, NOT its position in the
+                    // array. The array order is just insertion order (the
+                    // order sessions were added in), while the system
+                    // itself numbers periods by actual time (see
+                    // sortedBySessionTime/withSessionNumbers above, used
+                    // when saving to the `timetable` collection). Without
+                    // this, adding a 9:00 session before an 8:00 session
+                    // would show "Xiisadda #1" on the 9:00 one here, but
+                    // the system would later save/display the 8:00 one as
+                    // period #1 everywhere else — a mismatch. Sorting here
+                    // too keeps what the admin sees in sync with what gets
+                    // saved, live as they type start times.
+                    const displayNumberBySessionIdx = {};
+                    sessions
+                      .map((_, i) => i)
+                      .sort((a, b) =>
+                        (sessions[a].startTime || "").localeCompare(
+                          sessions[b].startTime || ""
+                        )
+                      )
+                      .forEach((origIdx, rank) => {
+                        displayNumberBySessionIdx[origIdx] = rank + 1;
+                      });
+                    return (
+                      <div key={day} style={dayScheduleCard}>
+                        <div style={dayScheduleHeader}>
+                          <span style={dayScheduleTitle}>
+                            <Clock size={14} color="#8b6cf5" />
+                            {day}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => addSessionToDay(index, day)}
+                            style={addSessionBtn}
+                          >
+                            <Plus size={12} /> Xiisad kale
+                          </button>
+                        </div>
+
+                        {sessions.map((session, sIdx) => (
+                          <div key={sIdx} style={sessionRow}>
+                            <div>
+                              <label style={miniLabel}>Magaca Xiisadda</label>
+                              <input
+                                type="text"
+                                style={sessionLabelInput}
+                                placeholder={`Xiisadda #${displayNumberBySessionIdx[sIdx]}`}
+                                value={session.label || ""}
+                                onChange={(e) =>
+                                  updateSessionTime(
+                                    index,
+                                    day,
+                                    sIdx,
+                                    "label",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </div>
+
+                            <div>
+                              <label style={miniLabel}>Waqtiga Bilowga</label>
+                              <input
+                                type="time"
+                                style={timeInput}
+                                value={session.startTime}
+                                onChange={(e) =>
+                                  updateSessionTime(
+                                    index,
+                                    day,
+                                    sIdx,
+                                    "startTime",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </div>
+
+                            <div>
+                              <label style={miniLabel}>Waqtiga Dhamaadka</label>
+                              <input
+                                type="time"
+                                style={timeInput}
+                                value={session.endTime}
+                                onChange={(e) =>
+                                  updateSessionTime(
+                                    index,
+                                    day,
+                                    sIdx,
+                                    "endTime",
+                                    e.target.value
+                                  )
+                                }
+                              />
+                            </div>
+
+                            {sessions.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeSessionFromDay(index, day, sIdx)
+                                }
+                                style={removeSessionBtn}
+                              >
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ))}
+
+          <button type="button" onClick={addClassBlock} style={addBlockBtn}>
+            <Plus size={16} /> Ku dar Fasal/Maado Kale
+          </button>
+
+          <button type="submit" disabled={saving} style={submitBtn}>
+            {saving ? (
+              <>
+                <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
+                {uploadingPhoto ? "Sawirka waa la soo gelinayaa..." : "Akrinaaya Timetable-ka & Kaydinaya..."}
+              </>
+            ) : (
+              <>
+                <GraduationCap size={18} />
+                Abuur Macalin + Akhri Timetable & Kaydi
+              </>
+            )}
+          </button>
+        </form>
+      </div>
 
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+        input::placeholder {
+          color: #6b6890;
+        }
         select option {
-          background: #181341;
+          background: #1e1a4a;
           color: #ffffff;
+        }
+        input[type="time"]::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          opacity: 0.7;
         }
       `}</style>
     </div>
   );
 }
 
-// Styling
-const labelStyle = {
+function Field({ icon: Icon, label: labelText, children }) {
+  return (
+    <div>
+      <label style={label}>
+        <Icon size={15} color="#8b6cf5" />
+        {labelText}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const label = {
   display: "flex",
   alignItems: "center",
-  gap: 8,
+  gap: 7,
+  fontSize: 14,
   fontWeight: 600,
-  marginBottom: 10,
   color: "#fff",
-  fontSize: 15,
+  marginBottom: 8,
 };
 
-const selectStyle = {
+const input = {
   width: "100%",
-  padding: "14px 16px",
-  boxSizing: "border-box",
-  border: "1.5px solid rgba(139,108,245,0.35)",
-  borderRadius: 12,
-  fontSize: 14.5,
-  color: "#e5e3f7",
-  outline: "none",
-  background: "rgba(255,255,255,0.02)",
-};
-
-const textareaStyle = {
-  width: "100%",
-  padding: "16px",
-  borderRadius: 12,
-  border: "1.5px solid rgba(139,108,245,0.35)",
-  background: "rgba(255,255,255,0.02)",
-  color: "#e5e3f7",
-  fontSize: 14,
-  fontFamily: "monospace",
-  lineHeight: 1.6,
-  outline: "none",
-  boxSizing: "border-box",
-  resize: "vertical",
-};
-
-const activeTabBtn = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
-  color: "#ffffff",
-  border: "none",
-  padding: "10px 20px",
+  padding: "12px 14px",
   borderRadius: 10,
-  fontWeight: 600,
+  border: "1.5px solid rgba(139,108,245,0.3)",
+  boxSizing: "border-box",
   fontSize: 14,
-  cursor: "pointer",
+  color: "#e5e3f7",
+  background: "rgba(255,255,255,0.02)",
+  outline: "none",
 };
 
-const inactiveTabBtn = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 8,
-  background: "rgba(255,255,255,0.05)",
-  color: "#8b87ad",
+const topGrid = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 22,
+  marginBottom: 22,
+};
+
+const twoColGrid = {
+  display: "grid",
+  gridTemplateColumns: "1fr 1fr",
+  gap: 20,
+};
+
+const classCard = {
+  background: "rgba(255,255,255,0.02)",
   border: "1px solid rgba(139,108,245,0.2)",
-  padding: "10px 20px",
-  borderRadius: 10,
-  fontWeight: 600,
-  fontSize: 14,
-  cursor: "pointer",
+  borderRadius: 16,
+  padding: 22,
+  marginBottom: 18,
 };
 
-const btnPrimary = {
-  display: "inline-flex",
+const classCardHeader = {
+  display: "flex",
+  justifyContent: "space-between",
   alignItems: "center",
-  gap: 10,
-  background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
-  color: "#ffffff",
-  border: "none",
-  borderRadius: 12,
-  padding: "14px 26px",
+  marginBottom: 18,
+};
+
+const classCardTitle = {
+  color: "#8b6cf5",
   fontWeight: 700,
   fontSize: 15,
-  boxShadow: "0 8px 20px rgba(109,93,240,0.35)",
 };
 
-const popupOverlay = {
-  position: "fixed",
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: "rgba(11,10,28,0.85)",
+const removeBtn = {
+  background: "rgba(239,68,68,0.12)",
+  border: "1px solid rgba(239,68,68,0.3)",
+  color: "#f87171",
+  cursor: "pointer",
+  fontSize: 12.5,
+  borderRadius: 8,
+  padding: "6px 10px",
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+};
+
+const dayRow = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const dayPill = {
+  padding: "9px 18px",
+  borderRadius: 20,
+  border: "1.5px solid",
+  cursor: "pointer",
+  fontSize: 13,
+  fontWeight: 600,
+};
+
+const addBlockBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  background: "rgba(255,255,255,0.03)",
+  border: "1.5px solid rgba(139,108,245,0.4)",
+  color: "#8b6cf5",
+  padding: "13px 22px",
+  borderRadius: 12,
+  cursor: "pointer",
+  fontWeight: 700,
+  fontSize: 14,
+  marginBottom: 22,
+};
+
+const submitBtn = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  zIndex: 1000,
+  gap: 10,
+  background: "linear-gradient(90deg,#6d5df0,#8b6cf5)",
+  color: "#fff",
+  border: "none",
+  padding: "16px",
+  width: "100%",
+  borderRadius: 14,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontSize: 15,
+  boxShadow: "0 10px 24px rgba(109,93,240,0.35)",
 };
 
-const popupCard = {
-  background: "#151233",
-  border: "1px solid rgba(139,108,245,0.3)",
-  borderRadius: 20,
-  padding: 28,
-  minWidth: 380,
-  maxWidth: 500,
-  boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
+const dayScheduleCard = {
+  background: "rgba(255,255,255,0.02)",
+  border: "1px solid rgba(139,108,245,0.15)",
+  borderRadius: 12,
+  padding: 16,
+  marginTop: 12,
+};
+
+const dayScheduleHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 12,
+};
+
+const dayScheduleTitle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 7,
+  fontWeight: 700,
+  color: "#fff",
+  fontSize: 14,
+};
+
+const addSessionBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  background: "rgba(139,108,245,0.1)",
+  border: "1.5px solid rgba(139,108,245,0.4)",
+  color: "#8b6cf5",
+  borderRadius: 8,
+  padding: "6px 12px",
+  fontSize: 12,
+  cursor: "pointer",
+  fontWeight: 600,
+};
+
+const sessionRow = {
+  display: "flex",
+  gap: 16,
+  alignItems: "flex-end",
+  marginBottom: 12,
+  flexWrap: "wrap",
+};
+
+const sessionLabelInput = {
+  padding: "8px 10px",
+  borderRadius: 8,
+  border: "1.5px solid rgba(139,108,245,0.3)",
+  background: "rgba(255,255,255,0.02)",
+  color: "#e5e3f7",
+  fontSize: 13.5,
+  minWidth: 110,
+  outline: "none",
+};
+
+const miniLabel = {
+  display: "block",
+  fontSize: 11.5,
+  color: "#8b87ad",
+  marginBottom: 6,
+};
+
+const timeInput = {
+  padding: "8px 10px",
+  borderRadius: 8,
+  border: "1.5px solid rgba(139,108,245,0.3)",
+  background: "rgba(255,255,255,0.02)",
+  color: "#e5e3f7",
+  fontSize: 13.5,
+  colorScheme: "dark",
+};
+
+const removeSessionBtn = {
+  background: "rgba(239,68,68,0.12)",
+  border: "1px solid rgba(239,68,68,0.3)",
+  color: "#f87171",
+  cursor: "pointer",
+  borderRadius: 7,
+  width: 28,
+  height: 28,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  marginBottom: 10,
+};
+
+const photoPreviewBox = {
+  width: 88,
+  height: 88,
+  borderRadius: 14,
+  border: "1.5px dashed rgba(139,108,245,0.4)",
+  background: "rgba(255,255,255,0.02)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  overflow: "hidden",
+  flexShrink: 0,
+};
+
+const photoPreviewImg = {
+  width: "100%",
+  height: "100%",
+  objectFit: "cover",
+};
+
+const uploadBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "rgba(139,108,245,0.12)",
+  border: "1px solid rgba(139,108,245,0.4)",
+  color: "#8b6cf5",
+  borderRadius: 9,
+  padding: "9px 16px",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+const removePhotoBtn = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 5,
+  background: "rgba(239,68,68,0.12)",
+  border: "1px solid rgba(239,68,68,0.3)",
+  color: "#f87171",
+  cursor: "pointer",
+  fontSize: 12,
+  borderRadius: 8,
+  padding: "6px 10px",
+  width: "fit-content",
+};
+
+const employmentCheckRow = {
+  display: "flex",
+  gap: 10,
+  flexWrap: "wrap",
+};
+
+const employmentCheckPill = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "12px 18px",
+  borderRadius: 10,
+  border: "1.5px solid",
+  cursor: "pointer",
+  fontSize: 14,
+  fontWeight: 600,
 };
