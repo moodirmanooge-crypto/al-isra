@@ -6,6 +6,9 @@ import {
   getDocs,
   doc,
   updateDoc,
+  writeBatch,
+  query,
+  where,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import jsPDF from "jspdf";
@@ -221,6 +224,14 @@ export default function Students() {
   // "Female" waxay tustaa oo kaliya ardayda gender-kaas, riix mar labaad si aad ugu noqoto dhammaan.
   const [genderFilter, setGenderFilter] = useState("All");
 
+  // Beddelka magaca Class-ka — marka la doorto class gaar ah (ma aha
+  // "All"), admin-ku wuxuu ku dari karaa magac cusub; markaas dhammaan
+  // ardayda class-kaas ku jira, iyo xogta "cashier" ee la xiriirta,
+  // waxaa loo cusboonaysiinayaa magaca cusub.
+  const [renamingClass, setRenamingClass] = useState(false);
+  const [newClassNameInput, setNewClassNameInput] = useState("");
+  const [renameSaving, setRenameSaving] = useState(false);
+
   useEffect(() => {
     fetchStudents();
   }, []);
@@ -234,6 +245,79 @@ export default function Students() {
       console.log(err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Waxay furaysaa modal-ka "Beddel magaca Class-ka", oo ku qoran magaca
+  // hadda ee class-ka la doortay ee liiska (listClassFilter).
+  function openRenameClass() {
+    setNewClassNameInput(listClassFilter);
+    setRenamingClass(true);
+  }
+
+  function closeRenameClass() {
+    setRenamingClass(false);
+    setNewClassNameInput("");
+  }
+
+  // Waxay ardayda oo dhan ee class-kan ku jira (collection-ka "students",
+  // iyo "cashier" oo la xiriirta) u wada beddeshaa magaca cusub. Firestore
+  // batch-yadu waxay xaddidan yihiin 500 hawlood, sidaas darteed haddii
+  // class-ku ka badan yahay 500 arday waxaa loo kala qaybiyaa dhowr batch.
+  async function handleRenameClass() {
+    const oldName = listClassFilter;
+    const newName = newClassNameInput.trim();
+
+    if (!newName) {
+      alert("Fadlan geli magaca cusub ee Class-ka.");
+      return;
+    }
+    if (newName === oldName) {
+      closeRenameClass();
+      return;
+    }
+    if (
+      !window.confirm(
+        `Ma hubtaa inaad magaca class-ka "${oldName}" u beddesho "${newName}"?\n\nDhammaan ardayda class-kan ku jira ayaa loo wada beddeli doonaa "${newName}".`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setRenameSaving(true);
+
+      const [studentsSnap, cashierSnap] = await Promise.all([
+        getDocs(query(collection(db, "students"), where("className", "==", oldName))),
+        getDocs(query(collection(db, "cashier"), where("className", "==", oldName))),
+      ]);
+
+      const allDocRefs = [
+        ...studentsSnap.docs.map((d) => doc(db, "students", d.id)),
+        ...cashierSnap.docs.map((d) => doc(db, "cashier", d.id)),
+      ];
+
+      for (let i = 0; i < allDocRefs.length; i += 500) {
+        const batch = writeBatch(db);
+        allDocRefs.slice(i, i + 500).forEach((ref) => {
+          batch.update(ref, { className: newName });
+        });
+        await batch.commit();
+      }
+
+      setStudents((prev) =>
+        prev.map((s) => (s.className === oldName ? { ...s, className: newName } : s))
+      );
+      setListClassFilter(newName);
+      if (exportClassFilter === oldName) setExportClassFilter(newName);
+
+      alert(`Class-ka "${oldName}" waa loo beddelay "${newName}" (${studentsSnap.size} arday).`);
+      closeRenameClass();
+    } catch (err) {
+      console.log(err);
+      alert(err.message || "Khalad ayaa dhacay marka class-ka la beddelayay.");
+    } finally {
+      setRenameSaving(false);
     }
   }
 
@@ -601,6 +685,16 @@ export default function Students() {
                     </option>
                   ))}
                 </select>
+
+                {listClassFilter !== "All" && (
+                  <button
+                    onClick={openRenameClass}
+                    title={`Beddel magaca "${listClassFilter}"`}
+                    style={iconBtnEdit}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -958,6 +1052,64 @@ export default function Students() {
                   <>
                     <Save size={16} />
                     Kaydi Isbedelka
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {renamingClass && (
+        <div style={overlay} onClick={closeRenameClass}>
+          <div
+            style={{ ...modal, maxWidth: 420 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={modalHeader}>
+              <h3 style={{ margin: 0, fontSize: 17, color: "#fff" }}>
+                Beddel Magaca Class-ka
+              </h3>
+              <button onClick={closeRenameClass} style={closeBtn}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={modalBody}>
+              <Field icon={School} label="Magaca Hadda">
+                <input style={{ ...input, opacity: 0.6 }} value={listClassFilter} disabled />
+              </Field>
+              <div style={{ height: 16 }} />
+              <Field icon={Pencil} label="Magaca Cusub">
+                <input
+                  style={input}
+                  value={newClassNameInput}
+                  onChange={(e) => setNewClassNameInput(e.target.value)}
+                  placeholder="Tusaale: F1 B"
+                  autoFocus
+                />
+              </Field>
+              <p style={{ fontSize: 12.5, color: "#8b87ad", marginTop: 14, lineHeight: 1.5 }}>
+                Dhammaan ardayda hadda ku jira class-ka "{listClassFilter}" ayaa
+                si toos ah loogu wada beddeli doonaa magacan cusub — collection-ka
+                "students" iyo "cashier" labadaba.
+              </p>
+            </div>
+
+            <div style={modalFooter}>
+              <button onClick={closeRenameClass} style={cancelBtn} disabled={renameSaving}>
+                Iska Daa
+              </button>
+              <button onClick={handleRenameClass} style={saveBtn} disabled={renameSaving}>
+                {renameSaving ? (
+                  <>
+                    <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                    Kaydinaya...
+                  </>
+                ) : (
+                  <>
+                    <Save size={16} />
+                    Xaqiiji Badalka
                   </>
                 )}
               </button>

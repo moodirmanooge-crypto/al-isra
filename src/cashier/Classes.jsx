@@ -109,6 +109,15 @@ const classOptions = [
 
 const currentMonthKey = () => new Date().toISOString().slice(0, 7);
 
+// Si sax ah ugu beddelo qiime lambar ah — mar walba wuxuu soo celinayaa
+// lambar dhab ah (0 haddii qiimuhu maqan yahay ama aan lambar ahayn), si
+// aan Monthly Fee/Remaining/Paid marnaba loo arkin "$NaN" haddii xogta
+// (students ama cashier) ay ka maqan tahay ama qiimo khaldan tahay.
+function toSafeNumber(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 const monthLabel = (key) => {
   if (!key) return "—";
   const [y, m] = key.split("-");
@@ -431,7 +440,7 @@ export default function Classes() {
   const isFreeStudent = (student) => student.feeType === "Free";
 
   const selectMonths = (student, months) => {
-    const fee = Number(student.monthlyFee || 0);
+    const fee = toSafeNumber(student.monthlyFee);
     setMonthsSelected({ ...monthsSelected, [student.id]: months });
     if (months > 0 && fee > 0) {
       setAmounts({ ...amounts, [student.id]: String(fee * months) });
@@ -439,9 +448,9 @@ export default function Classes() {
   };
 
   const getAdminFeeAmount = (student) => {
-    if (student.feeCategory === "Registration Fees") return Number(student.registrationFees || 0);
-    if (student.feeCategory === "Roll Number Fees") return Number(student.rollNumberFees || 0);
-    if (student.feeCategory === "Examination Fees") return Number(student.examinationFees || 0);
+    if (student.feeCategory === "Registration Fees") return toSafeNumber(student.registrationFees);
+    if (student.feeCategory === "Roll Number Fees") return toSafeNumber(student.rollNumberFees);
+    if (student.feeCategory === "Examination Fees") return toSafeNumber(student.examinationFees);
     return 0;
   };
 
@@ -449,7 +458,7 @@ export default function Classes() {
     if (!student.feeCategory) return;
     if (student.specialFeeSaved) return;
 
-    const entered = Number(specialAmounts[student.id] || 0);
+    const entered = toSafeNumber(specialAmounts[student.id]);
     if (entered <= 0) {
       alert("Fadlan geli lacagta la bixiyay");
       return;
@@ -492,7 +501,7 @@ export default function Classes() {
   }, [currentClassStudents, paymentsByStudent]);
 
   const startEdit = (student) => {
-    const fee = Number(student.monthlyFee || 0);
+    const fee = toSafeNumber(student.monthlyFee);
     const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
     const thisMonthKey = currentMonthKey();
     const paidThisMonth = fullyPaidSet.has(thisMonthKey) || student.feeType === "Paid";
@@ -523,7 +532,7 @@ export default function Classes() {
     const nextEditing = { ...editingIds };
 
     targets.forEach((student) => {
-      const fee = Number(student.monthlyFee || 0);
+      const fee = toSafeNumber(student.monthlyFee);
       nextAmounts[student.id] = String(fee || "");
       nextEditing[student.id] = true;
     });
@@ -860,7 +869,7 @@ export default function Classes() {
       item.status,
     ]);
 
-    const totalRevenue = paidRecords.reduce((sum, item) => sum + Number(item.paidAmount || 0), 0);
+    const totalRevenue = paidRecords.reduce((sum, item) => sum + toSafeNumber(item.paidAmount), 0);
 
     autoTable(docPdf, {
       startY: 44,
@@ -882,13 +891,13 @@ export default function Classes() {
     if (isFreeStudent(student)) return;
 
     try {
-      const monthlyFee = Number(student.monthlyFee || 0);
+      const monthlyFee = toSafeNumber(student.monthlyFee);
       if (monthlyFee <= 0) {
         alert("Ardaygan Monthly Fee sax ah lama helin.");
         return;
       }
 
-      let entered = Number(amounts[student.id] || 0);
+      let entered = toSafetoSafeNumber(amounts[student.id]);
       if (entered <= 0) {
         entered = monthlyFee;
       }
@@ -1067,10 +1076,10 @@ export default function Classes() {
       let receiptNoCounter = (await reserveReceiptNumbers(targets.length)) - 1;
 
       targets.forEach((student) => {
-        const monthlyFee = Number(student.monthlyFee || 0);
+        const monthlyFee = toSafeNumber(student.monthlyFee);
         if (monthlyFee <= 0) return;
 
-        let entered = Number(amounts[student.id] || 0);
+        let entered = toSafetoSafeNumber(amounts[student.id]);
         if (entered <= 0) {
           entered = monthlyFee;
         }
@@ -1378,7 +1387,7 @@ export default function Classes() {
                 <tbody>
                   {currentClassStudents.map((student, i) => {
                     const free = isFreeStudent(student);
-                    const fee = Number(student.monthlyFee || 0);
+                    const fee = toSafeNumber(student.monthlyFee);
                     const { fullyPaidSet, partialMap, records } = getStudentMonthState(student.studentId);
                     
                     const targetMonth = findNextUnpaidMonth(fullyPaidSet, registrationMonthKey(student));
@@ -1392,7 +1401,7 @@ export default function Classes() {
                       ? 0
                       : locked
                       ? fee
-                      : partialAmount || (amounts[student.id] ? Number(amounts[student.id]) : 0);
+                      : partialAmount || (amounts[student.id] ? toSafeNumber(amounts[student.id]) : 0);
 
                     const displayRemaining = free ? 0 : Math.max(fee - displayPaid, 0);
 
@@ -1868,7 +1877,7 @@ function ArchiveRestoreModal({
 
 function StudentPaymentProfileModal({ student, paymentState, onClose }) {
   const { records, fullyPaidSet, partialMap } = paymentState;
-  const fee = Number(student.monthlyFee || 0);
+  const fee = toSafeNumber(student.monthlyFee);
   const isFree = student.feeType === "Free";
   const creditBalance = Number(student.creditBalance || 0);
 
@@ -1880,7 +1889,7 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
   const thisMonthStatus = isFree ? "Free" : paidThisMonth ? "Paid" : "Not Paid";
 
   const monthsPaidCount = fullyPaidSet.size;
-  const totalPaidAmount = records.reduce((sum, r) => sum + Number(r.paidAmount || 0), 0);
+  const totalPaidAmount = records.reduce((sum, r) => sum + toSafeNumber(r.paidAmount), 0);
 
   const creditMonths = fee > 0 ? Math.floor(creditBalance / fee) : 0;
 
@@ -2052,7 +2061,7 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
                       <span style={profileStyles.rowMonth}>{monthLabel(r.monthKey)}</span>
                       <span style={profileStyles.rowPaidDate}>{formatPaidDate(r.createdAt)}</span>
                     </div>
-                    <span style={profileStyles.rowAmount}>${Number(r.paidAmount || 0).toFixed(2)}</span>
+                    <span style={profileStyles.rowAmount}>${toSafeNumber(r.paidAmount).toFixed(2)}</span>
                     <span
                       style={{
                         ...profileStyles.rowStatus,
