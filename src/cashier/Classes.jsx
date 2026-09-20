@@ -231,15 +231,62 @@ export default function Classes() {
     setLoading(true);
 
     let mainStudentsMap = {};
+    let lastCashierDocs = null;
+
+    // Isku-dar xogta "cashier" iyo "students" — waxaa la yeelayaa
+    // function gaar ah oo laga wado labada listener-ba, si mar kasta oo
+    // mid ka mid ah collection-yadu isbeddesho ay labaduba is-jaan qaadaan
+    // (halkii ay isbeddesho keliya markay "cashier" isbeddesho).
+    function rebuildStudents() {
+      if (!lastCashierDocs) return;
+      const studentData = lastCashierDocs
+        .map((d) => {
+          const data = d.data();
+          const sid = data.studentId || d.id;
+          const mainRecord = mainStudentsMap[sid] || {};
+          const actualClass = mainRecord.className || data.className || "Unknown";
+
+          return {
+            id: d.id,
+            fullName: data.studentName || data.fullName,
+            ...data,
+            className: actualClass,
+            // Collection-ka "students" ayaa ah isha runta ah ee xogta
+            // lacagta — had iyo jeer waa ka sarreeyaan qiyamka
+            // collection-ka "cashier" haddii ay kala duwan yihiin.
+            feeType: mainRecord.feeType || data.feeType,
+            monthlyFee: mainRecord.monthlyFee ?? data.monthlyFee,
+            feeCategory: mainRecord.feeCategory || data.feeCategory,
+          };
+        })
+        .filter(
+          (s) =>
+            !s.pendingDeletion &&
+            s.studentId &&
+            String(s.studentId).trim() !== ""
+        );
+
+      setStudents(studentData);
+      setLoading(false);
+    }
 
     const unsubMainStudents = onSnapshot(
       collection(db, "students"),
       (snap) => {
+        const newMap = {};
         snap.docs.forEach((d) => {
           const data = d.data();
           const sId = data.studentId || d.id;
-          mainStudentsMap[sId] = data.className || "Unknown";
+          // Waxaa halkan lagu haystaa diiwaanka ardaygan oo dhan (ma aha
+          // kaliya magaca fasalka), sababtoo ah collection-ka "students"
+          // ayaa ah isha runta ah ee xogta lacagta (feeType, monthlyFee,
+          // feeCategory) — ma aha "cashier", kaas oo mararka qaarkood ka
+          // duwaan kara (tusaale arday si khalad ah loogu qoray "Free"
+          // cashier-ka iyada oo uu dhab ahaantiis "Paid" yahay).
+          newMap[sId] = data;
         });
+        mainStudentsMap = newMap;
+        rebuildStudents();
       },
       (err) => console.error("Error fetching students collection:", err)
     );
@@ -247,28 +294,8 @@ export default function Classes() {
     const unsubCashier = onSnapshot(
       collection(db, "cashier"),
       (studentsSnap) => {
-        const studentData = studentsSnap.docs
-          .map((d) => {
-            const data = d.data();
-            const sid = data.studentId || d.id;
-            const actualClass = data.className || mainStudentsMap[sid] || "Unknown";
-
-            return {
-              id: d.id,
-              fullName: data.studentName || data.fullName,
-              ...data,
-              className: actualClass,
-            };
-          })
-          .filter(
-            (s) =>
-              !s.pendingDeletion &&
-              s.studentId &&
-              String(s.studentId).trim() !== ""
-          );
-
-        setStudents(studentData);
-        setLoading(false);
+        lastCashierDocs = studentsSnap.docs;
+        rebuildStudents();
       },
       (err) => {
         console.error("Error fetching cashier collection:", err);

@@ -78,11 +78,14 @@ export default function Parents() {
   function getPaymentInfo(student) {
     const sId = student.studentId || student.id;
     const monthlyFee = Number(student.monthlyFee) || 0;
-    const cashierData = cashierMap[sId] || {};
     const studentPayments = paymentsMap[sId] || [];
 
-    // 1. Arday Free ah
-    if (student.feeType === "Free" || cashierData.feeType === "Free") {
+    // 1. Arday Free ah — collection-ka "students" ayaa ah isha runta ah ee
+    // "feeType"-ka, ma aha "cashier" (kaas oo mararka qaarkood ka duwanaan
+    // kara xogta students, tusaale arday si khalad ah loogu qoray "Free"
+    // cashier-ka iyada oo uu dhab ahaantiis "Paid" yahay). Sidaas darteed
+    // halkan waxaa la eegayaa KALIYA student.feeType, ma aha cashierData.
+    if (student.feeType === "Free") {
       return { paidTotal: 0, remaining: 0, status: "Free" };
     }
 
@@ -98,10 +101,11 @@ export default function Parents() {
       remaining = Number(thisMonthPayment.remaining) ?? Math.max(monthlyFee - paidTotal, 0);
     }
 
-    // Status-ka laga soo akhrinayo Cashier ama la xisaabiyay
-    let status = cashierData.feeType || "Unpaid";
-
-    if (thisMonthPayment?.status === "Paid" || status === "Paid") {
+    // Status-ka waxaa lagu go'aaminayaa xogta payments (paidTotal/remaining)
+    // dhabta ah — ma aha cashierData.feeType, kaas oo mararka qaarkood ka
+    // duwaan kara xogta students ee saxda ah.
+    let status;
+    if (thisMonthPayment?.status === "Paid") {
       status = "Paid";
       paidTotal = monthlyFee;
       remaining = 0;
