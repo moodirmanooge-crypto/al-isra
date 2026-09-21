@@ -44,18 +44,18 @@ const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCas
 // the textarea accept EITHER the old fixed-order comma format, OR a direct
 // paste from Excel (tab-separated, with a header row) in ANY column order.
 const FIELD_ALIASES = {
-  fullName: ["fullname", "full name", "name", "studentname", "student name"],
+  fullName: ["fullname", "full name", "name", "studentname", "student name", "students full name", "student full name", "students name"],
   motherName: ["mothername", "mother name", "mathername", "mather name", "mothersname"],
-  gender: ["gender", "sex"],
+  gender: ["gender", "sex", "students gender", "student gender"],
   placeOfBirth: ["placeofbirth", "place of birth", "birthplace", "pob"],
   dateOfBirth: ["dateofbirth", "date of birth", "dob", "birthdate", "date"],
   feeType: ["feetype", "fee type"],
   monthlyFee: ["monthlyfee", "monthly fee", "fee"],
-  parentPhone: ["parentphone", "parent phone", "prentphone"],
-  studentPhone: ["studentphone", "student phone"],
+  parentPhone: ["parentphone", "parent phone", "prentphone", "guardian phone", "guardian tel", "guardian telephone", "guardian phone number", "parents phone", "parent tel"],
+  studentPhone: ["studentphone", "student phone", "students phone", "student phone number", "students phone number", "student tel", "students tel"],
   district: ["district", "distiric", "distric"],
   previousSchool: ["previousschool", "previous school"],
-  orphanStatus: ["orphanstatus", "orphan status"],
+  orphanStatus: ["orphanstatus", "orphan status", "orphon status", "orphan", "orphon", "orphan type", "orphon type"],
   parentPassword: ["parentpassword", "password"],
   feeCategory: ["feecategory", "fee category"],
   feeCategoryAmount: ["feecategoryamount", "fee category amount"],
@@ -82,6 +82,36 @@ function calculateAge(dateOfBirth) {
     age -= 1;
   }
   return age >= 0 ? String(age) : "";
+}
+
+// Taariikhda dhalashada ee Excel (tusaale 6/30/2009 — M/D/YYYY) waxaa loo beddelayaa
+// YYYY-MM-DD, sida foomka "Hal Student" (input type="date") u kaydiyo, si Age-ku
+// si sax ah loo xisaabiyo oo edit-ka taariikhdu u muuqato. Haddii qaabka aan la
+// aqoonsan, sida uu yahay ayaa loo dhigayaa.
+function normalizeDateOfBirth(raw) {
+  const v = (raw || "").trim();
+  if (!v) return "";
+  const pad = (n) => String(n).padStart(2, "0");
+
+  let m = v.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+  if (m) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+
+  m = v.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) {
+    const first = Number(m[1]);
+    const second = Number(m[2]);
+    // Excel (US): M/D/YYYY. Haddii tirada hore ka weyn tahay 12, waa D/M/YYYY.
+    let month = first;
+    let day = second;
+    if (first > 12 && second <= 12) {
+      month = second;
+      day = first;
+    }
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${m[3]}-${pad(month)}-${pad(day)}`;
+    }
+  }
+  return v;
 }
 
 // Haddii maamulku uusan gelin Password, si toos ah ayaa loo dhigayaa
@@ -178,21 +208,32 @@ export default function ImportStudent() {
     if (rawLines.length === 0) return [];
 
     // Excel paste uses tabs between columns; the classic manual format uses commas.
-    const delimiter = rawLines[0].includes("\t") ? "\t" : ",";
+    // (10-ka safood ee ugu horreeya ayaa la eegayaa, haddii cinwaan aan tab lahayn uu ka horreeyo.)
+    const delimiter = rawLines.slice(0, 10).some((line) => line.includes("\t")) ? "\t" : ",";
 
-    // Check if the first line is a header row (Excel column names) by matching
-    // its cells against FIELD_ALIASES.
-    const firstCells = rawLines[0].split(delimiter).map((c) => c.trim());
-    const fieldIndexMap = {};
-    firstCells.forEach((cell, idx) => {
-      const key = ALIAS_TO_FIELD[normalizeHeaderCell(cell)];
-      if (key && fieldIndexMap[key] === undefined) {
-        fieldIndexMap[key] = idx;
+    // Header-ka (magacyada column-ka Excel) waxaa laga raadinayaa 10-ka safood ee
+    // ugu horreeya, isagoo lagu barbardhigayo FIELD_ALIASES. Haddii Excel-ku
+    // cinwaan ama safaf kale ka horreeyo header-ka, waa la iska dhaafayaa.
+    let fieldIndexMap = {};
+    let headerLineIdx = -1;
+    for (let li = 0; li < Math.min(rawLines.length, 10); li++) {
+      const cells = rawLines[li].split(delimiter).map((c) => c.trim());
+      const candidateMap = {};
+      cells.forEach((cell, idx) => {
+        const key = ALIAS_TO_FIELD[normalizeHeaderCell(cell)];
+        if (key && candidateMap[key] === undefined) {
+          candidateMap[key] = idx;
+        }
+      });
+      if (candidateMap.fullName !== undefined && candidateMap.motherName !== undefined) {
+        fieldIndexMap = candidateMap;
+        headerLineIdx = li;
+        break;
       }
-    });
-    const hasHeader = fieldIndexMap.fullName !== undefined && fieldIndexMap.motherName !== undefined;
+    }
+    const hasHeader = headerLineIdx !== -1;
 
-    const dataLines = hasHeader ? rawLines.slice(1) : rawLines;
+    const dataLines = hasHeader ? rawLines.slice(headerLineIdx + 1) : rawLines;
 
     // Reads a field either by its header-mapped column (Excel paste) or by
     // its fixed legacy position (classic comma format).
@@ -213,7 +254,7 @@ export default function ImportStudent() {
       const fullName = getVal(parts, "fullName", 0);
       const motherName = getVal(parts, "motherName", 1);
       const placeOfBirth = getVal(parts, "placeOfBirth", 3);
-      const dateOfBirth = getVal(parts, "dateOfBirth", 4);
+      const dateOfBirth = normalizeDateOfBirth(getVal(parts, "dateOfBirth", 4));
       const feeType = getVal(parts, "feeType", 6) || "Free";
       const monthlyFee = getVal(parts, "monthlyFee", 7) || "0";
       const parentPhone = getVal(parts, "parentPhone", 8);
@@ -579,7 +620,7 @@ export default function ImportStudent() {
           >
             <strong style={{ color: "#fff" }}>Laba hab oo xogta loo geli karo:</strong>
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
-              <strong style={{ color: "#e5e3f7" }}>1) Excel Paste (ugu fudud):</strong> Excel-ka xogta ka koobiyee (copy) oo halkan ku dheji (paste) — si toos ah. Safka koowaad (row 1) ha ka kooban yahay magacyada column-ka (tusaale: FullName, MotherName, District, DateOfBirth, StudentPhone, ParentPhone, iwm). Nidaamka (order) ee tiirarku dani ma leh — system-ku wuxuu magaca column-ka ku ogaanayaa meesha saxda ah.
+              <strong style={{ color: "#e5e3f7" }}>1) Excel Paste (ugu fudud):</strong> Excel-ka xogta ka koobiyee (copy) oo halkan ku dheji (paste) — si toos ah. Safka koowaad (row 1) ha ka kooban yahay magacyada column-ka (tusaale: FullName, MotherName, District, DateOfBirth, StudentPhone, ParentPhone, iwm). Nidaamka (order) ee tiirarku dani ma leh — system-ku wuxuu magaca column-ka ku ogaanayaa meesha saxda ah. Magacyada Excel-ka sida Students Full Name, Mothers Name, Students Phone, DOB, POB, District, Orphon, Guardian Phone si toos ah ayaa loo aqoonsadaa (S/n iyo Guardian Name waa la iska indho-tiraa).
             </div>
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
               <strong style={{ color: "#e5e3f7" }}>2) Qoraal gacanta (comma):</strong> Hal xariiq = hal arday, oo field-yada la kala saaro comma (,) — sida kala-horreynta hoose:
