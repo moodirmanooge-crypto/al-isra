@@ -46,7 +46,7 @@ const normalizeClassName = (name) => name.trim().replace(/\s+/g, " ").toLowerCas
 const FIELD_ALIASES = {
   fullName: ["fullname", "full name", "name", "studentname", "student name", "students full name", "student full name", "students name"],
   motherName: ["mothername", "mother name", "mathername", "mather name", "mothersname"],
-  gender: ["gender", "sex", "students gender", "student gender"],
+  gender: ["gender", "sex", "students gender", "student gender", "gender type", "sex type", "jinsi", "jinsiga", "jins"],
   placeOfBirth: ["placeofbirth", "place of birth", "birthplace", "pob"],
   dateOfBirth: ["dateofbirth", "date of birth", "dob", "birthdate", "date"],
   feeType: ["feetype", "fee type"],
@@ -133,9 +133,18 @@ function autoPassword(studentPhone, parentPhone) {
 // dropdown-ka. Tan waxay si dabacsan u aqoonsataa "Male"/"M"/"Female"/"F"
 // iyada oo aan waxba ka welwelin xarfaha yar/wayn.
 function normalizeGender(raw) {
-  const v = (raw || "").trim().toLowerCase();
-  if (v === "male" || v === "m") return "Male";
-  if (v === "female" || v === "f") return "Female";
+  const v = (raw || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+  if (!v) return null;
+
+  const maleWords = ["male", "m", "boy", "boys", "man", "lab", "wiil", "wiilal", "nin", "ragga"];
+  const femaleWords = ["female", "f", "girl", "girls", "woman", "dhedig", "dhadig", "gabar", "gabdho", "dumar", "haween"];
+  if (maleWords.includes(v)) return "Male";
+  if (femaleWords.includes(v)) return "Female";
+
+  // Khaladaadka qoraalka (tusaale "Feamle", "Femal", "Fmale", "Malle", "Mail")
+  if (v.startsWith("fe") || v.startsWith("fm")) return "Female";
+  if (v.startsWith("ma") || v.startsWith("ml")) return "Male";
+
   return null;
 }
 
@@ -282,11 +291,17 @@ export default function ImportStudent() {
       // ayaa loo dhigayaa, sida hore.
       let gender = selectedGender;
       if (selectedGender === "Both") {
+        if (hasHeader && fieldIndexMap.gender === undefined) {
+          alert(
+            `Tiirka Gender lama helin header-ka Excel-ka. Ku dar tiir la yiraahdo "Gender" (ama "Sex" / "Gender Type") oo mid kasta ku qor Male ama Female, maadaama aad dooratay "Male & Female".`
+          );
+          return null;
+        }
         const rowGender = getVal(parts, "gender", 2);
         const normalized = normalizeGender(rowGender);
         if (!normalized) {
           alert(
-            `Safka ${lineNum}${fullName ? ` (${fullName})` : ""}: Gender-ka waa ka dhiman yahay ama sax ma aha (waa in uu ahaadaa Male ama Female), maadaama aad dooratay "Male & Female".`
+            `Safka ${lineNum}${fullName ? ` (${fullName})` : ""}: Gender-ka${rowGender ? ` ("${rowGender}")` : ""} waa ka dhiman yahay ama sax ma aha (waa in uu ahaadaa Male ama Female), maadaama aad dooratay "Male & Female".`
           );
           return null;
         }
@@ -638,7 +653,7 @@ export default function ImportStudent() {
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
               * <strong>Waajib:</strong> FullName, MotherName.<br/>
               * <strong>Class &amp; Shift:</strong> Had iyo jeer waxaa laga qaataa doorashada kore. Haddii safka lagu qoro qiyam kale, si toos ah ayaa loo iska indho-tiraa.<br/>
-              * <strong>Gender:</strong> Haddii Male ama Female si gaar ah loo doorto, dhammaan ardayda waa loo dhigaa isla gender-kaas. Haddii "Male &amp; Female" la doorto, mid kasta gender-kiisa waxaa laga akhrinayaa column-ka Gender ee safka (Male/Female/M/F).<br/>
+              * <strong>Gender:</strong> Haddii Male ama Female si gaar ah loo doorto, dhammaan ardayda waa loo dhigaa isla gender-kaas. Haddii "Male &amp; Female" la doorto, mid kasta gender-kiisa waxaa laga akhrinayaa column-ka Gender ee safka (Male/Female/M/F — header-ka tiirku waa Gender, Sex ama Gender Type).<br/>
               * <strong>Ikhtiyaari:</strong> Qeybaha kale waa la iska dhaafi karaan adoo komaha (,) reebaya.
             </div>
           </div>
