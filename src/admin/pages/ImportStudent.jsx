@@ -51,6 +51,7 @@ const FIELD_ALIASES = {
   dateOfBirth: ["dateofbirth", "date of birth", "dob", "birthdate", "date"],
   feeType: ["feetype", "fee type"],
   monthlyFee: ["monthlyfee", "monthly fee", "fee"],
+  guardianName: ["guardianname", "guardian name", "guardian", "parent name", "parentname"],
   parentPhone: ["parentphone", "parent phone", "prentphone", "guardian phone", "guardian tel", "guardian telephone", "guardian phone number", "parents phone", "parent tel"],
   studentPhone: ["studentphone", "student phone", "students phone", "student phone number", "students phone number", "student tel", "students tel"],
   district: ["district", "distiric", "distric"],
@@ -112,6 +113,56 @@ function normalizeDateOfBirth(raw) {
     }
   }
   return v;
+}
+
+// Miyaa qiimuhu u eg yahay taariikh (6/30/2009, 2009-06-30, 30.6.2009)?
+function looksLikeDate(raw) {
+  return /^\d{1,4}[\/\-.]\d{1,2}[\/\-.]\d{1,4}$/.test((raw || "").trim());
+}
+
+// Orphan Status: foomka Add Student wuxuu leeyahay kaliya "No" ama "Yes".
+// Excel-ka "Not orphan" -> No, "Orphan" -> Yes, madhan -> No. Qiimo aan la garanayn -> null.
+function normalizeOrphanStatus(raw) {
+  const v = String(raw || "").trim().toLowerCase().replace(/[^a-z']+/g, " ").trim();
+  if (!v) return "No";
+  if (/\b(no|not|non|n|maya|false)\b/.test(v)) return "No";
+  if (/^(yes|y|haa|true)$/.test(v) || /orphan|orphon|yatiim|agoon/.test(v)) return "Yes";
+  return null;
+}
+
+// Fee Type + Monthly Fee (foomka Add Student: kaliya Free ama Paid). Excel-ka
+// mararka qaar tiirka "Fee type" wuxuu ka kooban yahay lacagta bisha (19, 0):
+// 0 -> Free; lambar ka weyn 0 -> Paid oo lacagtaas noqonaysa Monthly Fee.
+// Waxay soo celisaa { feeType, monthlyFee } ama { error }.
+function resolveFee(rawFeeType, rawMonthlyFee) {
+  const toAmount = (v) => {
+    const cleaned = String(v || "").trim().replace(/[$\s,]/g, "");
+    if (!/^\d+(\.\d+)?$/.test(cleaned)) return null;
+    return Number(cleaned);
+  };
+
+  const typeText = String(rawFeeType || "").trim();
+  const typeLower = typeText.toLowerCase();
+  const typeAmount = toAmount(typeText);
+  const monthlyAmount = toAmount(rawMonthlyFee);
+  const hasMonthly = monthlyAmount !== null && monthlyAmount > 0;
+
+  if (typeAmount !== null) {
+    if (typeAmount <= 0) return { feeType: "Free", monthlyFee: "0" };
+    return { feeType: "Paid", monthlyFee: String(hasMonthly ? monthlyAmount : typeAmount) };
+  }
+  if (typeLower === "") {
+    return hasMonthly
+      ? { feeType: "Paid", monthlyFee: String(monthlyAmount) }
+      : { feeType: "Free", monthlyFee: "0" };
+  }
+  if (typeLower === "free") return { feeType: "Free", monthlyFee: "0" };
+  if (typeLower === "paid") {
+    return hasMonthly
+      ? { feeType: "Paid", monthlyFee: String(monthlyAmount) }
+      : { error: "missingFee" };
+  }
+  return { error: "unknownType" };
 }
 
 // Haddii maamulku uusan gelin Password, si toos ah ayaa loo dhigayaa
@@ -242,6 +293,15 @@ export default function ImportStudent() {
     }
     const hasHeader = headerLineIdx !== -1;
 
+    // Excel paste (tab) oo aan header lahayn: kala-horreynta tiirarka lama garan karo,
+    // sidaa darteed waa la joojinayaa si xogta loo qorin si khaldan.
+    if (!hasHeader && delimiter === "\t") {
+      alert(
+        "Header-ka Excel-ka lama helin. Marka aad Excel-ka koobiyeynayso, ku dar safka koowaad ee magacyada tiirarka (Full Name, Mother Name, Gender, Date of Birth, Place of Birth, iwm) — la'aantiis xogta lama gelinayo si aan khalad loo qorin."
+      );
+      return null;
+    }
+
     const dataLines = hasHeader ? rawLines.slice(headerLineIdx + 1) : rawLines;
 
     // Reads a field either by its header-mapped column (Excel paste) or by
@@ -262,15 +322,22 @@ export default function ImportStudent() {
 
       const fullName = getVal(parts, "fullName", 0);
       const motherName = getVal(parts, "motherName", 1);
-      const placeOfBirth = getVal(parts, "placeOfBirth", 3);
-      const dateOfBirth = normalizeDateOfBirth(getVal(parts, "dateOfBirth", 4));
-      const feeType = getVal(parts, "feeType", 6) || "Free";
-      const monthlyFee = getVal(parts, "monthlyFee", 7) || "0";
+      let placeOfBirth = getVal(parts, "placeOfBirth", 3);
+      let dateOfBirthRaw = getVal(parts, "dateOfBirth", 4);
+      // Haddii taariikhda ku qoran tahay Place of Birth (Date of Birth-na aan taariikh ahayn),
+      // labadooda waa is-beddelayaan si taariikhdu ugu dhacdo Date of Birth.
+      if (looksLikeDate(placeOfBirth) && !looksLikeDate(dateOfBirthRaw)) {
+        [placeOfBirth, dateOfBirthRaw] = [dateOfBirthRaw, placeOfBirth];
+      }
+      const dateOfBirth = normalizeDateOfBirth(dateOfBirthRaw);
+      const rawFeeType = getVal(parts, "feeType", 6);
+      const rawMonthlyFee = getVal(parts, "monthlyFee", 7);
       const parentPhone = getVal(parts, "parentPhone", 8);
       const studentPhone = getVal(parts, "studentPhone", 9);
       const district = getVal(parts, "district", 10);
       const previousSchool = getVal(parts, "previousSchool", 11);
-      const orphanStatus = getVal(parts, "orphanStatus", 12) || "No";
+      const rawOrphanStatus = getVal(parts, "orphanStatus", 12);
+      const guardianName = getVal(parts, "guardianName", -1);
       const parentPassword = getVal(parts, "parentPassword", 13);
       const feeCategory = getVal(parts, "feeCategory", 14);
       const feeCategoryAmount = getVal(parts, "feeCategoryAmount", 15) || "0";
@@ -317,8 +384,30 @@ export default function ImportStudent() {
         alert(`Safka ${lineNum} (${fullName}): Magaca Hooyada (Mother Name) waa ka dhiman yahay.`);
         return null;
       }
-      if (feeType === "Paid" && !monthlyFee) {
+      if (looksLikeDate(placeOfBirth)) {
+        alert(`Safka ${lineNum} (${fullName}): Place of Birth ("${placeOfBirth}") waa taariikh, ma aha goob. Hubi tiirarka Date of Birth iyo Place of Birth.`);
+        return null;
+      }
+      if (dateOfBirth && !/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) {
+        alert(`Safka ${lineNum} (${fullName}): Date of Birth ("${dateOfBirth}") sax ma aha. Isticmaal qaabka 6/30/2009 ama 2009-06-30.`);
+        return null;
+      }
+
+      const fee = resolveFee(rawFeeType, rawMonthlyFee);
+      if (fee.error === "unknownType") {
+        alert(`Safka ${lineNum} (${fullName}): Fee Type ("${rawFeeType}") sax ma aha — waa in uu ahaadaa Free, Paid, ama lambar (0 = Free, 19 = Paid $19).`);
+        return null;
+      }
+      if (fee.error === "missingFee") {
         alert(`Safka ${lineNum} (${fullName}): Monthly Fee waa ka dhiman yahay maadaama Fee Type uu yahay Paid.`);
+        return null;
+      }
+      const feeType = fee.feeType;
+      const monthlyFee = fee.monthlyFee;
+
+      const orphanStatus = normalizeOrphanStatus(rawOrphanStatus);
+      if (orphanStatus === null) {
+        alert(`Safka ${lineNum} (${fullName}): Orphan Status ("${rawOrphanStatus}") sax ma aha — waa in uu ahaadaa Yes ama No (ama "Orphan" / "Not orphan").`);
         return null;
       }
       // FeeCategory iyo FeeCategoryAmount labaduba waa ikhtiyaari (optional) —
@@ -333,7 +422,8 @@ export default function ImportStudent() {
         dateOfBirth,
         shift,
         feeType,
-        monthlyFee: feeType === "Free" ? "0" : monthlyFee,
+        monthlyFee,
+        guardianName,
         parentPhone,
         studentPhone,
         district,
@@ -428,6 +518,8 @@ export default function ImportStudent() {
               registrationFees,
               rollNumberFees,
               examinationFees,
+              guardianName: student.guardianName,
+              guardianTel: student.parentPhone,
               parentPhone: student.parentPhone,
               studentPhone: student.studentPhone,
               district: student.district,
@@ -453,6 +545,8 @@ export default function ImportStudent() {
               studentId,
               studentName: student.fullName,
               studentPhone: student.studentPhone,
+              guardianName: student.guardianName,
+              guardianTel: student.parentPhone,
               parentPhone: student.parentPhone,
               // Cashier-ku waligiis ma helo "Paid" import-ka ka imaanaya: ardayda
               // lacag-bixiya waxaa loo qoraa "Unpaid" (Monthly Fee kaliya ayaa
@@ -481,6 +575,8 @@ export default function ImportStudent() {
               shift: student.shift,
               studentPhoto: schoolLogo,
               district: student.district,
+              guardianName: student.guardianName,
+              guardianTel: student.parentPhone,
               parentPhone: student.parentPhone,
               studentPhone: student.studentPhone,
               idIssuedAt: new Date(),
@@ -635,7 +731,7 @@ export default function ImportStudent() {
           >
             <strong style={{ color: "#fff" }}>Laba hab oo xogta loo geli karo:</strong>
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
-              <strong style={{ color: "#e5e3f7" }}>1) Excel Paste (ugu fudud):</strong> Excel-ka xogta ka koobiyee (copy) oo halkan ku dheji (paste) — si toos ah. Safka koowaad (row 1) ha ka kooban yahay magacyada column-ka (tusaale: FullName, MotherName, District, DateOfBirth, StudentPhone, ParentPhone, iwm). Nidaamka (order) ee tiirarku dani ma leh — system-ku wuxuu magaca column-ka ku ogaanayaa meesha saxda ah. Magacyada Excel-ka sida Students Full Name, Mothers Name, Students Phone, DOB, POB, District, Orphon, Guardian Phone si toos ah ayaa loo aqoonsadaa (S/n iyo Guardian Name waa la iska indho-tiraa).
+              <strong style={{ color: "#e5e3f7" }}>1) Excel Paste (ugu fudud):</strong> Excel-ka xogta ka koobiyee (copy) oo halkan ku dheji (paste) — si toos ah. Safka koowaad (row 1) ha ka kooban yahay magacyada column-ka (tusaale: FullName, MotherName, District, DateOfBirth, StudentPhone, ParentPhone, iwm). Nidaamka (order) ee tiirarku dani ma leh — system-ku wuxuu magaca column-ka ku ogaanayaa meesha saxda ah. Magacyada Excel-ka sida Students Full Name, Mothers Name, Students Phone, DOB, POB, District, Orphon, Guardian Name, Guardian Phone si toos ah ayaa loo aqoonsadaa (S/n waa la iska indho-tiraa).
             </div>
             <div style={{ marginTop: 8, color: "#8b87ad" }}>
               <strong style={{ color: "#e5e3f7" }}>2) Qoraal gacanta (comma):</strong> Hal xariiq = hal arday, oo field-yada la kala saaro comma (,) — sida kala-horreynta hoose:
@@ -654,6 +750,7 @@ export default function ImportStudent() {
               * <strong>Waajib:</strong> FullName, MotherName.<br/>
               * <strong>Class &amp; Shift:</strong> Had iyo jeer waxaa laga qaataa doorashada kore. Haddii safka lagu qoro qiyam kale, si toos ah ayaa loo iska indho-tiraa.<br/>
               * <strong>Gender:</strong> Haddii Male ama Female si gaar ah loo doorto, dhammaan ardayda waa loo dhigaa isla gender-kaas. Haddii "Male &amp; Female" la doorto, mid kasta gender-kiisa waxaa laga akhrinayaa column-ka Gender ee safka (Male/Female/M/F — header-ka tiirku waa Gender, Sex ama Gender Type).<br/>
+              * <strong>Fee Type:</strong> Free ama Paid; haddii tiirka Fee type uu ka kooban yahay lacag (tusaale 19 ama 0), <strong>0 = Free</strong>, lambar ka weyn 0 = Paid oo lacagtaas noqonaysa Monthly Fee.<br/>
               * <strong>Ikhtiyaari:</strong> Qeybaha kale waa la iska dhaafi karaan adoo komaha (,) reebaya.
             </div>
           </div>
