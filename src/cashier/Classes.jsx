@@ -211,6 +211,7 @@ export default function Classes() {
   const [savingAll, setSavingAll] = useState(false);
   const [resettingAll, setResettingAll] = useState(false);
   const [resettingEntireSchool, setResettingEntireSchool] = useState(false);
+  const [syncingCashier, setSyncingCashier] = useState(false);
   const [editingIds, setEditingIds] = useState({});
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptQueue, setReceiptQueue] = useState([]);
@@ -495,7 +496,7 @@ export default function Classes() {
     const paidThisMonthCount = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
-      return fullyPaidSet.has(currentMonthKey()) || s.feeType === "Paid";
+      return fullyPaidSet.has(currentMonthKey());
     }).length;
     return { total: currentClassStudents.length, paidThisMonthCount };
   }, [currentClassStudents, paymentsByStudent]);
@@ -504,7 +505,7 @@ export default function Classes() {
     const fee = toSafeNumber(student.monthlyFee);
     const { fullyPaidSet, partialMap } = getStudentMonthState(student.studentId);
     const thisMonthKey = currentMonthKey();
-    const paidThisMonth = fullyPaidSet.has(thisMonthKey) || student.feeType === "Paid";
+    const paidThisMonth = fullyPaidSet.has(thisMonthKey);
     const partialThisMonth = partialMap[thisMonthKey] || 0;
     const prefill = paidThisMonth ? fee : partialThisMonth;
 
@@ -520,7 +521,7 @@ export default function Classes() {
     const targets = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
-      return fullyPaidSet.has(thisMonthKey) || s.feeType === "Paid";
+      return fullyPaidSet.has(thisMonthKey);
     });
 
     if (targets.length === 0) {
@@ -734,6 +735,151 @@ export default function Classes() {
       alert("Khalad ayaa dhacay marka dhammaan fasallada la reset-gareynayay.");
     } finally {
       setResettingEntireSchool(false);
+    }
+  }
+
+  // 5. Cashier <- Students: dhammaan diiwaannada "cashier" waxaa laga saxayaa
+  // collection-ka "students" (Monthly Fee, Class, Fee Category, telefoonada);
+  // ardayda oo dhan waxay noqonayaan Unpaid (Free waa la ilaaliyaa); dhammaan
+  // payments iyo rasiidhadha (Cashier + Admin) waxaa loo raraa "receiptDeleted"
+  // (waa laga soo celin karaa "Xogta La Reset-gareeyay"). "createdAt" lama
+  // koobiyeeyo, si bisha ugu horreysa ee lacagta ay u ahaato bisha hadda (sida hore).
+  async function syncCashierFromStudentsAndUnpaidAll() {
+    const confirmed = window.confirm(
+      "⚠️ Tani waxay samaynaysaa 3 shay:\n" +
+        "1) Dhammaan diiwaannada 'cashier' waxay ka saxaysaa 'students' (Monthly Fee, Class, Fee Category, telefoonada) — ardayda cashier-ka ka maqan waa lagu dari doonaa.\n" +
+        "2) Dhammaan ardayda waxay ka dhigaysaa Unpaid (Free waa sidiisa).\n" +
+        "3) Dhammaan payments iyo rasiidhada (Cashier + Admin) waxay u raraysaa 'Xogta La Reset-gareeyay'.\n\nSii wad?"
+    );
+    if (!confirmed) return;
+
+    try {
+      setSyncingCashier(true);
+
+      const [studentsSnap, cashierSnap] = await Promise.all([
+        getDocs(collection(db, "students")),
+        getDocs(collection(db, "cashier")),
+      ]);
+
+      if (studentsSnap.empty) {
+        alert("Collection-ka 'students' waa madhan yahay — waxba lama beddelin.");
+        return;
+      }
+
+      const resetBatchId = doc(collection(db, "receiptDeleted")).id;
+      const deletedReason = "sync-cashier-reset-all";
+      const ops = [];
+
+      // Diiwaanka cashier ee ardayga (studentId ama doc id ayaa la isticmaalayaa)
+      const cashierDocByStudentId = {};
+      cashierSnap.docs.forEach((d) => {
+        cashierDocByStudentId[d.data().studentId || d.id] = d;
+      });
+
+      const syncedCashierIds = new Set();
+      let syncedStudents = 0;
+
+      studentsSnap.docs.forEach((sDoc) => {
+        const s = sDoc.data();
+        if (s.pendingDeletion) return;
+        const sid = String(s.studentId || sDoc.id).trim();
+        if (!sid) return;
+
+        const existingCashier = cashierDocByStudentId[sid];
+        const cashierRef = existingCashier ? existingCashier.ref : doc(db, "cashier", sid);
+        syncedCashierIds.add(cashierRef.id);
+        syncedStudents += 1;
+
+        ops.push((batch) =>
+          batch.set(
+            cashierRef,
+            {
+              studentId: sid,
+              studentName: s.fullName || "",
+              studentPhone: s.studentPhone || "",
+              parentPhone: s.parentPhone || "",
+              ...(s.className ? { className: s.className } : {}),
+              feeType: s.feeType === "Free" ? "Free" : "Unpaid",
+              monthlyFee: s.monthlyFee ?? "0",
+              feeCategory: s.feeCategory || "",
+              registrationFees: s.registrationFees ?? "0",
+              rollNumberFees: s.rollNumberFees ?? "0",
+              examinationFees: s.examinationFees ?? "0",
+              creditBalance: 0,
+              specialFeeSaved: false,
+              specialFeeAmount: 0,
+            },
+            { merge: true }
+          )
+        );
+      });
+
+      // Diiwaannada cashier ee aan arday u jirin (ama arday la tirtirayo): Unpaid kaliya
+      cashierSnap.docs.forEach((d) => {
+        if (syncedCashierIds.has(d.id)) return;
+        ops.push((batch) =>
+          batch.update(d.ref, {
+            creditBalance: 0,
+            specialFeeSaved: false,
+            specialFeeAmount: 0,
+            feeType: d.data().feeType === "Free" ? "Free" : "Unpaid",
+          })
+        );
+      });
+
+      const queueArchive = (docSnap, sourceCollection) => {
+        const archiveRef = doc(collection(db, "receiptDeleted"));
+        ops.push((batch) => {
+          batch.set(archiveRef, {
+            ...docSnap.data(),
+            archiveId: archiveRef.id,
+            resetBatchId,
+            sourceCollection,
+            originalId: docSnap.id,
+            deleted: true,
+            deletedReason,
+            deletedAt: serverTimestamp(),
+          });
+          batch.delete(docSnap.ref);
+        });
+      };
+
+      const paymentsSnap = await getDocs(collection(db, "payments"));
+      paymentsSnap.docs.forEach((d) => queueArchive(d, "payments"));
+
+      const receiptCashierSnap = await getDocs(collection(db, "receiptCashier"));
+      receiptCashierSnap.docs.forEach((d) => queueArchive(d, "receiptCashier"));
+
+      const adminReceiptsSnap = await getDocs(collection(db, "receipts"));
+      adminReceiptsSnap.docs.forEach((d) => queueArchive(d, "receipts"));
+
+      // Dhammaan rasiidhada waa la raray — lambarka rasiidka wuxuu ka bilaabmayaa 001
+      ops.push((batch) =>
+        batch.set(doc(db, "counters", "receiptCounter"), { value: 0 }, { merge: true })
+      );
+
+      // Firestore batch xadkiisa waa 500 qoraal — 200 hawlood ayaa mar walba la gudbiyaa
+      // (kasta oo ugu badnaan 2 qoraal ah).
+      for (let i = 0; i < ops.length; i += 200) {
+        const batch = writeBatch(db);
+        ops.slice(i, i + 200).forEach((op) => op(batch));
+        await batch.commit();
+      }
+
+      setAmounts({});
+      setMonthsSelected({});
+      setEditingIds({});
+      setReceiptQueue([]);
+      setReceiptPayment(null);
+
+      alert(
+        `Waa la dhameeyay: ${syncedStudents} arday ayaa cashier-ka looga saxay 'students', dhammaan waa Unpaid, payments iyo rasiidhadhana waa la raray.`
+      );
+    } catch (err) {
+      console.error(err);
+      alert(err?.message || "Khalad ayaa dhacay marka cashier-ka la isku-dhafayay.");
+    } finally {
+      setSyncingCashier(false);
     }
   }
 
@@ -1130,7 +1276,7 @@ export default function Classes() {
     const targets = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
-      const paidThisMonth = fullyPaidSet.has(currentMonthKey()) || s.feeType === "Paid";
+      const paidThisMonth = fullyPaidSet.has(currentMonthKey());
       return !paidThisMonth || editingIds[s.id];
     });
 
@@ -1475,7 +1621,7 @@ export default function Classes() {
                     const { fullyPaidSet, partialMap, records } = getStudentMonthState(student.studentId);
                     
                     const targetMonth = findNextUnpaidMonth(fullyPaidSet, registrationMonthKey(student));
-                    const isCurrentMonthPaid = fullyPaidSet.has(currentMonthKey()) || student.feeType === "Paid";
+                    const isCurrentMonthPaid = fullyPaidSet.has(currentMonthKey());
 
                     const isEditing = !!editingIds[student.id];
                     const locked = isCurrentMonthPaid && !isEditing;
@@ -1774,6 +1920,25 @@ export default function Classes() {
               >
                 {resettingEntireSchool ? "Resetting School…" : "🔄 Reset / Unpaid All Classes"}
               </button>
+
+              <button
+                type="button"
+                onClick={syncCashierFromStudentsAndUnpaidAll}
+                disabled={syncingCashier || resettingEntireSchool}
+                style={{
+                  ...styles.resetAllBtn,
+                  background: theme.colors.brand,
+                  color: "#FFFFFF",
+                  cursor: syncingCashier || resettingEntireSchool ? "not-allowed" : "pointer",
+                  opacity: syncingCashier || resettingEntireSchool ? 0.7 : 1,
+                  padding: "12px 20px",
+                  fontSize: 14,
+                  fontWeight: "bold",
+                  borderRadius: theme.radius.md,
+                }}
+              >
+                {syncingCashier ? "Syncing…" : "🔁 Sync Cashier & Unpaid All"}
+              </button>
             </div>
           </header>
 
@@ -1966,7 +2131,7 @@ function StudentPaymentProfileModal({ student, paymentState, onClose }) {
   const creditBalance = Number(student.creditBalance || 0);
 
   const thisMonthKey = currentMonthKey();
-  const paidThisMonth = fullyPaidSet.has(thisMonthKey) || student.feeType === "Paid";
+  const paidThisMonth = fullyPaidSet.has(thisMonthKey);
   const partialThisMonth = partialMap[thisMonthKey] || 0;
   const thisMonthPaid = paidThisMonth ? fee : partialThisMonth;
   const thisMonthRemaining = Math.max(fee - thisMonthPaid, 0);
