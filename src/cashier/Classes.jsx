@@ -107,6 +107,9 @@ const classOptions = [
   "F4",
 ];
 
+// Isla habka Add Student u isticmaalo si loo isbarbardhigo magacyada class-yada.
+const normalizeClassName = (name) => (name || "").trim().replace(/\s+/g, " ").toLowerCase();
+
 const currentMonthKey = () => new Date().toISOString().slice(0, 7);
 
 // Si sax ah ugu beddelo qiime lambar ah — mar walba wuxuu soo celinayaa
@@ -212,6 +215,12 @@ export default function Classes() {
   const [resettingAll, setResettingAll] = useState(false);
   const [resettingEntireSchool, setResettingEntireSchool] = useState(false);
   const [syncingCashier, setSyncingCashier] = useState(false);
+
+  // Class-yada Add Student ku jira: built-in (marka laga jaro "hiddenBuiltInClasses")
+  // + customClasses. Kuwa kale halkan lama tusayo.
+  const [customClassNames, setCustomClassNames] = useState([]);
+  const [hiddenBuiltIns, setHiddenBuiltIns] = useState([]);
+  const [classListReady, setClassListReady] = useState(false);
   const [editingIds, setEditingIds] = useState({});
   const [receiptPayment, setReceiptPayment] = useState(null);
   const [receiptQueue, setReceiptQueue] = useState([]);
@@ -236,30 +245,131 @@ export default function Classes() {
     return () => clearInterval(timer);
   }, []);
 
+  // Liiska class-yada Add Student: customClasses + settings/classManagement
+  // (built-in-yada la qariyay). Real-time — marka Add Student wax laga beddelo,
+  // halkan si toos ah ayuu isu beddelayaa.
+  useEffect(() => {
+    let customLoaded = false;
+    let settingsLoaded = false;
+    const markReady = () => {
+      if (customLoaded && settingsLoaded) setClassListReady(true);
+    };
+
+    const unsubCustomClasses = onSnapshot(
+      collection(db, "customClasses"),
+      (snap) => {
+        setCustomClassNames(
+          snap.docs
+            .map((d) => d.data().name)
+            .filter((n) => typeof n === "string" && n.trim() !== "")
+        );
+        customLoaded = true;
+        markReady();
+      },
+      (err) => {
+        console.error("Error fetching customClasses:", err);
+        customLoaded = true;
+        markReady();
+      }
+    );
+
+    const unsubClassSettings = onSnapshot(
+      doc(db, "settings", "classManagement"),
+      (snap) => {
+        setHiddenBuiltIns(snap.exists() ? snap.data().hiddenBuiltInClasses || [] : []);
+        settingsLoaded = true;
+        markReady();
+      },
+      (err) => {
+        console.error("Error fetching class settings:", err);
+        settingsLoaded = true;
+        markReady();
+      }
+    );
+
+    return () => {
+      unsubCustomClasses();
+      unsubClassSettings();
+    };
+  }, []);
+
   // Real-time Firestore Listeners
   useEffect(() => {
     setLoading(true);
 
     let mainStudentsMap = {};
     let lastCashierDocs = null;
+    let mainStudentsLoaded = false;
+    const provisioningStarted = new Set();
+
+    // Ardayda "students" ku diiwaan gashan oo aan weli diiwaan "cashier" lahayn
+    // waxaa si toos ah loo abuuraa (hal mar) si dhamaantood u muuqdaan oo lacag
+    // looga qaadi karo. "createdAt" lama koobiyeeyo (bisha ugu horreysa ee
+    // lacagta ayaa ah bisha hadda, sida hore).
+    async function provisionMissingCashierDocs(entries) {
+      try {
+        for (let i = 0; i < entries.length; i += 400) {
+          const batch = writeBatch(db);
+          entries.slice(i, i + 400).forEach(([sid, m]) => {
+            batch.set(
+              doc(db, "cashier", String(sid)),
+              {
+                studentId: sid,
+                studentName: m.fullName || "",
+                studentPhone: m.studentPhone || "",
+                parentPhone: m.parentPhone || "",
+                ...(m.className ? { className: m.className } : {}),
+                feeType: m.feeType === "Free" ? "Free" : "Unpaid",
+                monthlyFee: m.monthlyFee ?? "0",
+                feeCategory: m.feeCategory || "",
+                registrationFees: m.registrationFees ?? "0",
+                rollNumberFees: m.rollNumberFees ?? "0",
+                examinationFees: m.examinationFees ?? "0",
+                creditBalance: 0,
+                specialFeeSaved: false,
+                specialFeeAmount: 0,
+              },
+              { merge: true }
+            );
+          });
+          await batch.commit();
+        }
+      } catch (err) {
+        console.error("Khalad ayaa dhacay markii diiwaannada cashier la abuurayay:", err);
+      }
+    }
 
     // Isku-dar xogta "cashier" iyo "students" — waxaa la yeelayaa
     // function gaar ah oo laga wado labada listener-ba, si mar kasta oo
     // mid ka mid ah collection-yadu isbeddesho ay labaduba is-jaan qaadaan
     // (halkii ay isbeddesho keliya markay "cashier" isbeddesho).
     function rebuildStudents() {
-      if (!lastCashierDocs) return;
-      const studentData = lastCashierDocs
-        .map((d) => {
-          const data = d.data();
-          const sid = data.studentId || d.id;
-          const mainRecord = mainStudentsMap[sid] || {};
+      if (!lastCashierDocs || !mainStudentsLoaded) return;
+
+      const cashierBySid = {};
+      lastCashierDocs.forEach((d) => {
+        cashierBySid[d.data().studentId || d.id] = d;
+      });
+
+      // Liiska ardayda waxaa laga qaadayaa "students" (dhamaan ardayda
+      // diiwaan gashan); xogta lacagta ee "cashier" ayaa lagu dhex daraa.
+      const studentData = Object.entries(mainStudentsMap)
+        .map(([sid, mainRecord]) => {
+          const cashierDoc = cashierBySid[sid];
+          const data = cashierDoc ? cashierDoc.data() : {};
           const actualClass = mainRecord.className || data.className || "Unknown";
 
           return {
-            id: d.id,
-            fullName: data.studentName || data.fullName,
+            id: cashierDoc ? cashierDoc.id : String(sid),
+            fullName: data.studentName || data.fullName || mainRecord.fullName,
             ...data,
+            studentId: data.studentId || sid,
+            studentPhone: data.studentPhone || mainRecord.studentPhone || "",
+            parentPhone: data.parentPhone || mainRecord.parentPhone || "",
+            registrationFees: data.registrationFees ?? mainRecord.registrationFees,
+            rollNumberFees: data.rollNumberFees ?? mainRecord.rollNumberFees,
+            examinationFees: data.examinationFees ?? mainRecord.examinationFees,
+            pendingDeletion: data.pendingDeletion || mainRecord.pendingDeletion,
             className: actualClass,
             // Collection-ka "students" ayaa ah isha runta ah ee xogta
             // lacagta — had iyo jeer waa ka sarreeyaan qiyamka
@@ -278,6 +388,18 @@ export default function Classes() {
 
       setStudents(studentData);
       setLoading(false);
+
+      const missing = Object.entries(mainStudentsMap).filter(
+        ([sid, m]) =>
+          !cashierBySid[sid] &&
+          !m.pendingDeletion &&
+          String(sid).trim() !== "" &&
+          !provisioningStarted.has(sid)
+      );
+      if (missing.length > 0) {
+        missing.forEach(([sid]) => provisioningStarted.add(sid));
+        provisionMissingCashierDocs(missing);
+      }
     }
 
     const unsubMainStudents = onSnapshot(
@@ -296,9 +418,14 @@ export default function Classes() {
           newMap[sId] = data;
         });
         mainStudentsMap = newMap;
+        mainStudentsLoaded = true;
         rebuildStudents();
       },
-      (err) => console.error("Error fetching students collection:", err)
+      (err) => {
+        console.error("Error fetching students collection:", err);
+        mainStudentsLoaded = true;
+        rebuildStudents();
+      }
     );
 
     const unsubCashier = onSnapshot(
@@ -412,23 +539,43 @@ export default function Classes() {
     return () => unsubRestore();
   }, []);
 
+  // Class-yada la tusayo = kuwa Add Student ku jira oo kaliya: built-in-yada aan
+  // la qariyin + customClasses (isla habka iyo kala-horreynta Add Student).
+  const activeClassNames = useMemo(() => {
+    const visibleBuiltIns = classOptions.filter(
+      (c) => !hiddenBuiltIns.some((h) => normalizeClassName(h) === normalizeClassName(c))
+    );
+    const seen = new Set(visibleBuiltIns.map((c) => normalizeClassName(c)));
+    const customNames = [];
+    customClassNames.forEach((name) => {
+      const key = normalizeClassName(name);
+      if (seen.has(key)) return;
+      seen.add(key);
+      customNames.push(name.trim());
+    });
+    customNames.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    return [...visibleBuiltIns, ...customNames];
+  }, [customClassNames, hiddenBuiltIns]);
+
   const classGroups = useMemo(() => {
     const groups = {};
-    classOptions.forEach((c) => (groups[c] = []));
-    students.forEach((s) => {
-      const cls = s.className || "Unknown";
-      if (!groups[cls]) groups[cls] = [];
-      groups[cls].push(s);
+    const nameByKey = {};
+    activeClassNames.forEach((c) => {
+      groups[c] = [];
+      nameByKey[normalizeClassName(c)] = c;
     });
-    const extras = Object.keys(groups)
-      .filter((c) => !classOptions.includes(c))
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    return [...classOptions, ...extras].map((c) => [c, groups[c]]);
-  }, [students]);
+    students.forEach((s) => {
+      const name = nameByKey[normalizeClassName(s.className)];
+      if (name) groups[name].push(s);
+    });
+    return activeClassNames.map((c) => [c, groups[c]]);
+  }, [students, activeClassNames]);
 
   const currentClassStudents = useMemo(() => {
     if (!selectedClass) return [];
-    const list = students.filter((s) => (s.className || "Unknown") === selectedClass);
+    const list = students.filter(
+      (s) => normalizeClassName(s.className) === normalizeClassName(selectedClass)
+    );
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
@@ -1205,7 +1352,7 @@ export default function Classes() {
   // Ardayda Free ah xaaladdooda Free waa la ilaaliyaa.
   async function autoResetClassAfterSaveAll(className) {
     const classStudents = students.filter(
-      (s) => (s.className || "Unknown") === className
+      (s) => normalizeClassName(s.className) === normalizeClassName(className)
     );
     const classStudentIds = new Set(classStudents.map((s) => s.studentId));
     const resetBatchId = doc(collection(db, "receiptDeleted")).id;
@@ -1981,7 +2128,7 @@ export default function Classes() {
             </div>
           </header>
 
-          {loading ? (
+          {loading || !classListReady ? (
             <div style={styles.emptyState}>
               <div style={styles.spinner} />
               <p style={{ color: theme.colors.inkMuted, marginTop: 12 }}>Loading classes...</p>
