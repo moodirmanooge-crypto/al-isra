@@ -1,4 +1,4 @@
-// src/admin/pages/AddTeacher.jsx
+// src/admin/pages/IMPORTStudent.jsx
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -757,8 +757,7 @@ export default function AddTeacher() {
                 <Field icon={BookOpen} label="Maadada">
                   <input
                     style={input}
-                    placeholder="Tusaale: Mathematics"
-                    value={block.subject}
+                    placeholder="Tusaale: Mathematics" //sharxaada koooban ee al isra school                     value={block.subject}
                     onChange={(e) =>
                       updateClassBlock(index, "subject", e.target.value)
                     }

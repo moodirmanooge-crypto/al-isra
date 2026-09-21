@@ -897,7 +897,7 @@ export default function Classes() {
         return;
       }
 
-      let entered = toSafetoSafeNumber(amounts[student.id]);
+      let entered = toSafeNumber(amounts[student.id]);
       if (entered <= 0) {
         entered = monthlyFee;
       }
@@ -1052,6 +1052,80 @@ export default function Classes() {
     }
   }
 
+  // 4. Reset otomaatig ah kadib "Save All & PDF Report": marka rasiidhadhka iyo
+  // PDF-ka la sameeyo, dhamaan ardayda fasalka waxay noqonayaan Unpaid, xogta
+  // lacagta (payments, receiptCashier, receipts) waxaa loo raraa
+  // "receiptDeleted" (waxaa laga soo celin karaa "Xogta La Reset-gareeyay").
+  // Ardayda Free ah xaaladdooda Free waa la ilaaliyaa.
+  async function autoResetClassAfterSaveAll(className) {
+    const classStudents = students.filter(
+      (s) => (s.className || "Unknown") === className
+    );
+    const classStudentIds = new Set(classStudents.map((s) => s.studentId));
+    const resetBatchId = doc(collection(db, "receiptDeleted")).id;
+    const deletedReason = `save-all-report:${className}`;
+    const ops = [];
+
+    classStudents.forEach((s) => {
+      if (isFreeStudent(s)) return;
+      const ref = doc(db, "cashier", s.id);
+      ops.push((batch) =>
+        batch.update(ref, {
+          creditBalance: 0,
+          specialFeeSaved: false,
+          specialFeeAmount: 0,
+          feeType: "Unpaid",
+        })
+      );
+    });
+
+    const queueArchive = (docSnap, sourceCollection) => {
+      const archiveRef = doc(collection(db, "receiptDeleted"));
+      ops.push((batch) => {
+        batch.set(archiveRef, {
+          ...docSnap.data(),
+          archiveId: archiveRef.id,
+          resetBatchId,
+          sourceCollection,
+          originalId: docSnap.id,
+          deleted: true,
+          deletedReason,
+          deletedAt: serverTimestamp(),
+        });
+        batch.delete(docSnap.ref);
+      });
+    };
+
+    // Payments — fasalka ama ardayda fasalka (studentId) oo dhan
+    const paymentsSnap = await getDocs(collection(db, "payments"));
+    paymentsSnap.docs.forEach((d) => {
+      const data = d.data();
+      if (data.className === className || classStudentIds.has(data.studentId)) {
+        queueArchive(d, "payments");
+      }
+    });
+
+    // Receipt Cashier
+    const receiptCashierSnap = await getDocs(
+      query(collection(db, "receiptCashier"), where("className", "==", className))
+    );
+    receiptCashierSnap.docs.forEach((d) => queueArchive(d, "receiptCashier"));
+
+    // Receipts (Admin)
+    const adminReceiptsSnap = await getDocs(
+      query(collection(db, "receipts"), where("className", "==", className))
+    );
+    adminReceiptsSnap.docs.forEach((d) => queueArchive(d, "receipts"));
+
+    // Firestore batch xadkiisa waa 500 qoraal — waxaan u qaybinaynaa 200 hawlood
+    // (kasta oo ugu badnaan 2 qoraal ah) si aan xadka u dhaafin.
+    for (let i = 0; i < ops.length; i += 200) {
+      const batch = writeBatch(db);
+      ops.slice(i, i + 200).forEach((op) => op(batch));
+      await batch.commit();
+    }
+  }
+
   async function saveAll() {
     const targets = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
@@ -1079,7 +1153,7 @@ export default function Classes() {
         const monthlyFee = toSafeNumber(student.monthlyFee);
         if (monthlyFee <= 0) return;
 
-        let entered = toSafetoSafeNumber(amounts[student.id]);
+        let entered = toSafeNumber(amounts[student.id]);
         if (entered <= 0) {
           entered = monthlyFee;
         }
@@ -1238,6 +1312,16 @@ export default function Classes() {
 
       if (reportPaidList.length > 0) {
         generateMonthlyRevenuePDF(reportPaidList);
+
+        // Kadib rasiidhadhka + PDF-ka: fasalka oo dhan Unpaid ka dhig
+        try {
+          await autoResetClassAfterSaveAll(selectedClass);
+        } catch (resetErr) {
+          console.error(resetErr);
+          alert(
+            "Lacagaha waa la kaydiyay, laakiin reset-ka otomaatiga ah wuu fashilmay. Fadlan isticmaal \"Reset / Unpaid All\"."
+          );
+        }
       }
     } catch (err) {
       console.log(err);
