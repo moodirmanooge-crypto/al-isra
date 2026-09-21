@@ -1272,16 +1272,27 @@ export default function Classes() {
     }
   }
 
-  async function saveAll() {
+  // saveAll() — batoonka "Save All & PDF Report" (sidii hore, isbeddel la'aan).
+  // saveAll({ onlyEntered: true }) — batoonka "Save All": kaliya ardayda lacag
+  // loo galiyay (Enter Amount / Months) ayaa la kaydinayaa, mid kastana
+  // rasiidkiisa ayuu helayaa; PDF iyo reset toona ma jiraan.
+  async function saveAll(options) {
+    const onlyEntered = options?.onlyEntered === true;
+
     const targets = currentClassStudents.filter((s) => {
       if (isFreeStudent(s)) return false;
       const { fullyPaidSet } = getStudentMonthState(s.studentId);
       const paidThisMonth = fullyPaidSet.has(currentMonthKey());
+      if (onlyEntered && toSafeNumber(amounts[s.id]) <= 0) return false;
       return !paidThisMonth || editingIds[s.id];
     });
 
     if (targets.length === 0) {
-      alert("Ma jiro arday la kaydin karo.");
+      alert(
+        onlyEntered
+          ? "Ma jiro arday lacag loo galiyay oo la kaydin karo. Marka hore geli lacagta (ama dooro Months)."
+          : "Ma jiro arday la kaydin karo."
+      );
       return;
     }
 
@@ -1446,8 +1457,21 @@ export default function Classes() {
 
       await batch.commit();
 
-      setAmounts({});
-      setMonthsSelected({});
+      if (onlyEntered) {
+        setAmounts((prev) => {
+          const next = { ...prev };
+          targets.forEach((student) => delete next[student.id]);
+          return next;
+        });
+        setMonthsSelected((prev) => {
+          const next = { ...prev };
+          targets.forEach((student) => delete next[student.id]);
+          return next;
+        });
+      } else {
+        setAmounts({});
+        setMonthsSelected({});
+      }
       setEditingIds((prev) => {
         const next = { ...prev };
         targets.forEach((student) => delete next[student.id]);
@@ -1456,7 +1480,7 @@ export default function Classes() {
 
       setReceiptQueue(newReceipts);
 
-      if (reportPaidList.length > 0) {
+      if (!onlyEntered && reportPaidList.length > 0) {
         generateMonthlyRevenuePDF(reportPaidList);
 
         // Kadib rasiidhadhka + PDF-ka: fasalka oo dhan Unpaid ka dhig
@@ -1562,6 +1586,21 @@ export default function Classes() {
               }}
             >
               {resettingAll ? "Resetting…" : "🔄 Reset / Unpaid All"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => saveAll({ onlyEntered: true })}
+              disabled={savingAll || resettingAll}
+              style={{
+                ...styles.saveAllBtn,
+                background: theme.colors.mint,
+                color: "#FFFFFF",
+                cursor: savingAll || resettingAll ? "not-allowed" : "pointer",
+                opacity: savingAll || resettingAll ? 0.7 : 1,
+              }}
+            >
+              {savingAll ? "Saving…" : "💾 Save All"}
             </button>
 
             <button
