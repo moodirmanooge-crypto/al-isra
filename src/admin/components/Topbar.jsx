@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, Mail, Calendar, Menu, ChevronDown, Camera } from "lucide-react";
+import { Search, Bell, Mail, Calendar, Menu, ChevronDown, Camera, Moon, Sun } from "lucide-react";
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../../firebase/firebase";
@@ -15,7 +15,41 @@ export default function Topbar() {
   const [adminName, setAdminName] = useState("Admin User");
   const [adminRoleLabel, setAdminRoleLabel] = useState("Super Admin");
   const [uploading, setUploading] = useState(false);
+  const [avatarHover, setAvatarHover] = useState(false);
   const fileInputRef = useRef(null);
+  const searchRef = useRef(null);
+
+  // Light / dark theme — stored per browser, applied as data-ai-theme on
+  // <html>. The CSS variables it drives are defined in the <style> below,
+  // so every page that renders this Topbar gets them.
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("aiTheme") || "light";
+    } catch (e) {
+      return "light";
+    }
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-ai-theme", theme);
+    try {
+      localStorage.setItem("aiTheme", theme);
+    } catch (e) {
+      /* ignore */
+    }
+  }, [theme]);
+
+  // Ctrl+K / Cmd+K focuses the search box
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Every admin (Super Admin or sub-admin) has their own Firestore doc id,
   // stored at login time in localStorage.adminId (see LoginForm.jsx). Using
@@ -94,6 +128,8 @@ export default function Topbar() {
     }
   }
 
+  const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "");
+
   return (
     <div
       style={{
@@ -101,75 +137,116 @@ export default function Topbar() {
         justifyContent: "space-between",
         alignItems: "center",
         flexWrap: "wrap",
-        gap: 16,
+        gap: 14,
       }}
     >
-      {/* LEFT */}
-      <div
-        style={{
-          width: 42,
-          height: 42,
-          borderRadius: 12,
-          background: "linear-gradient(135deg,#16a34a,#15803d)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          cursor: "pointer",
-          color: "#fff",
-          flexShrink: 0,
-        }}
-      >
-        <Menu size={20} />
-      </div>
+      {/* LEFT — (mobile) menu toggle + search */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 260 }}>
+        <div
+          className="ai-menu-btn"
+          onClick={() => window.dispatchEvent(new Event("ai-toggle-sidebar"))}
+          title="Menu"
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: "linear-gradient(135deg,#2563eb,#1d4ed8)",
+            justifyContent: "center",
+            alignItems: "center",
+            cursor: "pointer",
+            color: "#fff",
+            flexShrink: 0,
+            boxShadow: "0 6px 14px rgba(37,99,235,0.3)",
+          }}
+        >
+          <Menu size={20} />
+        </div>
 
-      {/* RIGHT */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
-            width: 240,
-            height: 42,
-            borderRadius: 30,
-            background: "#F9FAFB",
-            border: "1.5px solid rgba(17,24,39,0.08)",
-            padding: "0 16px",
+            gap: 12,
+            flex: 1,
+            maxWidth: 830,
+            height: 50,
+            borderRadius: 14,
+            background: "var(--ai-input)",
+            border: "1px solid var(--ai-border)",
+            boxShadow: "var(--ai-shadow)",
+            padding: "0 12px 0 18px",
           }}
         >
-          <Search size={16} color="#9CA3AF" />
+          <Search size={19} color="var(--ai-muted)" />
           <input
-            placeholder="Search anything..."
+            ref={searchRef}
+            placeholder="Search students, teachers, classes, exams..."
             style={{
               flex: 1,
+              minWidth: 0,
               background: "transparent",
               border: "none",
               outline: "none",
-              color: "#111827",
-              fontSize: 13.5,
+              color: "var(--ai-text)",
+              fontSize: 14.5,
             }}
           />
+          <kbd
+            className="ai-kbd"
+            style={{
+              fontSize: 11.5,
+              fontFamily: "inherit",
+              color: "var(--ai-muted)",
+              background: "var(--ai-hover)",
+              border: "1px solid var(--ai-border)",
+              borderRadius: 8,
+              padding: "4px 8px",
+              flexShrink: 0,
+            }}
+          >
+            {isMac ? "⌘ K" : "Ctrl K"}
+          </kbd>
         </div>
+      </div>
 
+      {/* RIGHT */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
         <IconButton onClick={() => navigate("/admin/messages")} badge={unreadNotifications} badgeColor="#EF4444">
-          <Bell size={18} color="#6B7280" />
+          <Bell size={20} color="var(--ai-text)" />
         </IconButton>
 
-        <IconButton onClick={() => navigate("/admin/messages")} badge={unreadMessages} badgeColor="#16a34a">
-          <Mail size={18} color="#6B7280" />
+        <IconButton onClick={() => navigate("/admin/messages")} badge={unreadMessages} badgeColor="#EF4444">
+          <Mail size={20} color="var(--ai-text)" />
         </IconButton>
 
         <IconButton onClick={() => navigate("/admin/reports")}>
-          <Calendar size={18} color="#6B7280" />
+          <Calendar size={20} color="var(--ai-text)" />
         </IconButton>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+        <IconButton
+          onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+          title={theme === "dark" ? "Light mode" : "Dark mode"}
+        >
+          {theme === "dark" ? <Sun size={20} color="#facc15" /> : <Moon size={20} color="var(--ai-text)" />}
+        </IconButton>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            cursor: "pointer",
+            marginLeft: 6,
+          }}
+        >
           <div
             onClick={() => fileInputRef.current?.click()}
+            onMouseEnter={() => setAvatarHover(true)}
+            onMouseLeave={() => setAvatarHover(false)}
             style={{
               position: "relative",
-              width: 40,
-              height: 40,
+              width: 48,
+              height: 48,
               flexShrink: 0,
               cursor: "pointer",
             }}
@@ -179,30 +256,31 @@ export default function Topbar() {
               src={photoUrl || avatar}
               alt="Admin"
               style={{
-                width: 40,
-                height: 40,
+                width: 48,
+                height: 48,
                 borderRadius: "50%",
                 objectFit: "cover",
                 opacity: uploading ? 0.5 : 1,
+                border: "2px solid var(--ai-card)",
+                boxShadow: "0 4px 12px rgba(15,23,42,0.15)",
               }}
             />
-            <div
-              style={{
-                position: "absolute",
-                bottom: -2,
-                right: -2,
-                width: 18,
-                height: 18,
-                borderRadius: "50%",
-                background: "#16a34a",
-                border: "2px solid #fff",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Camera size={9} color="#fff" />
-            </div>
+            {/* camera overlay on hover / while uploading */}
+            {(avatarHover || uploading) && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  background: "rgba(15,23,42,0.45)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Camera size={16} color="#fff" />
+              </div>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -211,32 +289,78 @@ export default function Topbar() {
               style={{ display: "none" }}
             />
           </div>
-          <div style={{ lineHeight: 1.2 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, color: "#111827" }}>{adminName}</div>
-            <div style={{ fontSize: 11.5, color: "#9CA3AF" }}>{adminRoleLabel}</div>
+          <div className="ai-admin-name" style={{ lineHeight: 1.3 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--ai-text)" }}>{adminName}</div>
+            <div style={{ fontSize: 12.5, color: "var(--ai-muted)" }}>{adminRoleLabel}</div>
           </div>
-          <ChevronDown size={16} color="#9CA3AF" />
+          <ChevronDown size={18} color="var(--ai-text)" />
         </div>
       </div>
+
+      <style>{`
+        :root {
+          --ai-bg: #F4F7FC;
+          --ai-card: #ffffff;
+          --ai-text: #0f172a;
+          --ai-muted: #64748b;
+          --ai-soft: #94a3b8;
+          --ai-border: rgba(15,23,42,0.07);
+          --ai-input: #ffffff;
+          --ai-hover: #f1f5f9;
+          --ai-shadow: 0 6px 22px rgba(15,23,42,0.06);
+          --ai-side: #ffffff;
+          --ai-side-text: #1e293b;
+        }
+        :root[data-ai-theme="dark"] {
+          --ai-bg: #0b1220;
+          --ai-card: #111a2e;
+          --ai-text: #e5e7eb;
+          --ai-muted: #9ca3af;
+          --ai-soft: #6b7280;
+          --ai-border: rgba(255,255,255,0.07);
+          --ai-input: #0f172a;
+          --ai-hover: #1e293b;
+          --ai-shadow: 0 6px 22px rgba(0,0,0,0.35);
+          --ai-side: #0f172a;
+          --ai-side-text: #e2e8f0;
+        }
+        :root[data-ai-theme="dark"] select option { background: #111a2e; color: #e5e7eb; }
+        .ai-menu-btn { display: none; }
+        .ai-icon-btn { transition: transform .15s ease; }
+        .ai-icon-btn:hover { transform: translateY(-2px); }
+        @media (max-width: 1000px) {
+          .ai-menu-btn { display: flex; }
+        }
+        @media (max-width: 900px) {
+          .ai-kbd { display: none; }
+        }
+        @media (max-width: 640px) {
+          .ai-admin-name { display: none; }
+        }
+      `}</style>
     </div>
   );
 }
 
-function IconButton({ children, onClick, badge, badgeColor = "#EF4444" }) {
+function IconButton({ children, onClick, badge, badgeColor = "#EF4444", title }) {
   return (
     <div
+      className="ai-icon-btn"
       onClick={onClick}
+      title={title}
       style={{
-        width: 42,
-        height: 42,
+        width: 50,
+        height: 50,
         borderRadius: "50%",
-        background: "#F9FAFB",
-        border: "1.5px solid rgba(17,24,39,0.08)",
+        background: "var(--ai-card)",
+        border: "1px solid var(--ai-border)",
+        boxShadow: "var(--ai-shadow)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
         position: "relative",
         cursor: "pointer",
+        flexShrink: 0,
       }}
     >
       {children}
@@ -244,23 +368,23 @@ function IconButton({ children, onClick, badge, badgeColor = "#EF4444" }) {
         <span
           style={{
             position: "absolute",
-            top: 2,
-            right: 2,
-            minWidth: 16,
-            height: 16,
-            borderRadius: "50%",
+            top: 0,
+            right: 0,
+            minWidth: 19,
+            height: 19,
+            borderRadius: 999,
             background: badgeColor,
             color: "#fff",
-            fontSize: 9.5,
+            fontSize: 10,
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            fontWeight: 700,
-            border: "2px solid #fff",
-            padding: "0 3px",
+            fontWeight: 800,
+            border: "2px solid var(--ai-card)",
+            padding: "0 4px",
           }}
         >
-          {badge > 9 ? "9+" : badge}
+          {badge > 99 ? "99+" : badge}
         </span>
       )}
     </div>
