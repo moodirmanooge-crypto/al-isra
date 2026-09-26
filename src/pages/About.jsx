@@ -272,7 +272,7 @@ function DeveloperModal({ open, onClose }) {
             </div>
           </div>
 
-          
+          <a
             href={DEVELOPER_CONTACT_URL}
             target="_blank"
             rel="noopener noreferrer"
@@ -416,7 +416,7 @@ export default function About() {
 
             {helpOpen && (
               <div className="dots-menu help-menu">
-                
+                <a
                   href={`https://wa.me/${SUPPORT_WHATSAPP}`}
                   target="_blank"
                   rel="noopener noreferrer"
