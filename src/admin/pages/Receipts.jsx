@@ -779,15 +779,16 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         }
 
         @media print {
+  /* A5 (148mm x 210mm) — rasiidka waa jiif, sidaas darteed bogga A5 waxaa loo daabacayaa landscape */
   @page {
-    size: 102mm 152mm;
+    size: A5 landscape;
     margin: 0;
   }
 
   html,
   body {
-    width: 102mm !important;
-    height: 152mm !important;
+    width: 210mm !important;
+    height: 148mm !important;
     margin: 0 !important;
     padding: 0 !important;
     overflow: hidden !important;
@@ -809,23 +810,25 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
   }
 
   .rv-overlay {
-    position: absolute !important;
-    top: 25mm !important;
-    left: -25mm !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: auto !important;
 
-    width: 152mm !important;
-    height: 102mm !important;
+    width: 210mm !important;
+    height: 148mm !important;
 
     margin: 0 !important;
     padding: 0 !important;
+    gap: 0 !important;
 
     background: #ffffff !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
 
-    transform: rotate(90deg) !important;
-    transform-origin: center center !important;
+    transform: none !important;
 
     overflow: hidden !important;
     page-break-inside: avoid !important;
@@ -833,14 +836,15 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
   }
 
   .receipt-paper-container {
-    position: static !important;
+    position: relative !important;
     box-sizing: border-box !important;
 
-    width: 148mm !important;
-    max-width: 188mm !important;
-    max-height: 96mm !important;
+    width: 200mm !important;
+    max-width: 200mm !important;
+    height: auto !important;
+    max-height: 140mm !important;
 
-    margin: 0 !important;
+    margin: 0 auto !important;
     padding: 0 !important;
 
     background: #ffffff !important;
