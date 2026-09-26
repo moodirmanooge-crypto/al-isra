@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { collection, getDocs, doc, deleteDoc } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  getDoc,
+  doc,
+  deleteDoc,
+  query as fsQuery,
+  where,
+  limit,
+} from "firebase/firestore";
 import { db } from "../../firebase/firebase";
 import { Search, Printer, X, Receipt as ReceiptIcon, Trash2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
@@ -19,6 +28,26 @@ function formatDate(value) {
     month: "short",
     year: "numeric",
   });
+}
+
+// "Sep 2026" — bisha iyo sanadka oo keliya (maalinta lama muujinayo)
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatMonthYear(d) {
+  if (!d || isNaN(d.getTime())) return "—";
+  return `${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// parentPhone-ka ardayga oo laga soo akhriyo "students" collection-ka
+async function fetchParentPhone(studentId) {
+  if (!studentId) return "";
+  const id = String(studentId);
+  const snap = await getDoc(doc(db, "students", id));
+  if (snap.exists() && snap.data().parentPhone) return snap.data().parentPhone;
+  const qs = await getDocs(
+    fsQuery(collection(db, "students"), where("studentId", "==", id), limit(1))
+  );
+  if (!qs.empty && qs.docs[0].data().parentPhone) return qs.docs[0].data().parentPhone;
+  return "";
 }
 
 function addMonths(date, months) {
@@ -528,7 +557,22 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
     : 1;
   const coverageStart = paidDate;
   const coverageEnd = addMonths(paidDate, monthsCoveredCount);
-  const coveragePeriod = `${formatDate(coverageStart)} — ${formatDate(coverageEnd)}`;
+  const coveragePeriod = `${formatMonthYear(coverageStart)} — ${formatMonthYear(coverageEnd)}`;
+
+  const [parentPhone, setParentPhone] = useState(receipt.parentPhone || "");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (receipt.parentPhone) return;
+    fetchParentPhone(receipt.studentId)
+      .then((phone) => {
+        if (!cancelled && phone) setParentPhone(phone);
+      })
+      .catch((err) => console.error("Khalad ayaa dhacay markii parentPhone la soo akhrinayay:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [receipt.id]);
 
   const handleDownloadPdf = async () => {
     try {
@@ -614,7 +658,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
               <div className="r-inwords">{amountWords} Only</div>
               <div className="r-beingof">{coveragePeriod}</div>
               <div className="r-class">{receipt.className || "—"}</div>
-              <div className="r-tel">{receipt.studentPhone || receipt.parentPhone || "—"}</div>
+              <div className="r-tel">{parentPhone || receipt.studentPhone || "—"}</div>
               <div className="r-evc-check">✓</div>
             </div>
           </div>

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   doc,
+  getDoc,
+  where,
   runTransaction,
   collection,
   setDoc,
@@ -71,6 +73,32 @@ function amountToWords(amount) {
     words += ` and ${integerToWords(cents)} Cent${cents === 1 ? "" : "s"}`;
   }
   return words;
+}
+
+// "Sep 2026" — bisha iyo sanadka oo keliya (maalinta lama muujinayo)
+const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function formatMonthYear(d) {
+  if (!d || isNaN(d.getTime())) return "—";
+  return `${MONTHS_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function addMonths(date, months) {
+  const d = new Date(date.getTime());
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+// parentPhone-ka ardayga oo laga soo akhriyo "students" collection-ka
+async function fetchParentPhone(studentId) {
+  if (!studentId) return "";
+  const id = String(studentId);
+  const snap = await getDoc(doc(db, "students", id));
+  if (snap.exists() && snap.data().parentPhone) return snap.data().parentPhone;
+  const qs = await getDocs(
+    query(collection(db, "students"), where("studentId", "==", id), limit(1))
+  );
+  if (!qs.empty && qs.docs[0].data().parentPhone) return qs.docs[0].data().parentPhone;
+  return "";
 }
 
 const getNextReceiptNumber = async () => {
@@ -225,6 +253,21 @@ export default function ReceiptModal({ payment, onClose }) {
     };
   }, []);
 
+  const [parentPhone, setParentPhone] = useState(payment?.parentPhone || "");
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!payment || payment.parentPhone) return;
+    fetchParentPhone(payment.studentId)
+      .then((phone) => {
+        if (!cancelled && phone) setParentPhone(phone);
+      })
+      .catch((err) => console.error("Khalad ayaa dhacay markii parentPhone la soo akhrinayay:", err));
+    return () => {
+      cancelled = true;
+    };
+  }, [payment?.studentId]);
+
   if (!payment) return null;
 
   const paidDate = payment.createdAt?.seconds
@@ -245,7 +288,13 @@ export default function ReceiptModal({ payment, onClose }) {
 
   const sosAmount = totalPaidAmount;
   const amountWords = amountToWords(totalPaidAmount);
-  const monthDescription = payment.monthLabel || "Monthly Fee";
+  const monthsCoveredCount =
+    Array.isArray(payment.monthsCovered) && payment.monthsCovered.length > 0
+      ? payment.monthsCovered.length
+      : 1;
+  const monthDescription = `${formatMonthYear(paidDate)} — ${formatMonthYear(
+    addMonths(paidDate, monthsCoveredCount)
+  )}`;
 
   return (
     <>
@@ -285,7 +334,7 @@ export default function ReceiptModal({ payment, onClose }) {
                 <div className="r-inwords">{amountWords} Only</div>
                 <div className="r-beingof">{monthDescription}</div>
                 <div className="r-class">{payment.className || "—"}</div>
-                <div className="r-tel">{payment.studentPhone || payment.parentPhone || "—"}</div>
+                <div className="r-tel">{parentPhone || payment.studentPhone || "—"}</div>
                 <div className="r-evc-check">✓</div>
               </div>
             </div>
