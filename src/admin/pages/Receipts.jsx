@@ -700,14 +700,14 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           position: absolute;
           top: 51.8%;
           left: 11.5%;
-          font-size: 11px;
+          font-size: 15px;
         }
 
         .r-studentid {
           position: absolute;
           top: 56.0%;
           left: 13.8%;
-          font-size: 11px;
+          font-size: 15px;
           font-weight: 800;
         }
 
@@ -724,7 +724,7 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           position: absolute;
           top: 67.5%;
           right: 17.5%;
-          font-size: 12px;
+          font-size: 15px;
           font-weight: 800;
           text-align: right;
         }
@@ -756,9 +756,9 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
         .r-class {
           position: absolute;
-          top: 78.0%;
-          right: 8.5%;
-          font-size: 11px;
+          top: 79.0%;
+          right: 11.5%;
+          font-size: 14px;
         }
 
         .r-tel {
