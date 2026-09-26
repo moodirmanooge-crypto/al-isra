@@ -73,7 +73,7 @@ const superAdminOnlyMenus = [
   { name: "Manage Admins", icon: ShieldCheck, path: "/admin/manage-admins" },
 ];
 
-const SUPPORT_WHATSAPP = "252617390261"; // international format, no + or leading 0
+const SUPPORT_WHATSAPP = "252615860629"; // international format, no + or leading 0
 const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 
 export default function Sidebar() {

@@ -8,7 +8,7 @@ const SCHOOL = {
   slogan: '"Education is life it`s self"',
   officeLine1: "Primary Office: Wadajir,",
   officeLine2: "Mogadishu-Somalia",
-  phone: "+252-617390261",
+  phone: "+252-615860629",
   email: "alisraprimaryandsecondaryschool@gmail.com",
   website: "alisraschool.com",
 };

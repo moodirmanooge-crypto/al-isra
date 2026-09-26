@@ -15,7 +15,7 @@ const SCHOOL = {
   noticeOffice: "Main Office Wadajir District",
   noticeCity: "Mogadishu-Somalia",
   noticeEmail: "alisraprimaryandsecondaryschool@gmail.com",
-  noticeTell: "+252-617390261",
+  noticeTell: "+252-615860629",
 };
 
 function formatDate(d) {

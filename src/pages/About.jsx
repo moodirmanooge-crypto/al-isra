@@ -5,7 +5,7 @@ import heroPhoto from "../admin/assets/hero-students.jpg";
 import { Link } from "react-router-dom";
 import { useState, useRef, useEffect, useCallback } from "react";
 
-const SUPPORT_WHATSAPP = "252617390261";
+const SUPPORT_WHATSAPP = "252615860629";
 const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 const SUPPORT_PHONE_DISPLAY = "+252 61 5860629";
 const SUPPORT_LOCATION = "Mogadishu, Somalia";

@@ -5,7 +5,7 @@ import { Link } from "react-router-dom";
 import { useEffect } from "react";
 import { MessageCircle, Mail, Phone, MapPin, Clock } from "lucide-react";
 
-const SUPPORT_WHATSAPP = "252617390261";
+const SUPPORT_WHATSAPP = "252615860629";
 const SUPPORT_EMAIL = "alisraprimaryandsecondaryschool@gmail.com";
 const WHATSAPP_MESSAGE =
   "Salaan, waxaan rabaa inaan wax ka weydiiyo AL - ISRA School.";
@@ -191,7 +191,7 @@ export default function Contact() {
         </div>
 
         <div className="home-footer-contact">
-          <a href="tel:+252617390261">+252 61 5860629</a>
+          <a href="tel:+252615860629">+252 61 5860629</a>
           <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>
           <span>Mogadishu, Somalia</span>
         </div>
