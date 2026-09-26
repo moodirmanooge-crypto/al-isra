@@ -715,8 +715,9 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
           position: absolute;
           top: 60.5%;
           left: 19%;
-          font-size: 12px;
-          font-weight: 800;
+          font-size: 15px;
+          font-weight: 900;
+          letter-spacing: 0.4px;
         }
 
         .r-amtsos {

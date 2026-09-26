@@ -183,18 +183,26 @@ export default function Dashboard() {
         teachersById[t.id] = t;
       });
 
-      const cashierSnap = await getDocs(collection(db, "cashier"));
-      // Only count cashier docs whose ID is a real username-style string,
-      // not the numeric/padded-number placeholder docs (e.g. "0001", "0002").
-      const cashierList = cashierSnap.docs
-        .map((d) => ({ id: d.id, ...d.data() }))
-        .filter((c) => !/^\d+$/.test(c.id));
-      setCashiersCount(cashierList.length);
+      // Ardayda lacag bixiya (feeType = "Paid") — kuwan ayaa ah kuwa cashier-ku
+      // lacagta ka qaado. Ardayda "Free" ah lagama xisaabinayo lacag.
+      const isFreeStudent = (s) =>
+        String(s.feeType || "").trim().toLowerCase() === "free";
+      const paidStudentsList = studentsList.filter((s) => !isFreeStudent(s));
+      setCashiersCount(paidStudentsList.length);
 
+      // Waalidiinta — waxaa laga xisaabiyaa parentPhone-ka ardayda. Lambarka
+      // waa la nadiifiyaa (meelaha bannaan, +252 / 252 / 0 hore) si isla
+      // waalidka hal mar keliya loogu tiriyo, xitaa haddii qaab kale loo qoray.
+      const normalizePhone = (phone) => {
+        let digits = String(phone || "").replace(/\D/g, "");
+        if (digits.startsWith("252")) digits = digits.slice(3);
+        digits = digits.replace(/^0+/, "");
+        return digits;
+      };
       const uniqueParentPhones = new Set(
         studentsList
-          .map((s) => s.parentPhone)
-          .filter((phone) => phone && phone.trim() !== "")
+          .map((s) => normalizePhone(s.parentPhone))
+          .filter((phone) => phone !== "")
       );
       setParentsCount(uniqueParentPhones.size);
 
@@ -218,20 +226,30 @@ export default function Dashboard() {
       setGrowth({
         students: computeMonthGrowth(studentsList),
         teachers: computeMonthGrowth(teachersList),
-        cashiers: computeMonthGrowth(cashierList),
+        cashiers: computeMonthGrowth(paidStudentsList),
         parents: null, // parents aren't a real collection with createdAt — no reliable growth signal
         classes: null, // classes are derived from student.className, not their own dated docs
       });
 
-      // Fee stats — pulled from the real "payments" collection (source of truth
-      // for money actually collected) and the "monthlyFee" field on each student
-      // (source of truth for what's expected). Student docs do NOT have
-      // totalFee/paidFee fields, so those can't be used.
-      const paymentsSnap = await getDocs(collection(db, "payments"));
-      const paymentsList = paymentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-      const collected = paymentsList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+      // Fee stats (This Month):
+      // - Total Fees: monthlyFee-ka ardayda Paid ah oo keliya (Free lama xisaabinayo)
+      // - Collected: rasiidhada dhabta ah ee "receipts" (paidAmount) ee bishan
+      // - Pending: Total - Collected
+      const receiptsSnap = await getDocs(collection(db, "receipts"));
+      const receiptsList = receiptsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-      const expectedTotal = studentsList.reduce(
+      const nowFee = new Date();
+      const feeMonthStart = new Date(nowFee.getFullYear(), nowFee.getMonth(), 1).getTime() / 1000;
+      const feeMonthEnd = new Date(nowFee.getFullYear(), nowFee.getMonth() + 1, 1).getTime() / 1000;
+
+      const collected = receiptsList
+        .filter((r) => {
+          const secs = r.paidAt?.seconds || r.createdAt?.seconds;
+          return secs && secs >= feeMonthStart && secs < feeMonthEnd;
+        })
+        .reduce((sum, r) => sum + (Number(r.paidAmount) || 0), 0);
+
+      const expectedTotal = paidStudentsList.reduce(
         (sum, s) => sum + (Number(s.monthlyFee) || 0),
         0
       );
