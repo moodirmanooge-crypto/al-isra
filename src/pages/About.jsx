@@ -118,7 +118,7 @@ const DEVELOPER_INFO = {
   },
 };
 
-const DEVELOPER_CONTACT_URL = "https://galladtech.com/bio?utm_source=chatgpt.com";
+const DEVELOPER_CONTACT_URL = "https://galladtech.com/bio";
 
 // Types the given text out one character at a time, once, starting after
 // `startDelay` ms. Used once for the hero lede — the single deliberate
@@ -194,13 +194,13 @@ function DeveloperModal({ open, onClose }) {
   useEffect(() => {
     if (!open) return;
 
-    // Xir scroll-ka bogga intii modal-ku furan yahay
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
     function handleKeyDown(e) {
       if (e.key === "Escape") onClose();
     }
+
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
@@ -220,25 +220,61 @@ function DeveloperModal({ open, onClose }) {
         dir={lang === "ar" ? "rtl" : "ltr"}
         onClick={(e) => e.stopPropagation()}
       >
+        <div className="dev-modal-glow dev-modal-glow-one" />
+        <div className="dev-modal-glow dev-modal-glow-two" />
+
         <button
           type="button"
           className="dev-modal-close"
           onClick={onClose}
-          aria-label="Close"
+          aria-label="Close developer information"
         >
-          ×
+          <span>×</span>
         </button>
 
-        {/* Sawirka Developer-ka + ring-ga 3D wareega */}
-        <div className="dev-modal-photo-zone">
-          <div className="dev-modal-ring" />
-          <div className="dev-modal-photo-wrap">
-            <img src="/gulled.png" alt="Gulled Ibrahim Dahir" className="dev-modal-photo" />
+        <div className="dev-modal-top">
+          <div className="dev-modal-photo-zone">
+            <div className="dev-orbit dev-orbit-one" />
+            <div className="dev-orbit dev-orbit-two" />
+            <div className="dev-orbit-dot dev-orbit-dot-one" />
+            <div className="dev-orbit-dot dev-orbit-dot-two" />
+            <div className="dev-modal-ring" />
+
+            <div className="dev-modal-photo-wrap">
+              <img
+                src="/gulled.png"
+                alt="Gulled Ibrahim Dahir"
+                className="dev-modal-photo"
+              />
+            </div>
+
+            <div className="dev-floating-chip dev-chip-top">✦ GALLAD.TECH</div>
+            <div className="dev-floating-chip dev-chip-bottom">DEVELOPER</div>
+          </div>
+
+          <div className="dev-modal-intro">
+            <span className="dev-modal-kicker">
+              <span className="dev-kicker-dot" />
+              GALLAD.TECH_PLATFORMS
+            </span>
+
+            <h2 className="dev-modal-name">Gulled Ibrahim Dahir</h2>
+
+            <p className="dev-modal-role">
+              Software Developer &amp; Digital Solutions Creator
+            </p>
+
+            <div className="dev-modal-mini-line">
+              <span>Web</span>
+              <i />
+              <span>Mobile</span>
+              <i />
+              <span>Systems</span>
+            </div>
           </div>
         </div>
 
-        {/* Tabs-ka luqadaha */}
-        <div className="dev-modal-lang-tabs">
+        <div className="dev-modal-lang-tabs" aria-label="Language selection">
           {Object.entries(DEVELOPER_INFO).map(([key, val]) => (
             <button
               key={key}
@@ -251,9 +287,11 @@ function DeveloperModal({ open, onClose }) {
           ))}
         </div>
 
-        {/* Qoraalka macluumaadka */}
         <div className="dev-modal-body">
-          <h2 className="dev-modal-heading">{d.heading}</h2>
+          <div className="dev-modal-heading-row">
+            <span className="dev-heading-line" />
+            <h3 className="dev-modal-heading">{d.heading}</h3>
+          </div>
 
           {d.paragraphs.map((p, i) => (
             <p className="dev-modal-paragraph" key={i}>
@@ -273,12 +311,14 @@ function DeveloperModal({ open, onClose }) {
           </div>
 
           <a
-            href={DEVELOPER_CONTACT_URL}
+            href="https://galladtech.com/bio"
             target="_blank"
             rel="noopener noreferrer"
             className="dev-modal-contact-btn"
           >
-            🔗 {d.contactLabel}
+            <span className="dev-contact-icon">↗</span>
+            <span>{d.contactLabel}</span>
+            <span className="dev-contact-arrow">→</span>
           </a>
 
           <p className="dev-modal-quote">{d.quote}</p>
@@ -639,16 +679,72 @@ export default function About() {
         </div>
       </section>
 
-      {/* ---------- Badhanka "Ku Saabsan Developer-ka" — salka bogga ---------- */}
-      <section className="about-dev-section">
-        <button
-          type="button"
-          className="about-dev-btn"
-          onClick={() => setDevOpen(true)}
-        >
-          <span className="about-dev-btn-icon">👨‍💻</span>
-          Ku Saabsan Developer-ka
-        </button>
+      {/* ---------- Developer Showcase — dhexda bogga ---------- */}
+      <section className="about-developer-center">
+        <div className="about-developer-center-inner">
+          <div className="about-developer-center-copy">
+            <span className="about-developer-eyebrow">
+              <span>✦</span> GALLAD.TECH_PLATFORMS
+            </span>
+
+            <h2 className="about-developer-title">
+              About the <em>Developer</em>
+            </h2>
+
+            <p className="about-developer-subtitle">
+              Modern websites, mobile applications, business systems and
+              customized digital solutions — built with technology and purpose.
+            </p>
+
+            <div className="about-developer-person">
+              <div className="about-developer-name">Gulled Ibrahim Dahir</div>
+              <div className="about-developer-role">
+                Software Developer &amp; Digital Solutions Creator
+              </div>
+            </div>
+
+            <div className="about-developer-actions">
+              <a
+                href="https://galladtech.com/bio"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="about-developer-contact"
+              >
+                <span>↗</span>
+                Contact Developer
+              </a>
+
+              <button
+                type="button"
+                className="about-developer-more"
+                onClick={() => setDevOpen(true)}
+              >
+                View in 3 Languages
+              </button>
+            </div>
+          </div>
+
+          <div className="about-developer-visual" aria-hidden="true">
+            <div className="developer-orbit developer-orbit-a" />
+            <div className="developer-orbit developer-orbit-b" />
+            <div className="developer-orbit developer-orbit-c" />
+
+            <span className="developer-particle developer-particle-a">✦</span>
+            <span className="developer-particle developer-particle-b">•</span>
+            <span className="developer-particle developer-particle-c">✦</span>
+
+            <div className="about-developer-photo">
+              <img src="/gulled.png" alt="Gulled Ibrahim Dahir" />
+            </div>
+
+            <div className="developer-floating-label developer-label-top">
+              GALLAD.TECH
+            </div>
+            <div className="developer-floating-label developer-label-bottom">
+              DEVELOPER
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* ---------- Footer ---------- */}
