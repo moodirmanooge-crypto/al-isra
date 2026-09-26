@@ -77,6 +77,49 @@ const STATS = [
 const HERO_LEDE =
   "Since 2014, AL - ISRA Primary & Secondary School has been committed to academic excellence, character building and innovative learning — preparing every child to become a responsible global citizen and future leader.";
 
+// ---- Xogta Developer-ka: 3-da luqadood (Soomaali / English / Carabi) ----
+// Halkan ayaad ka bedeli kartaa qoraalka haddii mustaqbalka wax isbedel ah timaado.
+const DEVELOPER_INFO = {
+  so: {
+    tabLabel: "🇸🇴 Soomaali",
+    heading: "Ku Saabsan Developer-ka",
+    paragraphs: [
+      "GALLAD.TECH_PLATFORMS waa madal teknoolojiyadeed iyo xalal dijitaal ah oo uu aasaasay Gulled Ibrahim Dahir, kuna takhasustay dhisidda adeegyo dijitaal ah oo casri ah, la isku halayn karo, isla markaana si fudud loo isticmaali karo.",
+      "Waxaan naqshadeynaa oo horumarinnaa websites, mobile applications, business systems, iyo xalal dijitaal ah oo gaar loo sameeyo, kuwaas oo ka caawiya ganacsiyada, hay'adaha iyo shaqsiyaadka inay horumariyaan adeeggooda ayna ka faa'iideystaan teknoolojiyadda.",
+    ],
+    developerLabel: "Developer:",
+    platformLabel: "Platform:",
+    contactLabel: "La xiriir Developer-ka",
+    quote: "“Waxaan fikradaha u beddelnaa xalal dijitaal ah oo casri ah.”",
+  },
+  en: {
+    tabLabel: "🇬🇧 English",
+    heading: "About the Developer",
+    paragraphs: [
+      "GALLAD.TECH_PLATFORMS is a technology and digital solutions platform founded by Gulled Ibrahim Dahir, focused on creating modern, reliable, and user-friendly digital products.",
+      "We design and develop websites, mobile applications, business systems, and customized digital solutions that help businesses, organizations, and individuals improve their services and grow through technology.",
+    ],
+    developerLabel: "Developer:",
+    platformLabel: "Platform:",
+    contactLabel: "Contact the Developer",
+    quote: "“Turning ideas into modern digital solutions.”",
+  },
+  ar: {
+    tabLabel: "🇸🇦 العربية",
+    heading: "عن المطوّر",
+    paragraphs: [
+      "GALLAD.TECH_PLATFORMS هي منصة متخصصة في التكنولوجيا والحلول الرقمية، أسسها Gulled Ibrahim Dahir، وتركّز على إنشاء منتجات رقمية حديثة وموثوقة وسهلة الاستخدام.",
+      "نقوم بتصميم وتطوير المواقع الإلكترونية، وتطبيقات الهاتف المحمول، وأنظمة الأعمال، والحلول الرقمية المخصصة التي تساعد الشركات والمؤسسات والأفراد على تطوير خدماتهم والاستفادة من التكنولوجيا لتحقيق النمو.",
+    ],
+    developerLabel: "المطوّر:",
+    platformLabel: "المنصة:",
+    contactLabel: "للتواصل مع المطوّر",
+    quote: "«نحوّل الأفكار إلى حلول رقمية حديثة.»",
+  },
+};
+
+const DEVELOPER_CONTACT_URL = "https://galladtech.com/bio?utm_source=chatgpt.com";
+
 // Types the given text out one character at a time, once, starting after
 // `startDelay` ms. Used once for the hero lede — the single deliberate
 // "written by hand" moment on this page, not repeated elsewhere.
@@ -141,9 +184,114 @@ function RevealSection({ as: Tag = "section", className = "", children, ...rest 
   );
 }
 
+// ---- Modal-ka "Ku Saabsan Developer-ka" ----
+// Wuxuu leeyahay: sawir + ring 3D wareega, tabs 3-da luqadood, iyo
+// qoraal la naqshadeeyay (mana aha raw text). Wuxuu xirmaa marka la
+// taabto Escape ama marka lagu dhufto meesha madow ee gadaasha.
+function DeveloperModal({ open, onClose }) {
+  const [lang, setLang] = useState("so");
+
+  useEffect(() => {
+    if (!open) return;
+
+    // Xir scroll-ka bogga intii modal-ku furan yahay
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(e) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const d = DEVELOPER_INFO[lang];
+
+  return (
+    <div className="dev-modal-overlay" onClick={onClose}>
+      <div
+        className="dev-modal-card"
+        dir={lang === "ar" ? "rtl" : "ltr"}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          className="dev-modal-close"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          ×
+        </button>
+
+        {/* Sawirka Developer-ka + ring-ga 3D wareega */}
+        <div className="dev-modal-photo-zone">
+          <div className="dev-modal-ring" />
+          <div className="dev-modal-photo-wrap">
+            <img src="/gulled.png" alt="Gulled Ibrahim Dahir" className="dev-modal-photo" />
+          </div>
+        </div>
+
+        {/* Tabs-ka luqadaha */}
+        <div className="dev-modal-lang-tabs">
+          {Object.entries(DEVELOPER_INFO).map(([key, val]) => (
+            <button
+              key={key}
+              type="button"
+              className={`dev-lang-tab${lang === key ? " is-active" : ""}`}
+              onClick={() => setLang(key)}
+            >
+              {val.tabLabel}
+            </button>
+          ))}
+        </div>
+
+        {/* Qoraalka macluumaadka */}
+        <div className="dev-modal-body">
+          <h2 className="dev-modal-heading">{d.heading}</h2>
+
+          {d.paragraphs.map((p, i) => (
+            <p className="dev-modal-paragraph" key={i}>
+              {p}
+            </p>
+          ))}
+
+          <div className="dev-modal-meta">
+            <div className="dev-modal-meta-row">
+              <span className="dev-modal-meta-label">{d.developerLabel}</span>
+              <span className="dev-modal-meta-value">Gulled Ibrahim Dahir</span>
+            </div>
+            <div className="dev-modal-meta-row">
+              <span className="dev-modal-meta-label">{d.platformLabel}</span>
+              <span className="dev-modal-meta-value">GALLAD.TECH_PLATFORMS</span>
+            </div>
+          </div>
+
+          
+            href={DEVELOPER_CONTACT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="dev-modal-contact-btn"
+          >
+            🔗 {d.contactLabel}
+          </a>
+
+          <p className="dev-modal-quote">{d.quote}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function About() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [devOpen, setDevOpen] = useState(false); // ---- Modal-ka Developer-ka ----
   const menuRef = useRef(null);
   const helpRef = useRef(null);
 
@@ -268,7 +416,7 @@ export default function About() {
 
             {helpOpen && (
               <div className="dots-menu help-menu">
-                <a
+                
                   href={`https://wa.me/${SUPPORT_WHATSAPP}`}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -491,6 +639,18 @@ export default function About() {
         </div>
       </section>
 
+      {/* ---------- Badhanka "Ku Saabsan Developer-ka" — salka bogga ---------- */}
+      <section className="about-dev-section">
+        <button
+          type="button"
+          className="about-dev-btn"
+          onClick={() => setDevOpen(true)}
+        >
+          <span className="about-dev-btn-icon">👨‍💻</span>
+          Ku Saabsan Developer-ka
+        </button>
+      </section>
+
       {/* ---------- Footer ---------- */}
       <footer className="home-footer">
         <div className="home-footer-left">
@@ -515,6 +675,9 @@ export default function About() {
           "Excellence in Education, Bright Future for Every Child."
         </div>
       </footer>
+
+      {/* ---------- Modal-ka Developer-ka ---------- */}
+      <DeveloperModal open={devOpen} onClose={() => setDevOpen(false)} />
     </div>
   );
 }
