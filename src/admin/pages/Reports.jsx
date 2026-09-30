@@ -10,7 +10,6 @@ import {
   Clock,
   Search,
   Calendar,
-  CreditCard,
   Phone,
   Smartphone,
   Layers,
@@ -186,10 +185,11 @@ export default function Reports() {
       const status = getStatus(p);
       const statusMatch = statusFilter === "All" || status === statusFilter;
 
-      const typeMatch = 
-        typeFilter === "All" || 
-        p.type === typeFilter || 
-        (typeFilter === "regular" && (p.type === "regular" || p.type === "registration" || p.type === "rollNumber" || p.type === "examination"));
+      // "regular" = Cashier transactions ONLY.
+      // Registration, Roll Number, Examination and Exam Card are separate categories.
+      const typeMatch =
+        typeFilter === "All" ||
+        p.type === typeFilter;
 
       const studentPhone = getStudentPhone(p);
       const parentPhone = getParentPhone(p);
@@ -414,8 +414,12 @@ export default function Reports() {
               doc.setFontSize(8.5);
               doc.setFont("helvetica", "bold");
               
-              // Totals oo la raaciyay Registration, Roll number, iyo Examination Fees
-              const summaryText = `Total Income: $${totals.totalIncome}   |   Cashier: $${totals.regularIncome}   |   Registration: $${totals.registrationIncome}   |   Roll Number: $${totals.rollNumberIncome}   |   Examination: $${totals.examinationIncome}   |   Exam Card: $${totals.examCardIncome}   |   Full Paid: ${totals.fullPaid}   |   Partial: ${totals.partialPaid}   |   Unpaid: ${totals.unpaid}`;
+              // Keep the PDF footer summary clean: only the two financial totals.
+              // Registration, Roll Number, Examination, Exam Card, Partial and Unpaid
+              // are intentionally NOT shown in the bottom summary.
+              const summaryText =
+                `Total Income: $${totals.totalIncome.toLocaleString()}   |   ` +
+                `Cashier: $${totals.regularIncome.toLocaleString()}`;
               doc.text(summaryText, 30, finalY + 22);
             }
           }
@@ -491,6 +495,13 @@ export default function Reports() {
           select option {
             background: #1e1a4a;
             color: #ffffff;
+          }
+
+          @media (max-width: 900px) {
+            .reports-summary-main,
+            .reports-summary-status {
+              grid-template-columns: 1fr !important;
+            }
           }
         `}</style>
 
@@ -666,7 +677,7 @@ export default function Reports() {
               onChange={(e) => setTypeFilter(e.target.value)}
             >
               <option value="All">Dhammaan Nooca Lacagta</option>
-              <option value="regular">Lacagta Cashierka (Caadiga ah)</option>
+              <option value="regular">Lacagta Cashierka Kaliya</option>
               <option value="registration">Registration Fees</option>
               <option value="rollNumber">Roll Number Fees</option>
               <option value="examination">Examination Fees</option>
@@ -689,40 +700,36 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* Summary Cards */}
+        {/* Summary Cards — simplified to the information used by the report */}
         <div
+          className="reports-summary-main"
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 20,
-            marginBottom: 20,
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 18,
+            marginBottom: 18,
           }}
         >
           <SummaryCard
             icon={Wallet}
-            label="Wadarta Lacagta Soo Gashay (Dhammaan)"
+            label="Wadarta Lacagta Soo Gashay"
             value={`$${totals.totalIncome.toLocaleString()}`}
             color="#6d5df0"
           />
           <SummaryCard
             icon={Wallet}
-            label="Lacagta Cashierka (Caadiga ah)"
+            label="Lacagta Cashierka"
             value={`$${totals.cashierTotal.toLocaleString()}`}
             color="#38BDF8"
-          />
-          <SummaryCard
-            icon={CreditCard}
-            label="Lacagta Kaarka Imtixaanka"
-            value={`$${totals.examCardIncome.toLocaleString()}`}
-            color="#A855F7"
           />
         </div>
 
         <div
+          className="reports-summary-status"
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 20,
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: 18,
             marginBottom: 34,
           }}
         >
