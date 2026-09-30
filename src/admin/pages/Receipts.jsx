@@ -16,7 +16,7 @@ import Topbar from "../components/Topbar";
 
 import receiptBgTemplate from "../../assets/receipt.png";
 
-const SCHOOL_NAME_LINE2 = "DUGSIGA HOOSE / DHEXE & SARE RISING STAR SCHOOL";
+const SCHOOL_NAME_LINE2 = "DUGSIGA HOOSE / DHEXE & SARE AL-ISRA SCHOOL";
 const USD_TO_SOS_RATE = 28; // Ma la isticmaalayo hadda — "Amount of So Sh." wuxuu hadda tusayaa isla lacagta USD-ga ah
 
 function formatDate(value) {
