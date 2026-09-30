@@ -239,7 +239,7 @@ export default function Reports() {
       rollNumberIncome,
       examinationIncome,
       examCardIncome,
-      cashierTotal: regularIncome + registrationIncome + rollNumberIncome + examinationIncome,
+      cashierTotal: regularIncome,
       fullPaid,
       partialPaid,
       unpaid,
@@ -479,430 +479,546 @@ export default function Reports() {
   };
 
   return (
-    <div style={{ background: "#0b0a1c", minHeight: "100vh", padding: "30px" }}>
-      <div
-        style={{
-          background: "linear-gradient(160deg,#151233,#181341)",
-          borderRadius: 24,
-          padding: "36px 40px",
-          border: "1px solid rgba(139,108,245,0.25)",
-          maxWidth: 1400,
-          margin: "0 auto",
-          position: "relative",
-        }}
-      >
-        <style>{`
-          select option {
-            background: #1e1a4a;
-            color: #ffffff;
-          }
+    <div className="reports-page">
+      <style>{`
+        .reports-page {
+          min-height: 100vh;
+          background: #f3efe3;
+          color: #172033;
+          padding: 24px;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
 
-          @media (max-width: 900px) {
-            .reports-summary-main,
-            .reports-summary-status {
-              grid-template-columns: 1fr !important;
-            }
-          }
-        `}</style>
+        .report-shell {
+          width: min(1500px, 100%);
+          margin: 0 auto;
+          background: #fffdf7;
+          border: 1px solid #c8b77e;
+          border-radius: 24px;
+          box-shadow: 0 16px 45px rgba(42, 48, 64, .12);
+          overflow: hidden;
+        }
 
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 16,
-            marginBottom: 30,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div
-              style={{
-                width: 55,
-                height: 55,
-                borderRadius: 15,
-                background: "linear-gradient(135deg,#6d5df0,#8b6cf5)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <BarChart3 color="#fff" size={26} />
-            </div>
+        .report-header {
+          position: relative;
+          padding: 22px 28px 18px;
+          display: grid;
+          grid-template-columns: minmax(300px, 1fr) auto;
+          align-items: center;
+          gap: 22px;
+          background: linear-gradient(180deg, #fffdf7 0%, #f6f0df 100%);
+          border-bottom: 1px solid #d5c58f;
+        }
+
+        .report-header:after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 4px;
+          background: linear-gradient(90deg, #142d50, #c9ae61, #142d50);
+        }
+
+        .school-brand {
+          display: flex;
+          align-items: center;
+          gap: 15px;
+        }
+
+        .school-logo {
+          width: 66px;
+          height: 66px;
+          object-fit: contain;
+          border-radius: 50%;
+          background: #fff;
+          border: 2px solid #c9b776;
+          box-shadow: 0 4px 12px rgba(20,45,80,.14);
+          padding: 3px;
+        }
+
+        .school-name {
+          margin: 0;
+          color: #9b8350;
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: clamp(20px, 2.1vw, 29px);
+          letter-spacing: .5px;
+          line-height: 1.1;
+        }
+
+        .report-title {
+          margin: 6px 0 0;
+          font-size: 20px;
+          color: #101923;
+          font-weight: 800;
+        }
+
+        .report-range {
+          margin-top: 3px;
+          color: #414957;
+          font-size: 13px;
+        }
+
+        .report-actions {
+          display: flex;
+          gap: 9px;
+          align-items: center;
+        }
+
+        .report-action {
+          border: 1px solid #b9a666;
+          background: #142d50;
+          color: #fff;
+          border-radius: 10px;
+          padding: 10px 14px;
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+          font-size: 12px;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 4px 10px rgba(20,45,80,.12);
+        }
+
+        .report-action.secondary {
+          background: #fffdf7;
+          color: #142d50;
+        }
+
+        .report-action:disabled {
+          opacity: .55;
+          cursor: not-allowed;
+        }
+
+        .report-body {
+          padding: 18px 24px 28px;
+        }
+
+        .filters {
+          display: grid;
+          grid-template-columns: 1.05fr 1.05fr 1.15fr 1.25fr minmax(220px, 2fr);
+          gap: 10px;
+          margin-bottom: 15px;
+        }
+
+        .filter-box {
+          min-width: 0;
+          border: 1px solid #d0c49d;
+          background: #fffef9;
+          border-radius: 10px;
+          padding: 7px 10px;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+        }
+
+        .filter-label {
+          display: block;
+          color: #5d6572;
+          font-size: 10px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: .35px;
+          margin-bottom: 3px;
+        }
+
+        .filter-content {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .filter-content svg {
+          flex: 0 0 auto;
+          color: #284a70;
+        }
+
+        .filter-select {
+          width: 100%;
+          min-width: 0;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: #1d2938;
+          font-size: 12px;
+          font-weight: 700;
+          padding: 4px 0;
+        }
+
+        .search-box {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid #d0c49d;
+          background: #fffef9;
+          border-radius: 10px;
+          padding: 0 11px;
+        }
+
+        .search-box svg { color: #69717c; flex: 0 0 auto; }
+
+        .search-input {
+          width: 100%;
+          border: 0;
+          outline: 0;
+          background: transparent;
+          color: #1d2938;
+          font-size: 12px;
+          padding: 13px 0;
+        }
+
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+
+        .metric-card {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid #cfc39e;
+          border-radius: 13px;
+          background: linear-gradient(135deg, #fffef9, #f4efdf);
+          padding: 13px 15px;
+          min-height: 74px;
+        }
+
+        .metric-card:before {
+          content: "";
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 4px;
+          background: var(--metric-color);
+        }
+
+        .metric-label {
+          color: #646b76;
+          font-size: 10.5px;
+          font-weight: 800;
+          margin-bottom: 4px;
+        }
+
+        .metric-value {
+          color: #172033;
+          font-size: 21px;
+          font-weight: 900;
+          letter-spacing: -.4px;
+        }
+
+        .table-wrap {
+          overflow: auto;
+          border: 1px solid #c6b98f;
+          border-radius: 12px;
+          background: #fffef9;
+          box-shadow: 0 6px 18px rgba(31,43,60,.06);
+        }
+
+        .report-table {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          min-width: 1050px;
+        }
+
+        .report-table thead th {
+          position: sticky;
+          top: 0;
+          z-index: 2;
+          background: #183657;
+          color: #fff;
+          border-right: 1px solid rgba(255,255,255,.18);
+          padding: 8px 8px;
+          font-size: 10.5px;
+          font-weight: 800;
+          text-align: left;
+          white-space: nowrap;
+        }
+
+        .report-table tbody td {
+          border-right: 1px solid #d8ceb0;
+          border-bottom: 1px solid #ddd4bc;
+          padding: 7px 8px;
+          color: #1f2937;
+          font-size: 11px;
+          white-space: nowrap;
+          background: #fffdf7;
+        }
+
+        .report-table tbody tr:nth-child(even) td { background: #f7f2e5; }
+        .report-table tbody tr:hover td { background: #eee6cf; }
+
+        .student-photo {
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          object-fit: cover;
+          border: 1px solid #c8b77e;
+          vertical-align: middle;
+        }
+
+        .name-cell { font-weight: 750; color: #152235 !important; }
+        .money { font-weight: 800; }
+        .muted-cell { color: #69717c !important; }
+
+        .type-badge, .status-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          border-radius: 999px;
+          padding: 4px 8px;
+          font-size: 9.5px;
+          font-weight: 800;
+          white-space: nowrap;
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 55px 20px;
+          color: #6d7480;
+          font-size: 13px;
+        }
+
+        .report-footer {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 4px 0;
+          color: #6c727b;
+          font-size: 10px;
+        }
+
+        @media (max-width: 1150px) {
+          .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          .search-box { min-height: 42px; }
+          .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+
+        @media (max-width: 720px) {
+          .reports-page { padding: 10px; }
+          .report-header { grid-template-columns: 1fr; padding: 16px; }
+          .report-actions { justify-content: flex-start; }
+          .report-body { padding: 12px; }
+          .filters, .summary-grid { grid-template-columns: 1fr; }
+          .school-name { font-size: 20px; }
+        }
+      `}</style>
+
+      <div className="report-shell">
+        <header className="report-header">
+          <div className="school-brand">
+            <img className="school-logo" src={logo} alt="School Logo" />
             <div>
-              <h1 style={{ margin: 0, fontSize: 26, color: "#fff" }}>Reports</h1>
-              <div style={{ color: "#8b87ad", fontSize: 14 }}>
-                Warbixinta Lacagaha, Cashierka iyo Bixinta Ardayda
-              </div>
+              <h1 className="school-name">{SCHOOL_NAME}</h1>
+              <div className="report-title">Transaction Report</div>
+              <div className="report-range">Range: {rangeLabel}</div>
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              onClick={handleOpenHistory}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                background: "rgba(255,255,255,0.04)",
-                color: "#e5e3f7",
-                border: "1.5px solid rgba(139,108,245,0.35)",
-                borderRadius: 12,
-                padding: "12px 20px",
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: "pointer",
-              }}
-            >
-              <History size={18} />
+          <div className="report-actions">
+            <button className="report-action secondary" onClick={handleOpenHistory}>
+              <History size={15} />
               History
             </button>
-
-            <button
-              onClick={handleExportPdf}
-              disabled={exporting}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                background: "linear-gradient(135deg,#6d5df0,#8b6cf5)",
-                color: "#fff",
-                border: "none",
-                borderRadius: 12,
-                padding: "12px 20px",
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: exporting ? "not-allowed" : "pointer",
-                opacity: exporting ? 0.7 : 1,
-              }}
-            >
-              <FileDown size={18} />
-              {exporting ? "Diyaarinaya PDF..." : "Export PDF"}
+            <button className="report-action" onClick={handleExportPdf} disabled={exporting}>
+              <FileDown size={15} />
+              {exporting ? "Diyaarinaya..." : "Export PDF"}
             </button>
           </div>
-        </div>
+        </header>
 
-        {/* Range label */}
-        <div
-          style={{
-            color: "#a9a4d6",
-            fontSize: 13,
-            marginBottom: 14,
-            fontWeight: 600,
-          }}
-        >
-          Muujinaya: {rangeLabel}
-        </div>
+        <main className="report-body">
+          <div className="filters">
+            <div className="filter-box">
+              <span className="filter-label">Laga bilaabo</span>
+              <div className="filter-content">
+                <Calendar size={14} />
+                <select className="filter-select" value={fromMonth} onChange={(e) => setFromMonth(Number(e.target.value))}>
+                  {monthNames.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                </select>
+                <select className="filter-select" value={fromYear} onChange={(e) => setFromYear(Number(e.target.value))}>
+                  {years.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
 
-        {/* Filters */}
-        <div
-          style={{
-            display: "flex",
-            gap: 16,
-            flexWrap: "wrap",
-            marginBottom: 30,
-            alignItems: "center",
-            position: "relative",
-            zIndex: 20,
-          }}
-        >
-          <FilterBox icon={Calendar} label="Laga bilaabo">
-            <select
-              style={selectStyle}
-              value={fromMonth}
-              onChange={(e) => setFromMonth(Number(e.target.value))}
-            >
-              {monthNames.map((m, i) => (
-                <option key={m} value={i}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <select
-              style={selectStyle}
-              value={fromYear}
-              onChange={(e) => setFromYear(Number(e.target.value))}
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </FilterBox>
+            <div className="filter-box">
+              <span className="filter-label">Ilaa</span>
+              <div className="filter-content">
+                <Calendar size={14} />
+                <select className="filter-select" value={toMonth} onChange={(e) => setToMonth(Number(e.target.value))}>
+                  {monthNames.map((m, i) => <option key={m} value={i}>{m}</option>)}
+                </select>
+                <select className="filter-select" value={toYear} onChange={(e) => setToYear(Number(e.target.value))}>
+                  {years.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
 
-          <FilterBox icon={Calendar} label="Ilaa">
-            <select
-              style={selectStyle}
-              value={toMonth}
-              onChange={(e) => setToMonth(Number(e.target.value))}
-            >
-              {monthNames.map((m, i) => (
-                <option key={m} value={i}>
-                  {m}
-                </option>
-              ))}
-            </select>
-            <select
-              style={selectStyle}
-              value={toYear}
-              onChange={(e) => setToYear(Number(e.target.value))}
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-          </FilterBox>
+            <div className="filter-box">
+              <span className="filter-label">Status</span>
+              <div className="filter-content">
+                <Wallet size={14} />
+                <select className="filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="All">Dhammaan Status</option>
+                  <option value="Full Paid">Full Paid</option>
+                  <option value="Partial Paid">Partial Paid</option>
+                  <option value="Unpaid">Unpaid</option>
+                </select>
+              </div>
+            </div>
 
-          <FilterBox icon={Wallet}>
-            <select
-              style={selectStyle}
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">Dhammaan Status</option>
-              <option value="Full Paid">Full Paid</option>
-              <option value="Partial Paid">Partial Paid</option>
-              <option value="Unpaid">Unpaid</option>
-            </select>
-          </FilterBox>
+            <div className="filter-box">
+              <span className="filter-label">Nooca Lacagta</span>
+              <div className="filter-content">
+                <Layers size={14} />
+                <select className="filter-select" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                  <option value="All">Dhammaan Nooca Lacagta</option>
+                  <option value="regular">Lacagta Cashierka Kaliya</option>
+                  <option value="registration">Registration Fees</option>
+                  <option value="rollNumber">Roll Number Fees</option>
+                  <option value="examination">Examination Fees</option>
+                  <option value="examCard">Lacagta Kaarka Imtixaanka</option>
+                </select>
+              </div>
+            </div>
 
-          <FilterBox icon={Layers}>
-            <select
-              style={selectStyle}
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-            >
-              <option value="All">Dhammaan Nooca Lacagta</option>
-              <option value="regular">Lacagta Cashierka Kaliya</option>
-              <option value="registration">Registration Fees</option>
-              <option value="rollNumber">Roll Number Fees</option>
-              <option value="examination">Examination Fees</option>
-              <option value="examCard">Lacagta Kaarka Imtixaanka</option>
-            </select>
-          </FilterBox>
-
-          <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
-            <Search
-              size={17}
-              color="#8b87ad"
-              style={{ position: "absolute", left: 14, top: 13 }}
-            />
-            <input
-              style={{ ...inputStyle, paddingLeft: 40 }}
-              placeholder="Raadi magaca, ID-ga, ama numbarka waalidka..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+            <div className="search-box">
+              <Search size={16} />
+              <input
+                className="search-input"
+                placeholder="Raadi magaca, ID-ga, ama numbarka waalidka..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
           </div>
-        </div>
 
-        {/* Summary Cards — simplified to the information used by the report */}
-        <div
-          className="reports-summary-main"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 18,
-            marginBottom: 18,
-          }}
-        >
-          <SummaryCard
-            icon={Wallet}
-            label="Wadarta Lacagta Soo Gashay"
-            value={`$${totals.totalIncome.toLocaleString()}`}
-            color="#6d5df0"
-          />
-          <SummaryCard
-            icon={Wallet}
-            label="Lacagta Cashierka"
-            value={`$${totals.cashierTotal.toLocaleString()}`}
-            color="#38BDF8"
-          />
-        </div>
-
-        <div
-          className="reports-summary-status"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: 18,
-            marginBottom: 34,
-          }}
-        >
-          <SummaryCard
-            icon={CheckCircle2}
-            label="Full Paid"
-            value={totals.fullPaid}
-            color="#22C55E"
-          />
-          <SummaryCard
-            icon={AlertTriangle}
-            label="Partial Paid"
-            value={totals.partialPaid}
-            color="#F59E0B"
-          />
-          <SummaryCard
-            icon={Clock}
-            label="Unpaid / Reminder"
-            value={totals.unpaid}
-            color="#EF4444"
-          />
-        </div>
-
-        {/* Table */}
-        {loading ? (
-          <div style={{ color: "#8b87ad", textAlign: "center", padding: 60 }}>
-            Soo raraya xogta...
+          <div className="summary-grid">
+            <MetricCard label="Wadarta Lacagta Soo Gashay" value={`$${totals.totalIncome.toLocaleString()}`} color="#183657" />
+            <MetricCard label="Lacagta Cashierka" value={`$${totals.cashierTotal.toLocaleString()}`} color="#b89b52" />
+            <MetricCard label="Full Paid" value={totals.fullPaid} color="#2f8f55" />
+            <MetricCard label="Partial / Unpaid" value={`${totals.partialPaid} / ${totals.unpaid}`} color="#c98727" />
           </div>
-        ) : filteredPayments.length === 0 ? (
-          <div style={{ color: "#8b87ad", textAlign: "center", padding: 60 }}>
-            Ma jiraan xog waafaqsan bilaha aad doorattay.
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <Th>Sawir</Th>
-                  <Th>Magaca</Th>
-                  <Th>ID</Th>
-                  <Th>Fasalka</Th>
-                  <Th>Nooca</Th>
-                  <Th>Bisha</Th>
-                  <Th>Numb. Ardayga</Th>
-                  <Th>Numb. Waalidka</Th>
-                  <Th>Fee</Th>
-                  <Th>La Bixiyay</Th>
-                  <Th>Hadhay</Th>
-                  <Th>Status</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPayments.map((p) => {
-                  const status = getStatus(p);
-                  const student = students[p.studentId] || {};
-                  const isExamCard = p.type === "examCard";
-                  const paid = getPaidAmount(p);
-                  const fee = getFee(p);
-                  const remaining = isExamCard ? 0 : Number(p.remaining) || Math.max(fee - paid, 0);
-                  const my = getMonthYear(p);
-                  const monthLabel = my ? `${monthNames[my.month]} ${my.year}` : "-";
 
-                  return (
-                    <tr key={`${p.type}-${p.id}`} style={{ borderBottom: "1px solid rgba(139,108,245,0.12)" }}>
-                      <Td>
-                        <img
-                          src={
-                            student.studentPhoto ||
-                            "https://ui-avatars.com/api/?background=6d5df0&color=fff&name=" +
-                              encodeURIComponent(p.studentName || "S")
-                          }
-                          alt=""
-                          style={{
-                            width: 44,
-                            height: 44,
-                            borderRadius: "50%",
-                            objectFit: "cover",
-                            border: "2px solid rgba(139,108,245,0.4)",
-                          }}
-                        />
-                      </Td>
-                      <Td style={{ fontWeight: 600, color: "#fff" }}>{p.studentName}</Td>
-                      <Td>{p.studentId}</Td>
-                      <Td>{p.className || "-"}</Td>
-                      <Td>
-                        <TypeBadge type={p.type} examType={p.examType} />
-                      </Td>
-                      <Td>{monthLabel}</Td>
-                      <Td>
-                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <Smartphone size={14} color="#8b87ad" />
-                          {getStudentPhone(p)}
-                        </span>
-                      </Td>
-                      <Td>
-                        <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                          <Phone size={14} color="#8b87ad" />
-                          {getParentPhone(p)}
-                        </span>
-                      </Td>
-                      <Td>{isExamCard ? "-" : `$${fee}`}</Td>
-                      <Td>${paid}</Td>
-                      <Td>{isExamCard ? "-" : `$${remaining}`}</Td>
-                      <Td>
-                        <StatusBadge status={status} />
-                      </Td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {loading ? (
+            <div className="empty-state">Soo raraya xogta...</div>
+          ) : filteredPayments.length === 0 ? (
+            <div className="empty-state">Ma jiraan xog waafaqsan filters-ka aad doorattay.</div>
+          ) : (
+            <div className="table-wrap">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <Th>Sawir</Th>
+                    <Th>Magaca</Th>
+                    <Th>ID</Th>
+                    <Th>Fasalka</Th>
+                    <Th>Nooca</Th>
+                    <Th>Bisha</Th>
+                    <Th>Numb. Ardayga</Th>
+                    <Th>Numb. Waalidka</Th>
+                    <Th>Fee</Th>
+                    <Th>La Bixiyay</Th>
+                    <Th>Hadhay</Th>
+                    <Th>Status</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPayments.map((p) => {
+                    const status = getStatus(p);
+                    const student = students[p.studentId] || {};
+                    const isExamCard = p.type === "examCard";
+                    const paid = getPaidAmount(p);
+                    const fee = getFee(p);
+                    const remaining = isExamCard ? 0 : Number(p.remaining) || Math.max(fee - paid, 0);
+                    const my = getMonthYear(p);
+                    const monthLabel = my ? `${monthNames[my.month]} ${my.year}` : "-";
+
+                    return (
+                      <tr key={`${p.type}-${p.id}`}>
+                        <Td>
+                          <img
+                            className="student-photo"
+                            src={student.studentPhoto || "https://ui-avatars.com/api/?background=183657&color=fff&name=" + encodeURIComponent(p.studentName || "S")}
+                            alt=""
+                          />
+                        </Td>
+                        <Td style={{ fontWeight: 750 }}>{p.studentName || "-"}</Td>
+                        <Td>{p.studentId || "-"}</Td>
+                        <Td>{p.className || "-"}</Td>
+                        <Td><TypeBadge type={p.type} examType={p.examType} /></Td>
+                        <Td>{monthLabel}</Td>
+                        <Td className="muted-cell">{getStudentPhone(p)}</Td>
+                        <Td className="muted-cell">{getParentPhone(p)}</Td>
+                        <Td className="money">{isExamCard ? "-" : `$${fee}`}</Td>
+                        <Td className="money">${paid}</Td>
+                        <Td className="money">{isExamCard ? "-" : `$${remaining}`}</Td>
+                        <Td><StatusBadge status={status} /></Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="report-footer">
+            <span>{SCHOOL_NAME}</span>
+            <span>{filteredPayments.length} transaction{filteredPayments.length === 1 ? "" : "s"} · {rangeLabel}</span>
           </div>
-        )}
+        </main>
       </div>
 
-      {/* History modal */}
       {showHistory && (
         <div
           style={{
             position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: "rgba(0,0,0,0.65)",
+            inset: 0,
+            background: "rgba(15,23,42,.62)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             zIndex: 1000,
-            padding: 20,
+            padding: 18,
           }}
+          onClick={() => setShowHistory(false)}
         >
           <div
             style={{
-              background: "linear-gradient(160deg,#151233,#181341)",
-              border: "1px solid rgba(139,108,245,0.3)",
-              borderRadius: 20,
+              background: "#fffdf7",
+              border: "1px solid #c8b77e",
+              borderRadius: 18,
               width: "100%",
               maxWidth: 720,
               maxHeight: "85vh",
               overflowY: "auto",
+              boxShadow: "0 25px 70px rgba(0,0,0,.28)",
             }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "20px 24px",
-                borderBottom: "1px solid rgba(139,108,245,0.2)",
-                position: "sticky",
-                top: 0,
-                background: "#181341",
-              }}
-            >
-              <h2
-                style={{
-                  color: "#fff",
-                  margin: 0,
-                  fontSize: 18,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                }}
-              >
-                <History size={20} color="#8b6cf5" />
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              padding: "17px 20px",
+              borderBottom: "1px solid #ddd3b8",
+              background: "#f5efdf",
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+            }}>
+              <h2 style={{ color: "#183657", margin: 0, fontSize: 18, display: "flex", alignItems: "center", gap: 9 }}>
+                <History size={19} />
                 Report History
               </h2>
               <button
                 onClick={() => setShowHistory(false)}
                 style={{
-                  background: "rgba(255,255,255,0.05)",
-                  border: "none",
+                  background: "#183657",
+                  border: 0,
                   color: "#fff",
                   width: 32,
                   height: 32,
@@ -913,19 +1029,17 @@ export default function Reports() {
                   cursor: "pointer",
                 }}
               >
-                <X size={18} />
+                <X size={17} />
               </button>
             </div>
 
-            <div style={{ padding: "18px 24px 24px" }}>
+            <div style={{ padding: 18 }}>
               {loadingHistory ? (
-                <p style={{ color: "#8b87ad" }}>Loading...</p>
+                <p style={{ color: "#69717c" }}>Loading...</p>
               ) : historyList.length === 0 ? (
-                <p style={{ color: "#8b87ad" }}>
-                  Weli ma jiraan report-yo la export-gareeyay.
-                </p>
+                <p style={{ color: "#69717c" }}>Weli ma jiraan report-yo la export-gareeyay.</p>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                   {historyList.map((h) => (
                     <div
                       key={h.id}
@@ -934,26 +1048,20 @@ export default function Reports() {
                         alignItems: "center",
                         justifyContent: "space-between",
                         gap: 14,
-                        background: "rgba(255,255,255,0.02)",
-                        border: "1px solid rgba(139,108,245,0.2)",
-                        borderRadius: 14,
-                        padding: "14px 18px",
+                        background: "#f8f3e7",
+                        border: "1px solid #d6c9a4",
+                        borderRadius: 12,
+                        padding: "13px 15px",
                         flexWrap: "wrap",
                       }}
                     >
                       <div>
-                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 14 }}>
-                          {h.rangeLabel || "-"}
+                        <div style={{ color: "#183657", fontWeight: 800, fontSize: 14 }}>{h.rangeLabel || "-"}</div>
+                        <div style={{ color: "#69717c", fontSize: 11.5, marginTop: 3 }}>
+                          {h.transactionCount ?? 0} transaction{(h.transactionCount ?? 0) === 1 ? "" : "s"} · Total: ${(h.totalIncome ?? 0).toLocaleString()}
                         </div>
-                        <div style={{ color: "#8b87ad", fontSize: 12, marginTop: 3 }}>
-                          {h.transactionCount ?? 0} transaction
-                          {(h.transactionCount ?? 0) === 1 ? "" : "s"} · Total: $
-                          {(h.totalIncome ?? 0).toLocaleString()}
-                        </div>
-                        <div style={{ color: "#6f6a92", fontSize: 11.5, marginTop: 2 }}>
-                          {h.generatedAt?.toDate
-                            ? h.generatedAt.toDate().toLocaleString()
-                            : "-"}
+                        <div style={{ color: "#8a9099", fontSize: 10.5, marginTop: 2 }}>
+                          {h.generatedAt?.toDate ? h.generatedAt.toDate().toLocaleString() : "-"}
                         </div>
                       </div>
 
@@ -966,12 +1074,11 @@ export default function Reports() {
                             display: "inline-flex",
                             alignItems: "center",
                             gap: 6,
-                            border: "1px solid rgba(139,108,245,0.35)",
-                            background: "rgba(139,108,245,0.12)",
-                            color: "#c4b5fd",
-                            fontWeight: 700,
-                            fontSize: 12.5,
-                            padding: "9px 14px",
+                            background: "#183657",
+                            color: "#fff",
+                            fontWeight: 800,
+                            fontSize: 11.5,
+                            padding: "9px 13px",
                             borderRadius: 8,
                             textDecoration: "none",
                           }}
@@ -994,181 +1101,93 @@ export default function Reports() {
 
 function FilterBox({ icon: Icon, children, label }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {label && (
-        <span style={{ fontSize: 11, color: "#8b87ad", fontWeight: 600, paddingLeft: 4 }}>
-          {label}
-        </span>
-      )}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          background: "rgba(255,255,255,0.02)",
-          border: "1.5px solid rgba(139,108,245,0.35)",
-          borderRadius: 12,
-          padding: "6px 14px",
-        }}
-      >
-        <Icon size={16} color="#8b6cf5" />
+    <div className="filter-box">
+      {label && <span className="filter-label">{label}</span>}
+      <div className="filter-content">
+        <Icon size={14} />
         {children}
       </div>
     </div>
   );
 }
 
-function SummaryCard({ icon: Icon, label, value, color }) {
+function MetricCard({ label, value, color }) {
   return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.02)",
-        border: "1px solid rgba(139,108,245,0.25)",
-        borderRadius: 18,
-        padding: "22px 24px",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-      }}
-    >
-      <div
-        style={{
-          width: 48,
-          height: 48,
-          borderRadius: 12,
-          background: `${color}22`,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-        }}
-      >
-        <Icon size={22} color={color} />
-      </div>
-      <div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#fff" }}>{value}</div>
-        <div style={{ fontSize: 13, color: "#8b87ad" }}>{label}</div>
-      </div>
+    <div className="metric-card" style={{ "--metric-color": color }}>
+      <div className="metric-label">{label}</div>
+      <div className="metric-value">{value}</div>
     </div>
   );
 }
 
 function StatusBadge({ status }) {
   const map = {
-    "Full Paid": { bg: "#22C55E22", color: "#22C55E" },
-    "Partial Paid": { bg: "#F59E0B22", color: "#F59E0B" },
-    Unpaid: { bg: "#EF444422", color: "#EF4444" },
+    "Full Paid": { bg: "#dff1e3", color: "#2f7d46", icon: "✓" },
+    "Partial Paid": { bg: "#f8eacb", color: "#a36a16", icon: "!" },
+    Unpaid: { bg: "#f6dddd", color: "#b04444", icon: "×" },
   };
-  const s = map[status] || map["Unpaid"];
+  const s = map[status] || map.Unpaid;
+
   return (
-    <span
-      style={{
-        background: s.bg,
-        color: s.color,
-        padding: "6px 12px",
-        borderRadius: 20,
-        fontSize: 12.5,
-        fontWeight: 700,
-        whiteSpace: "nowrap",
-      }}
-    >
+    <span className="status-badge" style={{ background: s.bg, color: s.color }}>
+      <span>{s.icon}</span>
       {status}
     </span>
   );
 }
 
 function TypeBadge({ type, examType }) {
-  let bg = "#38BDF822";
-  let color = "#38BDF8";
+  let bg = "#e4edf6";
+  let color = "#315c82";
   let label = "Cashier";
 
   if (type === "examCard") {
-    bg = "#A855F722";
-    color = "#A855F7";
+    bg = "#eee5f7";
+    color = "#764b9b";
     label = `Exam Card${examType ? " (" + examType + ")" : ""}`;
   } else if (type === "registration") {
-    bg = "#EC489922";
-    color = "#EC4899";
+    bg = "#f8e2ed";
+    color = "#a83f70";
     label = "Registration";
   } else if (type === "rollNumber") {
-    bg = "#10B98122";
-    color = "#10B981";
+    bg = "#e1f2eb";
+    color = "#26765b";
     label = "Roll Number";
   } else if (type === "examination") {
-    bg = "#F59E0B22";
-    color = "#F59E0B";
+    bg = "#f8ebd3";
+    color = "#9a6a1d";
     label = "Examination";
   }
 
   return (
-    <span
-      style={{
-        background: bg,
-        color,
-        padding: "6px 12px",
-        borderRadius: 20,
-        fontSize: 12,
-        fontWeight: 700,
-        whiteSpace: "nowrap",
-      }}
-    >
+    <span className="type-badge" style={{ background: bg, color }}>
       {label}
     </span>
   );
 }
 
 function Th({ children }) {
-  return (
-    <th
-      style={{
-        textAlign: "left",
-        padding: "12px 14px",
-        color: "#8b87ad",
-        fontSize: 13,
-        fontWeight: 600,
-        borderBottom: "1.5px solid rgba(139,108,245,0.25)",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </th>
-  );
+  return <th>{children}</th>;
 }
 
-function Td({ children, style }) {
-  return (
-    <td
-      style={{
-        padding: "14px",
-        color: "#e5e3f7",
-        fontSize: 14,
-        whiteSpace: "nowrap",
-        ...style,
-      }}
-    >
-      {children}
-    </td>
-  );
+function Td({ children, style, className = "" }) {
+  return <td className={className} style={style}>{children}</td>;
 }
 
 const selectStyle = {
-  background: "#151233",
+  background: "transparent",
   border: "none",
   outline: "none",
-  color: "#e5e3f7",
-  fontSize: 14,
-  padding: "8px 4px",
+  color: "#1d2938",
+  fontSize: 12,
   cursor: "pointer",
 };
 
 const inputStyle = {
   width: "100%",
-  padding: "12px 16px",
-  boxSizing: "border-box",
-  border: "1.5px solid rgba(139,108,245,0.35)",
-  borderRadius: 12,
-  fontSize: 14,
-  color: "#e5e3f7",
+  border: "0",
   outline: "none",
-  background: "rgba(255,255,255,0.02)",
+  color: "#1d2938",
+  fontSize: 12,
+  background: "transparent",
 };
