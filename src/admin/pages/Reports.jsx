@@ -314,6 +314,7 @@ export default function Reports() {
       alert("Ma jiraan xog la exportgareyn karo bilaha aad doorattay.");
       return;
     }
+
     try {
       setExporting(true);
       await loadJsPdfLibs();
@@ -328,31 +329,141 @@ export default function Reports() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
 
-      let cursorY = 40;
-      if (logoDataUrl) {
-        doc.addImage(logoDataUrl, "PNG", 30, 20, 50, 50);
-      }
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.text(SCHOOL_NAME, logoDataUrl ? 90 : 30, 35);
+      // Same visual language as the Reports page:
+      // warm paper background + navy + gold + soft cream cards.
+      const NAVY = [24, 57, 91];
+      const NAVY_DARK = [16, 43, 69];
+      const GOLD = [190, 160, 88];
+      const PAPER = [248, 245, 236];
+      const CARD = [252, 249, 240];
+      const BORDER = [218, 204, 166];
+      const TEXT = [22, 38, 56];
+      const MUTED = [94, 105, 118];
+      const GREEN = [38, 151, 87];
+      const ORANGE = [207, 135, 31];
+      const RED = [205, 67, 67];
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.text("Transaction Report", logoDataUrl ? 90 : 30, 52);
-      doc.text(`Range: ${rangeLabel}`, logoDataUrl ? 90 : 30, 67);
+      const money = (n) => `$${Number(n || 0).toLocaleString()}`;
+      const drawRoundRect = (x, y, w, h, fill, stroke = BORDER, r = 8) => {
+        doc.setFillColor(...fill);
+        doc.setDrawColor(...stroke);
+        doc.setLineWidth(0.7);
+        doc.roundedRect(x, y, w, h, r, r, "FD");
+      };
 
-      doc.setFontSize(9);
-      doc.setTextColor(80);
-      doc.text(
-        `Generated: ${new Date().toLocaleString()}`,
-        pageWidth - 30,
-        35,
-        { align: "right" }
-      );
-      doc.setTextColor(0);
+      const drawStatusPill = (status, x, y, width = 58) => {
+        let bg = [225, 243, 230];
+        let color = GREEN;
+        let label = "✓ Full Paid";
+        if (status === "Partial Paid") {
+          bg = [252, 237, 207];
+          color = ORANGE;
+          label = "Partial";
+        } else if (status === "Unpaid") {
+          bg = [250, 226, 226];
+          color = RED;
+          label = "Unpaid";
+        }
+        doc.setFillColor(...bg);
+        doc.setDrawColor(...bg);
+        doc.roundedRect(x, y, width, 16, 8, 8, "FD");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...color);
+        doc.text(label, x + width / 2, y + 11, { align: "center" });
+      };
 
-      cursorY = 85;
+      const drawPageChrome = (pageNumber) => {
+        doc.setFillColor(...PAPER);
+        doc.rect(0, 0, pageWidth, pageHeight, "F");
+
+        // Header panel
+        doc.setFillColor(255, 253, 247);
+        doc.setDrawColor(...BORDER);
+        doc.roundedRect(22, 18, pageWidth - 44, 105, 12, 12, "FD");
+
+        if (logoDataUrl) {
+          doc.addImage(logoDataUrl, "PNG", 38, 33, 48, 48);
+        }
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(18);
+        doc.setTextColor(...GOLD);
+        doc.text(SCHOOL_NAME, 98, 48);
+
+        doc.setFontSize(12);
+        doc.setTextColor(...TEXT);
+        doc.text("Transaction Report", 98, 68);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9.5);
+        doc.setTextColor(...MUTED);
+        doc.text(`Range: ${rangeLabel}`, 98, 84);
+
+        doc.setFontSize(8.5);
+        doc.setTextColor(...MUTED);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - 38, 48, { align: "right" });
+
+        // Navy divider exactly under the header.
+        doc.setFillColor(...NAVY);
+        doc.rect(22, 119, pageWidth - 44, 3, "F");
+
+        // Compact report metadata / filter chips.
+        const chipY = 132;
+        const chipH = 27;
+        const gap = 8;
+        const chipW = (pageWidth - 76 - gap * 3) / 4;
+        const chips = [
+          ["LAGA BILAABO", `${monthNames[fromMonth]} ${fromYear}`],
+          ["ILAA", `${monthNames[toMonth]} ${toYear}`],
+          ["STATUS", statusFilter === "All" ? "Dhammaan Status" : statusFilter],
+          ["NOOCA LACAGTA", typeFilter === "regular" ? "Lacagta Cashierka Kaliya" : typeFilter === "All" ? "Dhammaan" : getTypeLabel({ type: typeFilter })],
+        ];
+        chips.forEach((chip, i) => {
+          const x = 38 + i * (chipW + gap);
+          drawRoundRect(x, chipY, chipW, chipH, [255, 253, 247], BORDER, 7);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(6.5);
+          doc.setTextColor(...MUTED);
+          doc.text(chip[0], x + 8, chipY + 9);
+          doc.setFontSize(8.5);
+          doc.setTextColor(...TEXT);
+          doc.text(chip[1], x + 8, chipY + 21);
+        });
+
+        // Summary cards: same four-card hierarchy as the web UI.
+        const cardY = 168;
+        const cardH = 46;
+        const cardGap = 9;
+        const cardW = (pageWidth - 76 - cardGap * 3) / 4;
+        const summaries = [
+          ["Wadarta Lacagta Soo Gashay", money(totals.totalIncome), NAVY],
+          ["Lacagta Cashierka", money(totals.regularIncome), GOLD],
+          ["Full Paid", String(totals.fullPaid), GREEN],
+          ["Partial / Unpaid", `${totals.partialPaid} / ${totals.unpaid}`, ORANGE],
+        ];
+        summaries.forEach((card, i) => {
+          const x = 38 + i * (cardW + cardGap);
+          drawRoundRect(x, cardY, cardW, cardH, CARD, BORDER, 8);
+          doc.setFillColor(...card[2]);
+          doc.roundedRect(x, cardY, 4, cardH, 2, 2, "F");
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(7.2);
+          doc.setTextColor(...MUTED);
+          doc.text(card[0], x + 12, cardY + 15);
+          doc.setFontSize(14);
+          doc.setTextColor(...TEXT);
+          doc.text(card[1], x + 12, cardY + 34);
+        });
+
+        // Footer on every page.
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(...MUTED);
+        doc.text(SCHOOL_NAME, 30, pageHeight - 17);
+        doc.text(`Page ${pageNumber}`, pageWidth - 30, pageHeight - 17, { align: "right" });
+      };
 
       const rows = filteredPayments.map((p) => {
         const status = getStatus(p);
@@ -362,7 +473,6 @@ export default function Reports() {
         const remaining = isExamCard ? 0 : Number(p.remaining) || Math.max(fee - paid, 0);
         const my = getMonthYear(p);
         const monthLabel = my ? `${monthNames[my.month]} ${my.year}` : "-";
-
         return [
           p.studentName || "-",
           p.studentId || "-",
@@ -371,71 +481,85 @@ export default function Reports() {
           monthLabel,
           getStudentPhone(p),
           getParentPhone(p),
-          isExamCard ? "-" : `$${fee}`,
-          `$${paid}`,
-          isExamCard ? "-" : `$${remaining}`,
+          isExamCard ? "-" : money(fee),
+          money(paid),
+          isExamCard ? "-" : money(remaining),
           status,
         ];
       });
 
+      // Start table below the summary cards.
+      drawPageChrome(1);
       doc.autoTable({
-        startY: cursorY,
-        head: [
-          [
-            "Magaca",
-            "ID",
-            "Fasalka",
-            "Nooca",
-            "Bisha",
-            "Numb. Ardayga",
-            "Numb. Waalidka",
-            "Fee",
-            "La Bixiyey",
-            "Hadhey",
-            "Status",
-          ],
-        ],
+        startY: 224,
+        head: [[
+          "Magaca", "ID", "Fasalka", "Nooca", "Bisha",
+          "Numb. Ardayga", "Numb. Waalidka", "Fee", "La Bixiyay", "Hadhay", "Status"
+        ]],
         body: rows,
-        styles: { fontSize: 8, cellPadding: 5 },
-        headStyles: { fillColor: [109, 93, 240], textColor: 255, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [248, 248, 255] },
-        margin: { left: 20, right: 20, bottom: 60 },
-        didDrawPage: (data) => {
-          const pageHeight = doc.internal.pageSize.getHeight();
-          const pageCount = doc.internal.getNumberOfPages();
-
-          if (data.pageNumber === pageCount) {
-            const finalY = data.cursor.y + 15;
-            if (finalY < pageHeight - 65) {
-              doc.setDrawColor(220, 220, 230);
-              doc.setFillColor(255, 255, 255);
-              doc.roundedRect(20, finalY, pageWidth - 40, 36, 8, 8, "FD");
-
-              doc.setFontSize(8.5);
-              doc.setFont("helvetica", "bold");
-              
-              // Keep the PDF footer summary clean: only the two financial totals.
-              // Registration, Roll Number, Examination, Exam Card, Partial and Unpaid
-              // are intentionally NOT shown in the bottom summary.
-              const summaryText =
-                `Total Income: $${totals.totalIncome.toLocaleString()}   |   ` +
-                `Cashier: $${totals.regularIncome.toLocaleString()}`;
-              doc.text(summaryText, 30, finalY + 22);
-            }
+        margin: { left: 30, right: 30, top: 224, bottom: 30 },
+        theme: "grid",
+        styles: {
+          font: "helvetica",
+          fontSize: 7.2,
+          textColor: TEXT,
+          cellPadding: 4,
+          lineColor: BORDER,
+          lineWidth: 0.35,
+          valign: "middle",
+        },
+        headStyles: {
+          fillColor: NAVY,
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: 7.3,
+          cellPadding: 5,
+          lineColor: NAVY,
+        },
+        alternateRowStyles: {
+          fillColor: [250, 248, 239],
+        },
+        bodyStyles: {
+          fillColor: [255, 253, 247],
+        },
+        columnStyles: {
+          0: { cellWidth: 130, fontStyle: "bold" },
+          1: { cellWidth: 35 },
+          2: { cellWidth: 38 },
+          3: { cellWidth: 55 },
+          4: { cellWidth: 70 },
+          5: { cellWidth: 67 },
+          6: { cellWidth: 70 },
+          7: { cellWidth: 38, halign: "right" },
+          8: { cellWidth: 45, halign: "right", fontStyle: "bold" },
+          9: { cellWidth: 42, halign: "right" },
+          10: { cellWidth: 54 },
+        },
+        willDrawPage: (data) => {
+          // Draw the same report chrome BEFORE the table on every PDF page.
+          drawPageChrome(data.pageNumber);
+        },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 10) {
+            const status = data.cell.raw;
+            if (status === "Full Paid") data.cell.styles.textColor = GREEN;
+            if (status === "Partial Paid") data.cell.styles.textColor = ORANGE;
+            if (status === "Unpaid") data.cell.styles.textColor = RED;
+            data.cell.styles.fontStyle = "bold";
           }
-
-          doc.setFontSize(8);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(120);
-          doc.text(SCHOOL_NAME, 20, pageHeight - 15);
-          doc.text(
-            `Page ${data.pageNumber} of ${pageCount}`,
-            pageWidth - 20,
-            pageHeight - 15,
-            { align: "right" }
-          );
         },
       });
+
+      // Add a clean bottom summary after the final table page.
+      const finalY = Math.min((doc.lastAutoTable?.finalY || 224) + 12, pageHeight - 52);
+      drawRoundRect(30, finalY, pageWidth - 60, 27, [255, 253, 247], BORDER, 7);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...NAVY_DARK);
+      doc.text(`Total Income: ${money(totals.totalIncome)}`, 42, finalY + 17);
+      doc.text(`Cashier: ${money(totals.regularIncome)}`, 210, finalY + 17);
+      doc.setTextColor(...MUTED);
+      doc.text(`${filteredPayments.length} Transactions`, pageWidth - 42, finalY + 17, { align: "right" });
 
       const fileSafeRange = rangeLabel.replace(/\s+/g, "_").replace(/[^\w-]/g, "");
       const fileName = `RisingStar_Transaction_Report_${fileSafeRange}.pdf`;

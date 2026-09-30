@@ -49,7 +49,7 @@ function TopbarStyles() {
       .tb-dropdown { width: 360px; max-width: 90vw; }
 
       /* Matches the student-portal mobile header: rounded card removed,
-         compact logo + "Rising School / Teacher Portal" + bell only. */
+         compact logo + "Al-Isra School / Teacher Portal" + bell only. */
       @media (max-width: 900px) {
         .tb-wrap {
           margin: 0;

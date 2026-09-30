@@ -80,7 +80,7 @@ async function reserveReceiptNumbers(count) {
   return firstNumber;
 }
 
-const SCHOOL_NAME = "Rising School";
+const SCHOOL_NAME = "Al-Isra School";
 
 // Cashier-ka hadda login-gareeyay — waxaa lagu kaydiyaa localStorage marka
 // la galo (LoginForm). Waxaa lagu duugayaa (stamp) rasiid/payment kasta si

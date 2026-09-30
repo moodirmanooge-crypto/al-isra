@@ -10,7 +10,7 @@ padding:"40px"
 
 <h1>Dashboard</h1>
 
-<h2>Welcome To Rising School </h2>
+<h2>Welcome To Al-Isra School </h2>
 
 </div>
 

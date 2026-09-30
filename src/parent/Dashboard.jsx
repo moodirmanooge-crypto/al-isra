@@ -384,7 +384,7 @@ export default function ParentDashboard() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={styles.brandMark}>RS</div>
           <div>
-            <div style={{ ...styles.brandTitle, fontSize: 13 }}>Rising School</div>
+            <div style={{ ...styles.brandTitle, fontSize: 13 }}>Al-Isra School</div>
             <div style={{ ...styles.brandSub, fontSize: 11 }}>Parent Portal</div>
           </div>
         </div>
@@ -399,7 +399,7 @@ export default function ParentDashboard() {
           <div style={styles.brand}>
             <div style={styles.brandMark}>RS</div>
             <div>
-              <div style={styles.brandTitle}>Rising School</div>
+              <div style={styles.brandTitle}>Al-Isra School</div>
               <div style={styles.brandSub}>Parent Portal</div>
             </div>
           </div>

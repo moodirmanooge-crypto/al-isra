@@ -528,7 +528,7 @@ export default function StudentDashboard() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={styles.brandMark}>RS</div>
           <div>
-            <div style={{ ...styles.brandTitle, fontSize: 13 }}>Rising School</div>
+            <div style={{ ...styles.brandTitle, fontSize: 13 }}>Al-Isra School</div>
             <div style={{ ...styles.brandSub, fontSize: 11 }}>Student Portal</div>
           </div>
         </div>
@@ -543,7 +543,7 @@ export default function StudentDashboard() {
           <div style={styles.brand}>
             <div style={styles.brandMark}>RS</div>
             <div>
-              <div style={styles.brandTitle}>Rising School</div>
+              <div style={styles.brandTitle}>Al-Isra School</div>
               <div style={styles.brandSub}>Student Portal</div>
             </div>
           </div>

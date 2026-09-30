@@ -11,7 +11,7 @@ import {
 import { db } from "../firebase/firebase";
 import { theme } from "./theme.js";
 
-const SCHOOL_NAME = "Rising School";
+const SCHOOL_NAME = "Al-Isra School";
 
 // Fiiro gaar ah: qiimahaan waxay ku waafaqsan yihiin exam type "key"-yada
 // laga soo diray ExamTimetable.jsx ("Monthly Exam Test 1", "Midterm Exam",
