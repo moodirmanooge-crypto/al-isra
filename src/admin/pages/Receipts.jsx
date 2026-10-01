@@ -1,3 +1,4 @@
+//# alisra/src/admin/pages/Receipts.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
   collection,
@@ -593,8 +594,9 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
 
       const imgData = canvas.toDataURL("image/png");
 
+      // A5 portrait: 148 x 210 mm
       const pdf = new jsPDF({
-        orientation: "landscape",
+        orientation: "portrait",
         unit: "mm",
         format: "a5",
       });
@@ -698,13 +700,24 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         }
 
         .receipt-paper-container {
-          width: 750px;
-          max-width: 95vw;
+          /* A5 portrait preview: 148mm × 210mm */
+          width: min(148mm, 88vw);
+          max-width: 148mm;
+          min-height: 210mm;
+          max-height: 82vh;
           background: #ffffff;
           position: relative;
           box-shadow: 0 15px 35px rgba(0,0,0,0.3);
           border-radius: 4px;
-          overflow: hidden;
+          overflow: auto;
+          display: flex;
+          align-items: flex-start;
+          justify-content: center;
+        }
+
+        .receipt-bg-wrapper {
+          width: 100%;
+          flex: 0 0 auto;
         }
 
         .receipt-bg-wrapper {
@@ -824,92 +837,91 @@ function ReceiptViewModal({ receipt, onClose, onDelete, deleting }) {
         }
 
         @media print {
-  /* A5 (148mm x 210mm) — rasiidka waa jiif, sidaas darteed bogga A5 waxaa loo daabacayaa landscape */
-  @page {
-    size: A5 landscape;
-    margin: 0;
-  }
+          /* A5 PORTRAIT — 148mm x 210mm */
+          @page {
+            size: A5 portrait;
+            margin: 0;
+          }
 
-  html,
-  body {
-    width: 210mm !important;
-    height: 148mm !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
-    position: relative !important;
-  }
+          html,
+          body {
+            width: 148mm !important;
+            height: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            position: relative !important;
+          }
 
-  body {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
 
-  body * {
-    visibility: hidden !important;
-  }
+          body * {
+            visibility: hidden !important;
+          }
 
-  .rv-overlay,
-  .rv-overlay * {
-    visibility: visible !important;
-  }
+          .rv-overlay,
+          .rv-overlay * {
+            visibility: visible !important;
+          }
 
-  .rv-overlay {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: auto !important;
-    bottom: auto !important;
+          .rv-overlay {
+            position: fixed !important;
+            inset: 0 !important;
+            width: 148mm !important;
+            height: 210mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            gap: 0 !important;
+            background: #ffffff !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: hidden !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
 
-    width: 210mm !important;
-    height: 148mm !important;
+          /*
+           * The Al-Isra receipt artwork itself is landscape.
+           * Keep the artwork undistorted and fit it inside the A5
+           * portrait sheet. Chrome's print preview will therefore
+           * show A5 Portrait, exactly like the Rising Star flow.
+           */
+          .receipt-paper-container {
+            position: relative !important;
+            box-sizing: border-box !important;
+            width: 132mm !important;
+            max-width: 132mm !important;
+            height: auto !important;
+            max-height: none !important;
+            margin: 0 auto !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            box-shadow: none !important;
+            border: 1.2mm solid #0b1f4d !important;
+            border-radius: 0 !important;
+            overflow: hidden !important;
+          }
 
-    margin: 0 !important;
-    padding: 0 !important;
-    gap: 0 !important;
+          .receipt-bg-wrapper,
+          .receipt-bg-img {
+            width: 100% !important;
+            height: auto !important;
+            display: block !important;
+          }
 
-    background: #ffffff !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+          .receipt-overlay-data {
+            width: 100% !important;
+            height: 100% !important;
+          }
 
-    transform: none !important;
-
-    overflow: hidden !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-  }
-
-  .receipt-paper-container {
-    position: relative !important;
-    box-sizing: border-box !important;
-
-    width: 200mm !important;
-    max-width: 200mm !important;
-    height: auto !important;
-    max-height: 140mm !important;
-
-    margin: 0 auto !important;
-    padding: 0 !important;
-
-    background: #ffffff !important;
-    box-shadow: none !important;
-    border: 2mm solid #0b1f4d !important;
-    border-radius: 0 !important;
-
-    overflow: hidden !important;
-  }
-
-  .receipt-bg-wrapper,
-  .receipt-bg-img {
-    width: 100% !important;
-    height: auto !important;
-  }
-
-  .no-print {
-    display: none !important;
-  }
-}
+          .no-print {
+            display: none !important;
+          }
+        }
       `}</style>
     </>
   );
