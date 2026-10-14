@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "../firebase/firebase";
+import { startAdminLogin } from "../services/adminOtpService";
+import { startTeacherLogin } from "../services/teacherOtpService";
 import {
   User,
   Lock,
@@ -89,7 +91,7 @@ const ROLE_THEMES = {
     cardTitlePlain: "Teacher",
     cardTitleAccent: "Login",
     cardSub: "Enter your credentials to continue",
-    usernameHint: "Enter your teacher username",
+    usernameHint: "Enter your teacher email",
     passwordHint: "Enter your password",
     dividerLabel: "OR",
     bottomBoxes: [
@@ -263,16 +265,33 @@ export default function LoginForm({ role }) {
 
     setLoading(true);
 
+    // ---- ADMIN & TEACHER: password-ka server-ka (Cloud Function) ayaa hubiya,
+    // kadib OTP 4 lambar ah ayaa loo diraa email-kooda. Dashboard-ka lama
+    // furayo ilaa code-ka la xaqiijiyo (/admin-verify ama /teacher-verify).
+    if (role === "Admin" || role === "Teacher") {
+      try {
+        if (role === "Admin") await startAdminLogin(username, password);
+        else await startTeacherLogin(username, password);
+        try {
+          if (rememberMe) localStorage.setItem(`rememberedUsername_${role}`, username.trim());
+          else localStorage.removeItem(`rememberedUsername_${role}`);
+        } catch {
+          // non-critical
+        }
+        setPassword("");
+        navigate(role === "Admin" ? "/admin-verify" : "/teacher-verify");
+      } catch (err) {
+        alert(err?.message || "Check your email or password");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       let collectionName = "";
 
       switch (role) {
-        case "Admin":
-          collectionName = "admin";
-          break;
-        case "Teacher":
-          collectionName = "teachers";
-          break;
         case "Cashier":
           collectionName = "cashier";
           break;
@@ -292,43 +311,6 @@ export default function LoginForm({ role }) {
 
       snapshot.forEach((item) => {
         const data = item.data();
-
-        if (role === "Admin") {
-          if (
-            (data.email === username.trim() ||
-              data.username === username.trim()) &&
-            data.password === password.trim()
-          ) {
-            found = true;
-            localStorage.setItem("adminId", item.id);
-            localStorage.setItem("adminName", data.fullName || data.name || data.username || "Admin");
-            // Sub-admins have role: "subadmin" and a `permissions` array
-            // of sidebar paths (see AddSubAdmin.jsx). The original Super
-            // Admin doc has no `role` field or role: "admin" — treat
-            // anything else as a sub-admin so Sidebar.jsx knows whether
-            // to filter its menu.
-            localStorage.setItem("adminRole", data.role || "admin");
-            localStorage.setItem(
-              "adminPermissions",
-              JSON.stringify(Array.isArray(data.permissions) ? data.permissions : [])
-            );
-          }
-        }
-
-        if (role === "Teacher") {
-          if (
-            (data.username === username.trim() ||
-              data.teacherId === username.trim()) &&
-            data.password === password.trim()
-          ) {
-            found = true;
-            localStorage.setItem("teacherId", item.id);
-            localStorage.setItem(
-              "teacherName",
-              data.fullName || data.name || data.username || "Teacher"
-            );
-          }
-        }
 
         if (role === "Cashier") {
           if (
@@ -392,8 +374,6 @@ export default function LoginForm({ role }) {
         // localStorage may be unavailable — non-critical, ignore.
       }
 
-      if (role === "Admin") navigate("/admin/dashboard");
-      if (role === "Teacher") navigate("/teacher/dashboard");
       if (role === "Cashier") navigate("/cashier/dashboard");
       if (role === "Student") navigate("/student/dashboard");
       if (role === "Parent") navigate("/parent/dashboard");
@@ -642,7 +622,7 @@ export default function LoginForm({ role }) {
                 role === "Admin"
                   ? "Admin Email or Username"
                   : role === "Teacher"
-                  ? "Teacher Username"
+                  ? "Teacher Email"
                   : role === "Cashier"
                   ? "Cashier Username"
                   : role === "Parent"
@@ -738,7 +718,7 @@ export default function LoginForm({ role }) {
             }}
           >
             {loading ? (
-              "LOGGING IN..."
+              role === "Admin" || role === "Teacher" ? "SENDING CODE..." : "LOGGING IN..."
             ) : (
               <>
                 LOGIN

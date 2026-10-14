@@ -1,18 +1,32 @@
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    function role() {
-      return request.auth.token.role;
-    }
+// Admin = Firebase Auth session uu backend-ku bixiyey KADDIB email OTP sax ah
+    // (verifyAdminOtp → custom token: role=admin, otpVerified=true).
+    // Session-ku wuxuu shaqaynayaa 12 saacadood (43200s) laga bilaabo login-ka.
     function isAdmin() {
-      return isSignedIn() && role() == "admin";
+      return isSignedIn()
+        && role() == "admin"
+        && request.auth.token.otpVerified == true
+        && request.time < timestamp.value((request.auth.token.auth_time + 43200) * 1000);
     }
     function isCashier() {
       return isSignedIn() && role() == "cashier";
     }
+
+    // ADMIN ACCOUNTS: email, password iyo role-ka admin-ka — admin OTP-xaqiijiyey
+    // keliya ayaa akhrin/qori kara. Login-ka waxaa hubiya Cloud Function
+    // (Admin SDK), sidaas darteed browser-ku uma baahna inuu akhriyo.
+    match /admin/{adminId} {
+      allow read, write: if isAdmin();
+    }
+
+    // OTP sessions iyo rate-limit guards: Cloud Functions keliya (Admin SDK).
+    // Client-ku marnaba ma akhrin karo, ma qori karo.
+    match /adminOtpSessions/{sessionId} {
+      allow read, write: if false;
+    }
+    match /adminLoginGuards/{guardId} {
+      allow read, write: if false;
+    }
+
     // RECEIPTS: cashier-ku wuu abuuri karaa rasiid cusub, laakiin ma
     // akhrin karo mid ka mid ah, mana muujin karo liiska. Admin kaliya
     // ayaa akhrin/beddeli/tirtiri kara.
@@ -21,12 +35,16 @@ service cloud.firestore {
       allow create: if isCashier() || isAdmin();
       allow update, delete: if isAdmin();
     }
-    // Dhammaan collections-ka kale (admin, teachers, cashier, students,
+
+    // Dhammaan collections-ka kale (teachers, cashier, students,
     // flacademy_*, iwm) waxay sii wataan habkoodii hore ee furan, si
-    // apps-ka Firebase Auth aan isticmaalin (Alisra School, iwm) uu
-    // sii shaqeeyo sida caadiga ah.
-    match /{document=**} {
-      allow read, write: if true;
+    // teacher/student/parent/cashier login-kooda (oo aan Firebase Auth
+    // isticmaalin) uu sii shaqeeyo sida caadiga ah.
+    // FIIRO: Firestore Rules waa OR — sidaas darteed collections-ka xiran
+    // (admin, adminOtpSessions, adminLoginGuards) waa in halkan laga reebo,
+    // haddii kale catch-all-kan ayaa furi lahaa.
+    match /{collectionName}/{document=**} {
+      allow read, write: if !(collectionName in ["admin", "adminOtpSessions", "adminLoginGuards"]);
     }
   }
 }

@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 
 import { db, storage } from "../../firebase/firebase";
 
-import { doc, setDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   GraduationCap,
   User,
-  AtSign,
+  Mail,
   Lock,
   School,
   BookOpen,
@@ -58,7 +58,7 @@ export default function AddTeacher() {
   const navigate = useNavigate();
 
   const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   // Nooca shaqada macalinka -- Full Time ama Part Time
@@ -285,8 +285,17 @@ export default function AddTeacher() {
   const saveTeacher = async (e) => {
     e.preventDefault();
 
+    // Email-ka macalinka ayaa noqonaya username-kiisa (login) iyo meesha
+    // code-ka OTP loogu diro marka uu galayo Teacher Portal-ka.
+    const username = email.trim().toLowerCase();
+
     if (fullName === "" || username === "" || password === "") {
       alert("Fill Required Fields");
+      return;
+    }
+
+    if (!/^[^\s@/]+@[^\s@/]+\.[^\s@/]+$/.test(username)) {
+      alert("Fadlan geli email sax ah (tusaale: cabdi@gmail.com)");
       return;
     }
 
@@ -311,6 +320,13 @@ export default function AddTeacher() {
 
     try {
       setSaving(true);
+
+      // Email-kan macalin kale ma isticmaalaa?
+      const existing = await getDoc(doc(db, "teachers", username));
+      if (existing.exists()) {
+        alert("Email-kan macalin kale ayaa horay u isticmaalay. Fadlan email kale geli.");
+        return;
+      }
 
       // Haddii sawir la doortay, marka hore u soo geli Firebase Storage,
       // kadibna soo qaado URL-ka uu ku kaydsan yahay -- kani ayaa loo
@@ -340,7 +356,8 @@ export default function AddTeacher() {
 
       const teacherData = {
         fullName,
-        username,
+        username, // = email (login-ka)
+        email: username, // OTP code-ka halkan ayaa loo diraa
         password,
         phoneNumber,
         phone: phoneNumber, // TeacherIdCard.jsx expects `phone`
@@ -463,12 +480,14 @@ export default function AddTeacher() {
               />
             </Field>
 
-            <Field icon={AtSign} label="Username">
+            <Field icon={Mail} label="Email-ka Macalinka">
               <input
                 style={input}
-                placeholder="Tusaale: cabdi.macalin"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                autoComplete="off"
+                placeholder="Tusaale: cabdi@gmail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </Field>
           </div>

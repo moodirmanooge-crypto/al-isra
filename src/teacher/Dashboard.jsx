@@ -68,6 +68,13 @@ function DashboardStyles() {
   );
 }
 
+// Liis u qaybi qaybo yaryar (Firestore "in" query wuxuu aqbalaa ugu badnaan 10).
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { allMessages, markAsRead } = useMessages();
@@ -99,6 +106,9 @@ export default function Dashboard() {
       const teacherNameStored = localStorage.getItem("teacherName");
       if (teacherNameStored) setTeacherName(teacherNameStored);
 
+      // Xogta macalinka — fasalada uu dhigo waxay ku jiraan teachers/{id}.classes
+      // (Add/Edit Teacher). Macalinku wuxuu arkaa KALIYA ardayda fasaladiisa.
+      let teacherClassEntries = [];
       if (id) {
         try {
           const teacherSnap = await getDoc(doc(db, "teachers", id));
@@ -106,35 +116,75 @@ export default function Dashboard() {
             const data = teacherSnap.data();
             setTeacherData(data);
             if (data.fullName) setTeacherName(data.fullName);
+            teacherClassEntries = Array.isArray(data.classes) ? data.classes : [];
           }
         } catch (e) {
           setTeacherData(null);
         }
       }
 
-      const classesSnap = await getDocs(
-        query(collection(db, "classes"), where("teacherId", "==", id))
+      const classNames = Array.from(
+        new Set(teacherClassEntries.map((c) => (c.className || "").trim()).filter(Boolean))
       );
-      const classList = classesSnap.docs.map((d) => ({
-        id: d.id,
-        ...d.data(),
-      }));
+
+      // Ardayda fasalada macalinka oo keliya (Firestore "in" ≤ 10 → qaybo-qaybo)
+      const myStudents = [];
+      for (const part of chunk(classNames, 10)) {
+        const snap = await getDocs(
+          query(collection(db, "students"), where("className", "in", part))
+        );
+        snap.docs.forEach((d) => myStudents.push({ id: d.id, ...d.data() }));
+      }
+
+      const countByClass = {};
+      myStudents.forEach((st) => {
+        countByClass[st.className] = (countByClass[st.className] || 0) + 1;
+      });
+
+      const classList = classNames.map((className) => {
+        const subjects = Array.from(
+          new Set(
+            teacherClassEntries
+              .filter((c) => (c.className || "").trim() === className)
+              .map((c) => c.subject)
+              .filter(Boolean)
+          )
+        );
+        return {
+          id: className,
+          className,
+          section: subjects.join(", ") || "-",
+          studentCount: countByClass[className] || 0,
+        };
+      });
       setClasses(classList);
+      setTotalStudents(myStudents.length);
 
-      const studentsSnap = await getDocs(collection(db, "students"));
-      setTotalStudents(studentsSnap.size);
-
+      // Xaadirinta maanta — kaliya ardayda fasalada macalinka.
+      // Arday kasta hal mar ayaa la tiriyaa (session badan haddii ay jiraan):
+      // Present haddii hal session uu joogay, haddii kale Absent.
       const today = new Date().toISOString().slice(0, 10);
-      const attSnap = await getDocs(
-        query(collection(db, "attendance"), where("date", "==", today))
-      );
+      const myStudentIds = new Set(myStudents.map((st) => st.id));
+      const statusByStudent = {};
+      if (myStudentIds.size > 0) {
+        const attSnap = await getDocs(
+          query(collection(db, "attendance"), where("date", "==", today))
+        );
+        attSnap.docs.forEach((d) => {
+          const data = d.data();
+          if (!myStudentIds.has(data.studentId)) return;
+          if (data.status === "Present") statusByStudent[data.studentId] = "Present";
+          else if (data.status === "Absent" && !statusByStudent[data.studentId]) {
+            statusByStudent[data.studentId] = "Absent";
+          }
+        });
+      }
 
       let present = 0;
       let absent = 0;
-      attSnap.docs.forEach((d) => {
-        const data = d.data();
-        if (data.status === "Present") present++;
-        if (data.status === "Absent") absent++;
+      Object.values(statusByStudent).forEach((st) => {
+        if (st === "Present") present++;
+        else absent++;
       });
 
       setPresentToday(present);
@@ -368,7 +418,7 @@ export default function Dashboard() {
                         {c.className}
                       </h4>
                       <p style={{ margin: 0, color: "#94A3B8" }}>
-                        Section: {c.section || "-"}
+                        Subject: {c.section || "-"}
                       </p>
                       <p style={{ margin: 0, color: "#94A3B8" }}>
                         Students: {c.studentCount || 0}

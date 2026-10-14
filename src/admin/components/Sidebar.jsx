@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { db } from "../../firebase/firebase";
 import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { signOutAdmin } from "../../services/adminOtpService";
 import {
   LayoutDashboard,
   GraduationCap,
@@ -151,9 +152,12 @@ export default function Sidebar() {
   // admin login may have stored under these keys) and sends the admin
   // straight to the system's home page — not back to the admin login
   // screen, per how this button is meant to behave.
-  function handleLogout() {
+  async function handleLogout() {
     localStorage.removeItem("adminRole");
     localStorage.removeItem("adminPermissions");
+    // Ka bax Firebase Auth session-ka (OTP) si dashboard-ka aan dib loogu
+    // soo gelin password + code cusub la'aantood.
+    await signOutAdmin();
     navigate("/");
   }
 

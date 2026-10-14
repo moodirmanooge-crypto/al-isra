@@ -115,14 +115,15 @@ export default function Students() {
 
       // Load Students
       let students = [];
-      if (uniqueClassNames.length > 0) {
+      // KALIYA ardayda fasalada macalinka (Firestore "in" ≤ 10 → qaybo-qaybo)
+      for (let i = 0; i < uniqueClassNames.length; i += 10) {
         const studentsSnap = await getDocs(
           query(
             collection(db, "students"),
-            where("className", "in", uniqueClassNames.slice(0, 10))
+            where("className", "in", uniqueClassNames.slice(i, i + 10))
           )
         );
-        students = studentsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        studentsSnap.docs.forEach((d) => students.push({ id: d.id, ...d.data() }));
       }
       setAllStudents(students);
 
@@ -139,12 +140,17 @@ export default function Students() {
     if (uniqueClassNames.length === 0) return;
 
     try {
-      const attSnap = await getDocs(
-        query(
-          collection(db, "attendance"),
-          where("className", "in", uniqueClassNames.slice(0, 10))
-        )
-      );
+      const attDocs = [];
+      for (let i = 0; i < uniqueClassNames.length; i += 10) {
+        const part = await getDocs(
+          query(
+            collection(db, "attendance"),
+            where("className", "in", uniqueClassNames.slice(i, i + 10))
+          )
+        );
+        attDocs.push(...part.docs);
+      }
+      const attSnap = { docs: attDocs, forEach: (fn) => attDocs.forEach(fn), size: attDocs.length };
 
       const perStudent = {};
 
